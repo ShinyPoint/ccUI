@@ -1,0 +1,70 @@
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
+
+// One ipcRenderer listener per channel, fanned out to page subscribers.
+function channel(name) {
+  const listeners = new Set();
+  ipcRenderer.on(name, (_e, ...args) => listeners.forEach((fn) => fn(...args)));
+  return (fn) => {
+    listeners.add(fn);
+    return () => listeners.delete(fn);
+  };
+}
+
+contextBridge.exposeInMainWorld('ccui', {
+  info: () => ipcRenderer.invoke('app:info'),
+  detectClaude: (custom) => ipcRenderer.invoke('app:detect-claude', custom),
+
+  getSettings: () => ipcRenderer.invoke('settings:get'),
+  setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
+  setApiKey: (key) => ipcRenderer.invoke('settings:set-api-key', key),
+  setThemeSource: (source) => ipcRenderer.send('theme:source', source),
+
+  pickFolder: (defaultPath) => ipcRenderer.invoke('dialog:pick-folder', defaultPath),
+  pickFile: (title) => ipcRenderer.invoke('dialog:pick-file', title),
+  pathForFile: (file) => webUtils.getPathForFile(file),
+  openPath: (p) => ipcRenderer.send('shell:open-path', p),
+  openExternal: (url) => ipcRenderer.send('shell:open-external', url),
+  listFiles: (cwd) => ipcRenderer.invoke('files:list', cwd),
+
+  readClipboard: () => ipcRenderer.invoke('clipboard:read'),
+  writeClipboard: (text) => ipcRenderer.send('clipboard:write', text),
+
+  pty: {
+    create: (opts) => ipcRenderer.invoke('pty:create', opts),
+    write: (id, data) => ipcRenderer.send('pty:write', id, data),
+    resize: (id, cols, rows) => ipcRenderer.send('pty:resize', id, cols, rows),
+    kill: (id) => ipcRenderer.send('pty:kill', id),
+    onData: channel('pty:data'),
+    onExit: channel('pty:exit'),
+  },
+
+  agent: {
+    start: (opts) => ipcRenderer.invoke('agent:start', opts),
+    send: (id, payload) => ipcRenderer.send('agent:send', id, payload),
+    reply: (id, requestId, answer) => ipcRenderer.send('agent:permission-reply', id, requestId, answer),
+    control: (id, action, arg) => ipcRenderer.invoke('agent:control', id, action, arg),
+    close: (id) => ipcRenderer.send('agent:close', id),
+    onEvents: channel('agent:events'),
+    onMeta: channel('agent:meta'),
+    onPermission: channel('agent:permission'),
+    onPermissionCancel: channel('agent:permission-cancel'),
+    onExit: channel('agent:exit'),
+  },
+
+  history: {
+    list: (cwd) => ipcRenderer.invoke('history:list', cwd),
+    messages: (sessionId, cwd) => ipcRenderer.invoke('history:messages', sessionId, cwd),
+    fork: (sessionId, cwd, uuid) => ipcRenderer.invoke('history:fork', sessionId, cwd, uuid),
+  },
+
+  setChrome: (colors) => ipcRenderer.send('window:chrome', colors),
+  setGlass: (on) => ipcRenderer.send('window:glass', on),
+  background: {
+    pick: () => ipcRenderer.invoke('background:pick'),
+    clear: () => ipcRenderer.invoke('background:clear'),
+    read: () => ipcRenderer.invoke('background:read'),
+  },
+  focusWindow: () => ipcRenderer.send('window:focus'),
+  toggleDevTools: () => ipcRenderer.send('window:devtools'),
+  setBadge: (count) => ipcRenderer.send('window:badge', count),
+});

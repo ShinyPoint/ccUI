@@ -1,0 +1,219 @@
+<!doctype html>
+<!-- The video's picture, drawn for one moment at a time: compose.js calls renderFrame(ms) and captures the page. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: "Instrument Serif"; src: url("../../node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2"); }
+  @font-face { font-family: "Instrument Serif"; font-style: italic; src: url("../../node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-italic.woff2"); }
+  @font-face { font-family: "Instrument Sans"; font-weight: 400; src: url("../../node_modules/@fontsource/instrument-sans/files/instrument-sans-latin-400-normal.woff2"); }
+  @font-face { font-family: "Instrument Sans"; font-weight: 600; src: url("../../node_modules/@fontsource/instrument-sans/files/instrument-sans-latin-600-normal.woff2"); }
+  @font-face { font-family: "JetBrains Mono"; src: url("../../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2"); }
+
+  :root { --accent: #E58A5E; --text: #EDE8DE; --muted: #8E8A82; --display: "Instrument Serif", Georgia, serif; --ui: "Instrument Sans", sans-serif; --mono: "JetBrains Mono", monospace; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #0D0E13; color: var(--text); }
+  body::before {
+    content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(900px 620px at 12% 8%, rgba(229, 138, 94, .20), transparent 70%),
+      radial-gradient(1000px 700px at 92% 96%, rgba(98, 110, 220, .17), transparent 70%);
+  }
+
+  #stage {
+    position: absolute; left: 160px; top: 44px; width: 1600px; height: 900px;
+    border-radius: 14px; overflow: hidden; background: #191B22;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, .09), 0 40px 90px rgba(0, 0, 0, .55), 0 8px 24px rgba(0, 0, 0, .35);
+    transform-origin: 50% 50%;
+  }
+  #cam { position: absolute; left: 0; top: 0; width: 1600px; height: 900px; transform-origin: 0 0; }
+  #shot { position: absolute; left: 0; top: 0; width: 1600px; height: 900px; display: block; }
+  /* The window buttons the system draws over the top bar (not part of the page, so not in the recording). */
+  #controls { position: absolute; right: 0; top: 0; height: 50px; display: flex; }
+  #controls svg { width: 58px; height: 50px; }
+  #controls path, #controls rect { fill: none; stroke: #8E8A82; stroke-width: 1.2; }
+  #pointer { position: absolute; left: 0; top: 0; width: 30px; height: 30px; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .45)); }
+  #ring { position: absolute; left: 0; top: 0; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; border: 2.5px solid var(--accent); opacity: 0; }
+
+  #caption {
+    position: absolute; left: 0; right: 0; top: 944px; height: 136px;
+    display: flex; align-items: center; justify-content: center;
+    font: 400 45px/1 var(--display); letter-spacing: .02em;
+  }
+  #caption span { display: block; transform: scaleX(1.1); white-space: nowrap; }
+
+  .card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0; }
+  .mark { display: flex; align-items: baseline; gap: 6px; }
+  .mark .cc { font: italic 190px/1 var(--display); color: var(--accent); text-shadow: 0 0 60px rgba(229, 138, 94, .35); }
+  .mark .ui { font: 600 96px/1 var(--ui); letter-spacing: .14em; color: #C9C4BA; }
+  .line { margin-top: 34px; font: 400 58px/1.15 var(--display); letter-spacing: .02em; transform: scaleX(1.1); white-space: nowrap; }
+  .line em { font-style: normal; color: var(--accent); }
+  .small { margin-top: 30px; font: 400 25px/1 var(--ui); letter-spacing: .04em; color: var(--muted); }
+  .small b { font-weight: 400; margin: 0 14px; opacity: .5; }
+  .cmd { margin-top: 44px; padding: 16px 28px; border-radius: 12px; font: 24px/1 var(--mono); color: #D6D1C7; background: rgba(255, 255, 255, .05); box-shadow: 0 0 0 1px rgba(255, 255, 255, .09); }
+  .cmd i { font-style: normal; color: var(--accent); margin-right: 14px; }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <div id="cam">
+      <img id="shot" alt="">
+      <div id="controls">
+        <svg viewBox="0 0 58 50"><path d="M23 25.5h12"/></svg>
+        <svg viewBox="0 0 58 50"><rect x="23.5" y="19.5" width="11" height="11"/></svg>
+        <svg viewBox="0 0 58 50"><path d="M23.5 19.5l11 11M34.5 19.5l-11 11"/></svg>
+      </div>
+      <div id="ring"></div>
+      <svg id="pointer" viewBox="0 0 30 30"><path d="M5 3l0 21 5.6-5.2 3.7 8.4 3.6-1.6-3.7-8.3 7.6-.4z" fill="#fff" stroke="#16171C" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    </div>
+  </div>
+  <div id="caption"><span></span></div>
+
+  <div class="card" id="intro">
+    <div class="mark"><span class="cc">cc</span><span class="ui">UI</span></div>
+    <div class="line">A desktop workbench for Claude Code</div>
+  </div>
+  <div class="card" id="outro">
+    <div class="mark"><span class="cc">cc</span><span class="ui">UI</span></div>
+    <div class="line">Chat when you want it. <em>The CLI when you need it.</em></div>
+    <div class="small">Windows<b>·</b>macOS<b>·</b>Linux<b>·</b>MIT license</div>
+    <div class="cmd"><i>$</i>npm install &amp;&amp; npm start</div>
+  </div>
+
+<script>
+const INTRO = 3300; // title card, ms
+const OUTRO = 5200; // closing card, ms
+let SCALE = 1600 / 1280; // the app's pixels to the stage's
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+const out = (t) => 1 - (1 - t) ** 3;
+const mix = (a, b, k) => a + (b - a) * k;
+// 0 → 1 over `ms` starting at `from`
+const ramp = (t, from, ms, curve = out) => curve(clamp((t - from) / ms));
+
+let timeline = null;
+let raw = '';
+let moves = [];
+let cameras = [];
+let captions = [];
+let shown = '';
+
+// Called once: the recording's timeline and the folder with its frames.
+async function setup(data, rawUrl) {
+  timeline = data;
+  raw = rawUrl;
+  const { w, h } = data.size;
+  SCALE = 1600 / w;
+  // Pointer: where it is before and after each move.
+  let at = { x: 700, y: 430 };
+  for (const e of data.events.filter((x) => x.type === 'move')) {
+    moves.push({ t: e.t, ms: e.ms, from: at, to: { x: e.x, y: e.y } });
+    at = { x: e.x, y: e.y };
+  }
+  // Camera: each area becomes a view with the window's proportions, at most 1.75x zoom, inside the window.
+  let view = { x: 0, y: 0, w, h };
+  for (const e of data.events.filter((x) => x.type === 'camera')) {
+    let to = { x: 0, y: 0, w, h };
+    if (e.box) {
+      const vw = Math.min(w, Math.max(e.box.w, e.box.h * (w / h), w / 1.75));
+      const vh = vw * (h / w);
+      to = {
+        x: clamp(e.box.x + e.box.w / 2 - vw / 2, 0, w - vw), y: clamp(e.box.y + e.box.h / 2 - vh / 2, 0, h - vh), w: vw, h: vh,
+      };
+    }
+    cameras.push({ t: e.t, ms: e.ms, from: view, to });
+    view = to;
+  }
+  captions = data.events.filter((x) => x.type === 'caption');
+  await document.fonts.ready;
+  await Promise.all(['400 40px "Instrument Serif"', 'italic 40px "Instrument Serif"', '600 40px "Instrument Sans"', '400 20px "Instrument Sans"', '20px "JetBrains Mono"'].map((f) => document.fonts.load(f)));
+  return { duration: INTRO + data.duration + OUTRO };
+}
+
+function frameAt(ms) {
+  const { frames } = timeline;
+  let lo = 0;
+  let hi = frames.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (frames[mid].t <= ms) lo = mid;
+    else hi = mid - 1;
+  }
+  return frames[lo].file;
+}
+
+// Draws the video at `t` ms from its start. Resolves once the page has painted it.
+async function renderFrame(t) {
+  const end = INTRO + timeline.duration; // when the closing card starts
+  const app = clamp(t - INTRO, 0, timeline.duration); // time in the recording
+
+  // Title card, then the window comes in; at the end the window leaves and the closing card comes in.
+  const introOut = ramp(t, INTRO - 500, 500, ease);
+  $('intro').style.opacity = ramp(t, 150, 700) * (1 - introOut);
+  $('intro').style.transform = `translateY(${mix(14, 0, ramp(t, 150, 900)) - 20 * introOut}px)`;
+  const stageIn = ramp(t, INTRO - 250, 800);
+  const stageOut = ramp(t, end - 100, 600, ease);
+  $('stage').style.opacity = stageIn * (1 - stageOut);
+  $('stage').style.transform = `translateY(${mix(26, 0, stageIn)}px) scale(${mix(0.965, 1, stageIn) - 0.03 * stageOut})`;
+  const outroIn = ramp(t, end + 350, 800);
+  $('outro').style.opacity = outroIn;
+  $('outro').style.transform = `translateY(${mix(16, 0, outroIn)}px)`;
+
+  // The recorded frame
+  const file = frameAt(app);
+  if (shown !== file) {
+    shown = file;
+    $('shot').src = `${raw}/${file}`;
+    await $('shot').decode();
+  }
+
+  // Camera
+  let view = cameras.length ? cameras[0].from : null;
+  for (const c of cameras) {
+    if (app < c.t) break;
+    const k = ramp(app, c.t, c.ms, ease);
+    view = { x: mix(c.from.x, c.to.x, k), y: mix(c.from.y, c.to.y, k), w: mix(c.from.w, c.to.w, k), h: mix(c.from.h, c.to.h, k) };
+  }
+  const zoom = view ? timeline.size.w / view.w : 1;
+  $('cam').style.transform = view ? `scale(${zoom}) translate(${-view.x * SCALE}px, ${-view.y * SCALE}px)` : '';
+
+  // Pointer and click ring
+  let p = moves.length ? moves[0].from : { x: 700, y: 430 };
+  for (const m of moves) {
+    if (app < m.t) break;
+    const k = ramp(app, m.t, m.ms, ease);
+    p = { x: mix(m.from.x, m.to.x, k), y: mix(m.from.y, m.to.y, k) };
+  }
+  const click = timeline.events.filter((e) => e.type === 'click' && e.t <= app).pop();
+  const since = click ? app - click.t : Infinity;
+  const press = since < 220 ? 1 - 0.14 * Math.sin((since / 220) * Math.PI) : 1;
+  // The pointer keeps its size on screen when the camera zooms in.
+  $('pointer').style.transform = `translate(${p.x * SCALE - 5 / zoom}px, ${p.y * SCALE - 3 / zoom}px) scale(${press / zoom})`;
+  $('pointer').style.transformOrigin = '0 0';
+  const ring = $('ring');
+  if (since < 520) {
+    const k = out(since / 520);
+    ring.style.opacity = 0.9 * (1 - k);
+    ring.style.transform = `translate(${click.x * SCALE}px, ${click.y * SCALE}px) scale(${mix(0.25, 1, k) / zoom})`;
+  } else ring.style.opacity = 0;
+
+  // Caption: the current one fades in (rising a little); it fades out just before the next one.
+  let i = -1;
+  while (i + 1 < captions.length && captions[i + 1].t <= app) i++;
+  const cap = $('caption').firstElementChild;
+  if (i < 0) cap.style.opacity = 0;
+  else {
+    const next = captions[i + 1]?.t ?? Infinity;
+    const fadeIn = ramp(app, captions[i].t + 120, 420);
+    const fadeOut = Math.max(ramp(app, next - 160, 160, ease), stageOut);
+    cap.textContent = captions[i].text;
+    cap.style.opacity = fadeIn * (1 - fadeOut) * stageIn;
+    cap.style.transform = `scaleX(1.1) translateY(${mix(10, 0, fadeIn)}px)`;
+  }
+
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+}
+</script>
+</body>
+</html>
