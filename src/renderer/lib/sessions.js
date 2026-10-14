@@ -185,6 +185,7 @@ async function startAgentNow(s, { resume, model, permissionMode } = {}) {
     cwd: s.cwd,
     resume: resume || undefined,
     model: useModel || undefined,
+    effort: s.effort.value || undefined, // kept across restarts and CLI ⇄ chat switches
     permissionMode: useMode,
   });
   if (s.removed) {
@@ -251,6 +252,18 @@ export async function setModel(s, value) {
   if (!res.ok) return toast(res.error, 'error');
   s.selectedModel.value = value === 'default' ? '' : value;
   rememberConversation(s);
+}
+
+// `level`: one of the model's supportedEffortLevels, or '' for the model's default. Resolves to whether it took.
+export async function setEffort(s, level) {
+  if (!s.agentId) return false;
+  const res = await api.agent.control(s.agentId, 'effort', level);
+  if (!res.ok) {
+    toast(res.error, 'error');
+    return false;
+  }
+  s.effort.value = level;
+  return true;
 }
 
 export async function setMode(s, mode) {

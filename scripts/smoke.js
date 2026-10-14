@@ -113,7 +113,7 @@ app.on('browser-window-created', (_e, win) => {
       await js(`document.querySelector('.sidebar-bottom .ghost-btn').click()`);
       await wait(1500);
       await shot('11-settings');
-      await js(`document.querySelector('dialog[open] .dialog-actions .secondary-btn').click()`);
+      await js(`document.querySelector('dialog[open] .settings-head .primary-btn').click()`);
       await wait(400);
 
       await js(`document.querySelector('.new-session').click()`);

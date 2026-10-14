@@ -4,6 +4,8 @@
 export const ICON_STROKE = 1.6;
 
 const fill = 'fill="currentColor" stroke="none"';
+// shield outline: rounded top and shoulders, sides curving into a soft point
+const SHIELD = 'M11.3 3.4a2 2 0 0 1 1.4 0l5.4 2.05A1.6 1.6 0 0 1 19.1 7v4.1c0 4.3-2.8 8.05-6.7 9.5a1.2 1.2 0 0 1-.8 0C7.7 19.15 4.9 15.4 4.9 11.1V7a1.6 1.6 0 0 1 1-1.55z';
 
 export const ICONS = {
   // plus
@@ -75,6 +77,22 @@ export const ICONS = {
 
   // ellipsis: three filled dots
   more: `<circle cx="6" cy="12" r="1.55" ${fill}/><circle cx="12" cy="12" r="1.55" ${fill}/><circle cx="18" cy="12" r="1.55" ${fill}/>`,
+
+  // Permission modes (the message box's mode menu): a shield family, plus a list for plan mode.
+  // shield: Ask before acting
+  modeAsk: `<path d="${SHIELD}"/>`,
+  // checkmark.shield: Accept edits
+  modeAcceptEdits: `<path d="${SHIELD}"/><path d="M9.1 11.9l2.05 2.05 3.75-4.1"/>`,
+  // list.bullet: Plan first
+  modePlan: '<path d="M10 7h9.25M10 12h9.25M10 17h9.25"/>'
+    + `<circle cx="5.6" cy="7" r="1.25" ${fill}/><circle cx="5.6" cy="12" r="1.25" ${fill}/><circle cx="5.6" cy="17" r="1.25" ${fill}/>`,
+  // bolt.shield: Auto
+  modeAuto: `<path d="${SHIELD}"/><path ${fill} d="M12.95 7.4a.35.35 0 0 0-.62-.27l-3.4 4.62a.4.4 0 0 0 .32.64h2.15l-.35 3.2a.35.35 0 0 0 .62.27l3.4-4.62a.4.4 0 0 0-.32-.64h-2.15z"/>`,
+  // shield.slash: Bypass permissions
+  modeBypass: `<path d="${SHIELD}"/><path d="M4.4 3.9l15.2 16.2"/>`,
+
+  // keyboard: rounded body, a row of keys, the space bar
+  keyboard: '<rect x="3.25" y="6.25" width="17.5" height="11.5" rx="2.4"/><path d="M7.1 10h.01M10.37 10h.01M13.63 10h.01M16.9 10h.01M8.6 14h6.8"/>',
 
   // dollarsign
   dollar: '<path d="M12 3.75v16.5M15.9 8.2c-.62-1.37-2.05-2.2-3.9-2.2-2.36 0-3.95 1.2-3.95 2.96 0 4.27 8.15 2.43 8.15 6.6 0 1.84-1.69 3.18-4.2 3.18-1.96 0-3.47-.86-4.15-2.34"/>',

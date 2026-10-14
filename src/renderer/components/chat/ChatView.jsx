@@ -156,6 +156,39 @@ function glideToBottom(el) {
   el.glide = requestAnimationFrame(frame);
 }
 
+// Following the bottom as content arrives: instead of jumping, the view eases a fifth of the remaining way each
+// frame, so new lines slide in (a reply streaming, a step appearing, your message going out). The end is re-read
+// every frame, so it keeps up with content that is still growing. With "reduce motion" it jumps.
+function follow(el) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    el.scrollTop = el.scrollHeight;
+    return;
+  }
+  if (el.follow) return; // already on its way
+  const frame = () => {
+    const end = el.scrollHeight - el.clientHeight;
+    const gap = end - el.scrollTop;
+    if (gap <= 1) {
+      el.scrollTop = end;
+      el.follow = 0;
+      return;
+    }
+    el.scrollTop += Math.ceil(gap * 0.2);
+    el.follow = requestAnimationFrame(frame);
+  };
+  el.follow = requestAnimationFrame(frame);
+}
+
+function stopFollowing(el) {
+  cancelAnimationFrame(el.follow);
+  el.follow = 0;
+}
+
+// Parents whose new children animate in (.enter in chat.css): the conversation, a turn's opened steps, a subagent's.
+const ENTER_PARENTS = '.timeline, .work-steps, .children';
+// More than this many at once is a conversation being loaded, not something arriving: it just appears.
+const ENTER_MAX = 8;
+
 // A finished turn folds Claude's working steps into one line; the answer stays visible.
 function Turn({ g, s, renderItem }) {
   const [open, setOpen] = useState(() => s.openTurns.has(g.key));
@@ -247,35 +280,74 @@ export function ChatView({ s }) {
 
   useLayoutEffect(() => {
     // While the "Latest" glide runs it owns the scroll position (it also follows new content).
-    if (stick.current && !scroller.current.glide) scroller.current.scrollTop = scroller.current.scrollHeight;
+    if (stick.current && !scroller.current.glide) follow(scroller.current);
   });
 
   useEffect(() => {
     // New permission prompts always come into view.
     if (chat.permissions.length) {
       stick.current = true;
-      scroller.current.scrollTop = scroller.current.scrollHeight;
+      follow(scroller.current);
     }
   }, [chat.permissions.length]);
 
   useEffect(() => {
-    // Content can change height without a re-render here (bars animating open or shut): follow the bottom
-    // if we are following, otherwise show or hide "Latest" for what is now below.
+    // What is added after the chat is shown animates in. Classes are added before the next paint (mutation
+    // observers run first), so nothing shows in place for a frame before it moves.
+    const observer = new MutationObserver((records) => {
+      const added = [];
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (node.nodeType === 1 && !node.classList.contains('collapse') && node.parentElement?.matches(ENTER_PARENTS)) added.push(node);
+        }
+      }
+      if (added.length > ENTER_MAX) return;
+      for (const node of added) {
+        const done = (e) => {
+          if (e.target !== node) return; // a child's own animation
+          node.classList.remove('enter');
+          node.removeEventListener('animationend', done);
+        };
+        node.addEventListener('animationend', done);
+        node.classList.add('enter');
+      }
+    });
+    observer.observe(timeline.current, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    // Content can change height without a re-render here (bars animating open or shut), and the chat itself
+    // can get shorter (the Terminal panel opening, the window resizing): follow the bottom if we are following,
+    // otherwise show or hide "Latest" for what is now below.
     const el = scroller.current;
     const observer = new ResizeObserver(() => {
       if (el.glide) return;
-      if (stick.current) el.scrollTop = el.scrollHeight;
+      if (stick.current) follow(el);
       else setShowJump(el.scrollHeight - el.scrollTop - el.clientHeight >= 80);
     });
     observer.observe(el.firstElementChild);
-    return () => observer.disconnect();
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      stopFollowing(el);
+    };
   }, []);
 
   const onScroll = () => {
     const el = scroller.current;
-    if (el.glide) return; // mid-glide positions are not the user's choice
-    stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-    setShowJump(!stick.current);
+    const before = el.lastTop ?? el.scrollTop;
+    el.lastTop = el.scrollTop;
+    if (el.glide || el.follow) return; // positions on the way down are not the user's choice
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    // The chat got shorter (the Terminal panel opened, the window shrank) and the browser moved the view: that
+    // is not scrolling away, so keep following.
+    if (stick.current && !atBottom && el.scrollTop >= before - 1) {
+      follow(el);
+      return;
+    }
+    stick.current = atBottom;
+    setShowJump(!atBottom);
   };
 
   const pick = (text) => setPrefill({ text, at: Date.now() });
@@ -291,7 +363,14 @@ export function ChatView({ s }) {
              }}
              onWheel={(e) => {
                // Scrolling up means "stop following" right away, before a re-render could snap back down.
-               if (e.deltaY < 0 && !scroller.current.glide) stick.current = false;
+               if (e.deltaY < 0 && !scroller.current.glide) {
+                 stopFollowing(scroller.current);
+                 stick.current = false;
+               }
+             }}
+             onPointerDown={(e) => {
+               // Grabbing the scrollbar: let go of the bottom so the drag isn't fought.
+               if (e.target === e.currentTarget) stopFollowing(e.currentTarget);
              }}>
           <div class="timeline" ref={timeline}>
             {s.problem.value && <ProblemCard s={s} />}
@@ -313,6 +392,7 @@ export function ChatView({ s }) {
             <button class="jump-latest" onClick={() => {
               stick.current = true;
               setShowJump(false);
+              stopFollowing(scroller.current);
               glideToBottom(scroller.current);
             }}>
               <Icon name="arrowDown" size={14} />Latest

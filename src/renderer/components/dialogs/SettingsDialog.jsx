@@ -1,10 +1,102 @@
+// Settings: a list of sections on the left, grouped rows on the right. Every change applies (and is saved)
+// as soon as it is made: switches, choices and swatches right away, sliders when let go (previewed while
+// dragging), text fields when they lose focus or on Enter.
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { Dialog, Segmented } from '../ui.jsx';
+import { Dialog, Segmented, Icon } from '../ui.jsx';
 import { MODE_LABELS } from '../chat/Prompts.jsx';
 import { MODEL_CHOICES } from './NewSessionDialog.jsx';
 import { api, info, settings, saveSettings, settingsDialog, claudeCheck, toast, themeMode, backgroundUrl } from '../../lib/store.js';
 import { SHORTCUT_LIST } from '../../lib/keyboard.js';
 import { ACCENTS, accentColors } from '../../lib/themes.js';
+
+const DEFAULT_FONT = '"JetBrains Mono", Consolas, Menlo, monospace';
+
+const SECTIONS = [
+  { id: 'general', label: 'General', icon: 'settings' },
+  { id: 'appearance', label: 'Appearance', icon: 'sun' },
+  { id: 'terminal', label: 'Terminal', icon: 'terminal' },
+  { id: 'claude', label: 'Claude Code', icon: 'chat' },
+  { id: 'shortcuts', label: 'Shortcuts', icon: 'keyboard' },
+];
+let lastSection = 'general'; // reopening Settings shows the section you left
+
+// Shows a change at once without saving it (a slider being dragged).
+const preview = (patch) => { settings.value = { ...settings.value, ...patch }; };
+
+// ---------- building blocks ----------
+
+function Group({ title, children }) {
+  return (
+    <section class="set-group">
+      {title && <h4>{title}</h4>}
+      <div class="set-card">{children}</div>
+    </section>
+  );
+}
+
+// A setting: its name and an optional note on the left, the control on the right (`stack`: under them).
+function Row({ label, note, stack, children }) {
+  return (
+    <div class={`set-row ${stack ? 'stack' : ''}`}>
+      <div class="set-text">
+        <div class="set-label">{label}</div>
+        {note && <div class="set-note">{note}</div>}
+      </div>
+      <div class="set-control">{children}</div>
+    </div>
+  );
+}
+
+function Switch({ checked, disabled, onChange, label }) {
+  return (
+    <label class="switch">
+      <input type="checkbox" role="switch" aria-label={label} checked={checked} disabled={disabled}
+             onChange={(e) => onChange(e.currentTarget.checked)} />
+      <span />
+    </label>
+  );
+}
+
+function ToggleRow({ setting, label, note, disabled, value }) {
+  return (
+    <Row label={label} note={note}>
+      <Switch label={label} disabled={disabled} checked={value ?? Boolean(settings.value[setting])}
+              onChange={(on) => saveSettings({ [setting]: on })} />
+    </Row>
+  );
+}
+
+function SliderRow({ setting, label, note, min, max, step, format = String }) {
+  const value = Number(settings.value[setting]);
+  return (
+    <Row label={label} note={note}>
+      <div class="set-slider">
+        <input type="range" min={min} max={max} step={step} value={value} aria-label={label}
+               onInput={(e) => preview({ [setting]: Number(e.currentTarget.value) })}
+               onChange={(e) => saveSettings({ [setting]: Number(e.currentTarget.value) })} />
+        <output>{format(value)}</output>
+      </div>
+    </Row>
+  );
+}
+
+// A text setting, saved when the field loses focus, on Enter, or when Settings closes while it is being edited.
+function TextField({ value, onSave, placeholder, mono = true, label }) {
+  const [text, setText] = useState(value);
+  const latest = useRef({ text, value, onSave });
+  latest.current = { text, value, onSave };
+  useEffect(() => { setText(value); }, [value]);
+  useEffect(() => () => {
+    const l = latest.current;
+    if (l.text !== l.value) l.onSave(l.text);
+  }, []);
+  const commit = () => { if (text !== value) onSave(text); };
+  return (
+    <input type="text" class={mono ? '' : 'plain'} value={text} spellcheck={false} placeholder={placeholder} aria-label={label}
+           onInput={(e) => setText(e.currentTarget.value)} onBlur={commit}
+           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }} />
+  );
+}
 
 // A row of round color swatches, like macOS's accent color setting.
 function AccentPicker({ value, onChange }) {
@@ -20,7 +112,7 @@ function AccentPicker({ value, onChange }) {
   );
 }
 
-// Background image: chosen and removed right away (the file is copied by the main process), like the API key.
+// Background image: chosen and removed right away (the file is copied by the main process).
 function BackgroundImage() {
   const url = backgroundUrl.value;
   const run = async (action) => {
@@ -30,15 +122,12 @@ function BackgroundImage() {
     settings.value = res.settings;
   };
   return (
-    <div class="field">
-      <span class="field-label">Background image</span>
-      <div class="bg-pick">
-        <span class={`bg-thumb ${url ? '' : 'empty'}`} style={url ? { backgroundImage: `url("${url}")` } : undefined}>
-          {!url && 'None'}
-        </span>
-        <button type="button" class="secondary-btn" onClick={() => run(api.background.pick)}>{url ? 'Change…' : 'Choose image…'}</button>
-        {url && <button type="button" class="secondary-btn" onClick={() => run(api.background.clear)}>Remove</button>}
-      </div>
+    <div class="bg-pick">
+      <span class={`bg-thumb ${url ? '' : 'empty'}`} style={url ? { backgroundImage: `url("${url}")` } : undefined}>
+        {!url && 'None'}
+      </span>
+      <button type="button" class="secondary-btn" onClick={() => run(api.background.pick)}>{url ? 'Change…' : 'Choose…'}</button>
+      {url && <button type="button" class="secondary-btn" onClick={() => run(api.background.clear)}>Remove</button>}
     </div>
   );
 }
@@ -60,205 +149,243 @@ function ApiKey({ focus }) {
   };
 
   return (
-    <div class="field">
-      <span class="field-label">Anthropic API key</span>
+    <>
       {editing ? (
         <div class="input-row">
-          <input ref={input} type="password" value={key} spellcheck={false} autocomplete="off" placeholder="sk-ant-…"
-                 onInput={(e) => setKey(e.currentTarget.value)} />
+          <input ref={input} type="password" value={key} autofocus={focus} spellcheck={false} autocomplete="off" placeholder="sk-ant-…"
+                 aria-label="Anthropic API key" onInput={(e) => setKey(e.currentTarget.value)}
+                 onKeyDown={(e) => { if (e.key === 'Enter' && key.trim()) { e.preventDefault(); save(key); } }} />
           <button type="button" class="secondary-btn" disabled={!key.trim()} onClick={() => save(key)}>Save key</button>
+          {s.hasApiKey && !s.apiKeyUnreadable && (
+            <button type="button" class="secondary-btn" onClick={() => { setKey(''); setEditing(false); }}>Cancel</button>
+          )}
         </div>
       ) : (
         <div class="input-row key-saved">
-          <span>A key is saved and encrypted on this computer.</span>
+          <span class="key-state"><Icon name="check" size={13} />Saved, encrypted on this computer</span>
           <button type="button" class="secondary-btn" onClick={() => setEditing(true)}>Replace</button>
           <button type="button" class="secondary-btn" onClick={() => save('')}>Remove</button>
         </div>
       )}
       {s.apiKeyUnreadable && (
-        <small class="field-note bad">
-          The saved key can't be decrypted on this computer (the profile was copied or the system keychain changed).
+        <p class="set-note bad">
+          The saved key can’t be decrypted on this computer (the profile was copied or the system keychain changed).
           Enter it again.
-        </small>
+        </p>
       )}
-      <small class="field-note">
-        Chat sessions use this key. Without one they use Claude Code’s own credentials: an API key, Amazon Bedrock,
-        Google Vertex AI or Microsoft Foundry. Claude.ai subscription logins work only in CLI sessions.
-      </small>
-    </div>
+    </>
   );
 }
 
-function Form({ focusAccount }) {
-  const initial = settings.value;
-  const [form, setForm] = useState(initial);
+function Executable() {
+  const path = settings.value.claudePath || '';
   const [check, setCheck] = useState(claudeCheck.value);
-  const set = (key) => (value) => setForm((f) => ({ ...f, [key]: value }));
-  const field = (key) => (e) => set(key)(e.currentTarget.type === 'checkbox' ? e.currentTarget.checked : e.currentTarget.value);
-
   useEffect(() => {
     let live = true;
     setCheck(null);
-    const t = setTimeout(() => api.detectClaude(form.claudePath).then((res) => { if (live) setCheck(res); }), 400);
-    return () => { live = false; clearTimeout(t); };
-  }, [form.claudePath]);
-
-  const submit = async (e) => {
-    e.preventDefault();
-    await saveSettings({
-      theme: form.theme,
-      accent: ACCENTS[form.accent] ? form.accent : 'ember',
-      fontSize: Number(form.fontSize),
-      lineHeight: Number(form.lineHeight),
-      fontFamily: form.fontFamily.trim() || '"JetBrains Mono", monospace',
-      chatFontSize: Number(form.chatFontSize),
-      terminalTheme: form.terminalTheme || 'match',
-      claudePath: form.claudePath.trim(),
-      defaultKind: form.defaultKind,
-      defaultModel: form.defaultModel,
-      defaultPermissionMode: form.defaultPermissionMode,
-      defaultArgs: form.defaultArgs.trim(),
-      notify: form.notify,
-      showStarters: Boolean(form.showStarters),
-      sidebarGlass: Boolean(form.sidebarGlass),
-      backgroundShow: Number(form.backgroundShow),
-      backgroundBlur: Number(form.backgroundBlur),
-      restoreSessions: form.restoreSessions,
-      confirmClose: form.confirmClose,
-      copyOnSelect: form.copyOnSelect,
-      cursorBlink: form.cursorBlink,
+    api.detectClaude(path).then((res) => {
+      if (!live) return;
+      setCheck(res);
+      claudeCheck.value = res;
     });
-    if (form.claudePath.trim() !== (initial.claudePath || '')) api.detectClaude(form.claudePath).then((res) => { claudeCheck.value = res; });
+    return () => { live = false; };
+  }, [path]);
+  const save = (value) => saveSettings({ claudePath: value.trim() });
+  return (
+    <>
+      <div class="input-row">
+        <TextField value={path} placeholder="Built-in (recommended)" label="Claude Code executable" onSave={save} />
+        <button type="button" class="secondary-btn" onClick={async () => {
+          const file = await api.pickFile('Choose the claude executable');
+          if (file) save(file);
+        }}>Browse…</button>
+      </div>
+      <p class={`set-note ${check ? (check.ok ? 'ok' : 'bad') : ''}`}>
+        {!check ? 'Checking…'
+          : !check.ok ? 'Not found. Leave empty to use the built-in Claude Code.'
+          : `Claude Code ${check.version}${check.bundled ? ' (built in)' : ''}${check.chatCapable ? '' : '. CLI sessions only: chat needs an executable file'}`}
+      </p>
+    </>
+  );
+}
+
+// ---------- sections ----------
+
+function General() {
+  const s = settings.value;
+  return (
+    <>
+      <Group title="New sessions">
+        <Row label="Open as" note="What New session starts with">
+          <Segmented name="defaultKind" value={s.defaultKind} onChange={(v) => saveSettings({ defaultKind: v })} options={[
+            { value: 'chat', label: 'Chat' },
+            { value: 'terminal', label: 'CLI' },
+          ]} />
+        </Row>
+        <Row label="Model">
+          <select value={s.defaultModel} aria-label="Model" onChange={(e) => saveSettings({ defaultModel: e.currentTarget.value })}>
+            {MODEL_CHOICES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+          </select>
+        </Row>
+        <Row label="Permissions">
+          <select value={s.defaultPermissionMode} aria-label="Permissions"
+                  onChange={(e) => saveSettings({ defaultPermissionMode: e.currentTarget.value })}>
+            {['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'].map((m) => <option key={m} value={m}>{MODE_LABELS[m]}</option>)}
+          </select>
+        </Row>
+        <Row label="CLI arguments" note="Added to every CLI session">
+          <TextField value={s.defaultArgs} placeholder="e.g. --model sonnet" label="CLI arguments"
+                     onSave={(v) => saveSettings({ defaultArgs: v.trim() })} />
+        </Row>
+      </Group>
+      <Group title="Behavior">
+        <ToggleRow setting="showStarters" label="Suggested prompts" note="Shown under the question on a new chat" />
+        <ToggleRow setting="notify" label="Notifications" note="When a background session needs you" />
+        <ToggleRow setting="restoreSessions" label="Reopen sessions" note="Bring back your sessions when the app starts" />
+        <ToggleRow setting="confirmClose" label="Ask before quitting" note="When sessions are still running" />
+      </Group>
+    </>
+  );
+}
+
+function Appearance() {
+  const s = settings.value;
+  const accent = ACCENTS[s.accent] ? s.accent : 'ember';
+  const glassSupported = info.value.glassSupported;
+  return (
+    <>
+      <Group>
+        <Row label="Theme">
+          <Segmented name="theme" value={s.theme} onChange={(v) => saveSettings({ theme: v })} options={[
+            { value: 'system', label: 'System' },
+            { value: 'dark', label: 'Dark' },
+            { value: 'light', label: 'Light' },
+          ]} />
+        </Row>
+        <Row label="Accent color" note={ACCENTS[accent].label}>
+          <AccentPicker value={accent} onChange={(v) => saveSettings({ accent: v })} />
+        </Row>
+        <SliderRow setting="chatFontSize" label="Chat text size" min={11} max={22} step={1} format={(v) => `${v}px`} />
+      </Group>
+      <Group title="Window">
+        <ToggleRow setting="sidebarGlass" label="Frosted glass sidebar" disabled={!glassSupported}
+                   value={Boolean(glassSupported && s.sidebarGlass)}
+                   note={!glassSupported ? 'Needs Windows 11 (22H2 or later) or macOS'
+                     : backgroundUrl.value ? 'The background image takes its place' : 'The desktop shows through, blurred'} />
+        <Row label="Background image" note="Drawn blurred behind the whole window">
+          <BackgroundImage />
+        </Row>
+        {backgroundUrl.value && (
+          <>
+            <SliderRow setting="backgroundShow" label="Visibility" note="How much of the image shows through"
+                       min={10} max={90} step={5} format={(v) => `${v}%`} />
+            <SliderRow setting="backgroundBlur" label="Blur" min={0} max={40} step={1} format={(v) => `${v}px`} />
+          </>
+        )}
+      </Group>
+    </>
+  );
+}
+
+function Terminal() {
+  const s = settings.value;
+  return (
+    <>
+      <Group>
+        <Row label="Background" note="Claude Code’s colors are designed for a dark terminal">
+          <Segmented name="terminalTheme" value={s.terminalTheme || 'match'} onChange={(v) => saveSettings({ terminalTheme: v })} options={[
+            { value: 'match', label: 'Match theme' },
+            { value: 'dark', label: 'Always dark' },
+          ]} />
+        </Row>
+        <SliderRow setting="fontSize" label="Text size" min={10} max={24} step={1} format={(v) => `${v}px`} />
+        <SliderRow setting="lineHeight" label="Line height" min={1} max={1.6} step={0.05} format={(v) => Number(v).toFixed(2)} />
+        <Row label="Font" stack>
+          <TextField value={s.fontFamily} label="Terminal font"
+                     onSave={(v) => saveSettings({ fontFamily: v.trim() || DEFAULT_FONT })} />
+        </Row>
+      </Group>
+      <Group>
+        <ToggleRow setting="copyOnSelect" label="Copy on select" note="Copy text as soon as you select it" />
+        <ToggleRow setting="cursorBlink" label="Blinking cursor" />
+      </Group>
+    </>
+  );
+}
+
+function ClaudeCode({ focusAccount }) {
+  return (
+    <>
+      <Group title="Account">
+        <Row stack label="Anthropic API key"
+             note="Chat sessions use this key. Without one they use Claude Code’s own credentials: an API key, Amazon Bedrock, Google Vertex AI or Microsoft Foundry. Claude.ai subscription logins work only in CLI sessions.">
+          <ApiKey focus={focusAccount} />
+        </Row>
+      </Group>
+      <Group title="Executable">
+        <Row stack label="Claude Code" note="Leave empty to use the version built into the app">
+          <Executable />
+        </Row>
+      </Group>
+    </>
+  );
+}
+
+function Shortcuts() {
+  return (
+    <Group>
+      {SHORTCUT_LIST.map(([label, keys]) => (
+        <div class="set-row shortcut" key={label}><span>{label}</span><kbd>{keys}</kbd></div>
+      ))}
+    </Group>
+  );
+}
+
+// ---------- the dialog ----------
+
+function SettingsPanel({ start }) {
+  const [section, setSection] = useState(start === 'account' ? 'claude' : lastSection);
+  const body = useRef(null);
+  // Opening the dialog focuses its first button, with a focus ring; the page (or the key field, when Settings
+  // opened for it) is marked autofocus instead. showModal runs after this renders, so a focus() here would lose.
+  const pick = (id) => {
+    lastSection = id;
+    setSection(id);
+    body.current.scrollTop = 0;
+  };
+  const current = SECTIONS.find((x) => x.id === section);
+  // Done round-trips the settings through the main process, so anything it changed itself shows too.
+  const done = (e) => {
+    e.preventDefault();
+    document.activeElement?.blur();
+    saveSettings({});
     settingsDialog.value = false;
   };
-
   return (
-    <form onSubmit={submit}>
-      <div class="settings-grid">
-        <section>
-          <h4>Account</h4>
-          <ApiKey focus={focusAccount} />
-
-          <h4>Claude Code</h4>
-          <label class="field">
-            <span class="field-label">Executable</span>
-            <div class="input-row">
-              <input type="text" value={form.claudePath} spellcheck={false} placeholder="Built-in (recommended)" onInput={field('claudePath')} />
-              <button type="button" class="secondary-btn" onClick={async () => {
-                const file = await api.pickFile('Choose the claude executable');
-                if (file) set('claudePath')(file);
-              }}>Browse…</button>
-            </div>
-            <small class={`field-note ${check ? (check.ok ? 'ok' : 'bad') : ''}`}>
-              {!check ? 'Checking…'
-                : !check.ok ? 'Not found. Leave empty to use the built-in Claude Code.'
-                : `Claude Code ${check.version}${check.bundled ? ' (built in)' : ''}${check.chatCapable ? '' : '. CLI sessions only: chat needs an executable file'}`}
-            </small>
-          </label>
-
-          <h4>New sessions</h4>
-          <div class="field">
-            <span class="field-label">Open as</span>
-            <Segmented name="defaultKind" value={form.defaultKind} onChange={set('defaultKind')} options={[
-              { value: 'chat', label: 'Chat' },
-              { value: 'terminal', label: 'CLI' },
-            ]} />
-          </div>
-          <div class="field-pair">
-            <label class="field">
-              <span class="field-label">Model</span>
-              <select value={form.defaultModel} onChange={field('defaultModel')}>
-                {MODEL_CHOICES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-              </select>
-            </label>
-            <label class="field">
-              <span class="field-label">Permissions</span>
-              <select value={form.defaultPermissionMode} onChange={field('defaultPermissionMode')}>
-                {['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'].map((m) => <option key={m} value={m}>{MODE_LABELS[m]}</option>)}
-              </select>
-            </label>
-          </div>
-          <label class="field">
-            <span class="field-label">CLI arguments <em>optional</em></span>
-            <input type="text" value={form.defaultArgs} spellcheck={false} placeholder="e.g. --model sonnet" onInput={field('defaultArgs')} />
-          </label>
-        </section>
-
-        <section>
-          <h4>Appearance</h4>
-          <div class="field">
-            <span class="field-label">Theme</span>
-            <Segmented name="theme" value={form.theme} onChange={set('theme')} options={[
-              { value: 'system', label: 'System' },
-              { value: 'dark', label: 'Dark' },
-              { value: 'light', label: 'Light' },
-            ]} />
-          </div>
-          <div class="field">
-            <span class="field-label">Accent color <output>{(ACCENTS[form.accent] || ACCENTS.ember).label}</output></span>
-            <AccentPicker value={ACCENTS[form.accent] ? form.accent : 'ember'} onChange={set('accent')} />
-          </div>
-          <label class="check">
-            <input type="checkbox" disabled={!info.value.glassSupported}
-                   checked={Boolean(info.value.glassSupported && form.sidebarGlass)} onChange={field('sidebarGlass')} />
-            <span>
-              Frosted glass sidebar
-              {!info.value.glassSupported && <small class="field-note">Needs Windows 11 (22H2 or later) or macOS.</small>}
-              {info.value.glassSupported && backgroundUrl.value && <small class="field-note">The background image takes its place.</small>}
-            </span>
-          </label>
-          <BackgroundImage />
-          {backgroundUrl.value && (
-            <div class="field-pair">
-              <label class="field">
-                <span class="field-label" title="How much of the image shows through the panels">Visibility <output>{form.backgroundShow}%</output></span>
-                <input type="range" min="10" max="90" step="5" value={form.backgroundShow} onInput={field('backgroundShow')} />
-              </label>
-              <label class="field">
-                <span class="field-label">Blur <output>{form.backgroundBlur}px</output></span>
-                <input type="range" min="0" max="40" step="1" value={form.backgroundBlur} onInput={field('backgroundBlur')} />
-              </label>
-            </div>
-          )}
-          <div class="field">
-            <span class="field-label">Terminal background</span>
-            <Segmented name="terminalTheme" value={form.terminalTheme || 'match'} onChange={set('terminalTheme')} options={[
-              { value: 'match', label: 'Match app theme' },
-              { value: 'dark', label: 'Always dark', title: 'Claude Code’s colors are designed for a dark terminal' },
-            ]} />
-          </div>
-          <label class="field">
-            <span class="field-label">Chat text size <output>{form.chatFontSize}px</output></span>
-            <input type="range" min="11" max="22" step="1" value={form.chatFontSize} onInput={field('chatFontSize')} />
-          </label>
-          <label class="field">
-            <span class="field-label">Terminal text size <output>{form.fontSize}px</output></span>
-            <input type="range" min="10" max="24" step="1" value={form.fontSize} onInput={field('fontSize')} />
-          </label>
-          <label class="field">
-            <span class="field-label">Terminal line height <output>{Number(form.lineHeight).toFixed(2)}</output></span>
-            <input type="range" min="1" max="1.6" step="0.05" value={form.lineHeight} onInput={field('lineHeight')} />
-          </label>
-          <label class="field">
-            <span class="field-label">Terminal font</span>
-            <input type="text" value={form.fontFamily} spellcheck={false} onInput={field('fontFamily')} />
-          </label>
-
-          <h4>Behavior</h4>
-          <label class="check"><input type="checkbox" checked={Boolean(form.showStarters)} onChange={field('showStarters')} /><span>Show suggested prompts on new chats</span></label>
-          <label class="check"><input type="checkbox" checked={form.notify} onChange={field('notify')} /><span>Notify me when a background session needs me</span></label>
-          <label class="check"><input type="checkbox" checked={form.restoreSessions} onChange={field('restoreSessions')} /><span>Reopen my sessions when the app starts</span></label>
-          <label class="check"><input type="checkbox" checked={form.confirmClose} onChange={field('confirmClose')} /><span>Ask before quitting with sessions running</span></label>
-          <label class="check"><input type="checkbox" checked={form.copyOnSelect} onChange={field('copyOnSelect')} /><span>Terminal: copy text as soon as I select it</span></label>
-          <label class="check"><input type="checkbox" checked={form.cursorBlink} onChange={field('cursorBlink')} /><span>Terminal: blinking cursor</span></label>
-        </section>
-      </div>
-      <div class="shortcut-table">
-        {SHORTCUT_LIST.map(([label, keys]) => <div key={label}><span>{label}</span><kbd>{keys}</kbd></div>)}
-      </div>
-      <div class="dialog-actions">
-        <button type="button" class="secondary-btn" onClick={() => { settingsDialog.value = false; }}>Cancel</button>
-        <button type="submit" class="primary-btn">Save settings</button>
+    <form class="settings" onSubmit={done}>
+      <nav class="settings-nav" aria-label="Settings sections">
+        <h3>Settings</h3>
+        {SECTIONS.map((x) => (
+          <button type="button" key={x.id} class={x.id === section ? 'on' : ''} aria-current={x.id === section ? 'page' : undefined}
+                  onClick={() => pick(x.id)}>
+            <Icon name={x.icon} size={15} />{x.label}
+          </button>
+        ))}
+        <span class="spacer" />
+        <p class="settings-saved">Changes are saved as you make them.</p>
+      </nav>
+      <div class="settings-main">
+        <header class="settings-head">
+          <h2>{current.label}</h2>
+          <button type="submit" class="primary-btn">Done</button>
+        </header>
+        <div class="settings-body" ref={body} tabIndex={-1} autofocus={start !== 'account'}>
+          {section === 'general' && <General />}
+          {section === 'appearance' && <Appearance />}
+          {section === 'terminal' && <Terminal />}
+          {section === 'claude' && <ClaudeCode focusAccount={start === 'account'} />}
+          {section === 'shortcuts' && <Shortcuts />}
+        </div>
       </div>
     </form>
   );
@@ -267,8 +394,8 @@ function Form({ focusAccount }) {
 export function SettingsDialog() {
   const open = settingsDialog.value;
   return (
-    <Dialog open={Boolean(open)} wide title="Settings" onClose={() => { settingsDialog.value = false; }}>
-      {open && <Form focusAccount={open === 'account'} />}
+    <Dialog open={Boolean(open)} className="dialog-settings" onClose={() => { settingsDialog.value = false; }}>
+      {open && <SettingsPanel start={open} />}
     </Dialog>
   );
 }

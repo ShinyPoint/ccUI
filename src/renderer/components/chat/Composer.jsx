@@ -1,15 +1,33 @@
 // Message box for chat sessions: slash-command and @file autocomplete, image attachments,
-// permission-mode and model menus, context meter, send / stop.
+// permission-mode and model menus (with the effort slider), context meter, send / stop.
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Icon, Menu } from '../ui.jsx';
 import { MODE_LABELS } from './Prompts.jsx';
-import { api, toast } from '../../lib/store.js';
-import { sendMessage, interrupt, setMode, setModel } from '../../lib/sessions.js';
+import { api, toast, skillsDialog } from '../../lib/store.js';
+import { sendMessage, interrupt, setMode, setModel, setEffort } from '../../lib/sessions.js';
+import { EffortSlider } from './EffortSlider.jsx';
 import { formatTokens } from '../../lib/format.js';
 import { SHORTCUTS } from '../../lib/keyboard.js';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+// Commands the app answers itself in a chat, in place of Claude Code's interactive CLI screens.
+const APP_COMMANDS = [
+  { name: 'skills', description: 'Manage skills: turn them on or off, see what they cost in context', run: (s) => { skillsDialog.value = s; } },
+];
+// Claude Code's commands that only work in its CLI. The session names them in its first reply
+// (terminal_slash_commands); these are the ones it names today, for before that.
+const CLI_ONLY = ['doctor', 'color', 'focus', 'reload-plugins'];
+// `/name` at the start of a message (not a path like /usr/bin).
+const commandName = (text) => /^\/([\w:.-]+)(?:\s|$)/.exec(text)?.[1] || null;
 const BASE_MODES = ['default', 'acceptEdits', 'plan'];
+// The mark in front of the permission mode (lib/icons.js), colored per mode in chat.css.
+const MODE_ICONS = {
+  default: 'modeAsk',
+  acceptEdits: 'modeAcceptEdits',
+  plan: 'modePlan',
+  auto: 'modeAuto',
+  bypassPermissions: 'modeBypass',
+};
 
 function readImage(file) {
   return new Promise((resolve, reject) => {
@@ -107,14 +125,17 @@ export function Composer({ s, prefill }) {
     || models.find((m) => chat.init?.model && m.value === chat.init.model);
   const modelLabel = currentModel?.displayName || chat.init?.model || s.selectedModel.value || 'Default model';
   const modes = currentModel?.supportsAutoMode ? [...BASE_MODES, 'auto'] : BASE_MODES;
+  // Effort levels come from the running model; before the first turn names it, from Claude Code's default.
+  const effortModel = currentModel || (!s.selectedModel.value && models.find((m) => m.value === 'default'));
+  const effortLevels = effortModel?.supportsEffort ? effortModel.supportedEffortLevels || [] : [];
 
   async function updateAutocomplete(value, caret) {
     const trigger = findTrigger(value, caret);
     if (!trigger) return setAc(null);
     let items;
     if (trigger.kind === 'slash') {
-      const hidden = new Set(chat.init?.terminalCommands || []);
-      items = (meta.commands || [])
+      const hidden = new Set(chat.init?.terminalCommands || CLI_ONLY);
+      items = [...APP_COMMANDS, ...(meta.commands || []).filter((c) => !APP_COMMANDS.some((a) => a.name === c.name))]
         .filter((c) => !hidden.has(c.name))
         .filter((c) => c.name.replace(/^\//, '').toLowerCase().includes(trigger.query.toLowerCase()))
         .sort((a, b) => a.name.replace(/^\//, '').indexOf(trigger.query) - b.name.replace(/^\//, '').indexOf(trigger.query))
@@ -148,9 +169,35 @@ export function Composer({ s, prefill }) {
     });
   }
 
+  // A slash command the chat can't run: the app's own (/skills) runs here; one only Claude Code's CLI has would
+  // otherwise reach Claude as an ordinary message. Returns 'ran' or 'blocked' (the text stays to be fixed), or
+  // false to send it.
+  function handleCommand(value) {
+    const name = commandName(value);
+    if (!name) return false;
+    const own = APP_COMMANDS.find((c) => c.name === name);
+    if (own) {
+      own.run(s);
+      return 'ran';
+    }
+    const commands = meta.commands || [];
+    if (!commands.length) return false; // not loaded yet: let Claude Code decide
+    const known = commands.some((c) => c.name === name || c.aliases?.includes(name));
+    const cliOnly = (chat.init?.terminalCommands || CLI_ONLY).includes(name);
+    if (known && !cliOnly) return false;
+    toast(`/${name} ${known ? 'only works' : 'isn’t a command here. If it is one of Claude Code’s, it works'} in the CLI: switch with the CLI button at the top.`, 'error');
+    return 'blocked';
+  }
+
   function send() {
     const value = text.trim();
     if (!value && !images.length) return;
+    const handled = !images.length && handleCommand(value);
+    if (handled) {
+      if (handled === 'ran') setText('');
+      setAc(null);
+      return;
+    }
     sendMessage(s, { text: value, images: images.map(({ mediaType, data }) => ({ mediaType, data })) });
     if (!s.title.value && value && !value.startsWith('/')) s.title.value = value.split('\n')[0].slice(0, 80);
     setText('');
@@ -190,6 +237,12 @@ export function Composer({ s, prefill }) {
       }
       if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault();
+        // The command is already typed out in full: Enter runs it instead of completing it again.
+        if (e.key === 'Enter' && ac.kind === 'slash' && ac.items[ac.index].value === text.trim()) {
+          setAc(null);
+          send();
+          return;
+        }
         accept(ac.items[ac.index]);
         return;
       }
@@ -273,7 +326,7 @@ export function Composer({ s, prefill }) {
         <Menu
           className="mode-menu"
           title={`Permission mode (${SHORTCUTS.mode} to switch)`}
-          label={<><span class={`mode-dot mode-${mode}`} />{MODE_LABELS[mode] || mode}</>}
+          label={<><span class={`mode-icon mode-${mode}`}><Icon name={MODE_ICONS[mode] || 'modeAsk'} size={14} /></span>{MODE_LABELS[mode] || mode}</>}
           value={mode}
           options={[...modes, 'bypassPermissions'].map((m) => ({ value: m, label: MODE_LABELS[m], hint: MODE_HINTS[m] }))}
           onSelect={(m) => {
@@ -281,15 +334,6 @@ export function Composer({ s, prefill }) {
             setMode(s, m);
           }}
         />
-        {models.length > 0 && (
-          <Menu
-            title="Model"
-            label={modelLabel}
-            value={currentModel?.value}
-            options={models.map((m) => ({ value: m.value, label: m.displayName, hint: m.description }))}
-            onSelect={(v) => setModel(s, v)}
-          />
-        )}
         <button type="button" class="icon-btn" title="Attach images" onClick={() => fileInput.current.click()}>
           <Icon name="clip" />
         </button>
@@ -297,6 +341,23 @@ export function Composer({ s, prefill }) {
                onChange={(e) => { addFiles([...e.currentTarget.files]); e.currentTarget.value = ''; }} />
         <span class="spacer" />
         <ContextMeter context={s.context.value} />
+        {models.length > 0 && (
+          <Menu
+            title="Model and effort"
+            align="right"
+            label={modelLabel}
+            value={currentModel?.value}
+            options={models.map((m) => ({ value: m.value, label: m.displayName, hint: m.description }))}
+            onSelect={(v) => setModel(s, v)}
+            footer={(
+              <EffortSlider
+                levels={effortLevels}
+                value={s.effort.value}
+                onChange={(level) => setEffort(s, level)}
+              />
+            )}
+          />
+        )}
         {busy && !canSend ? (
           <button type="button" class="send-btn stop" title={`Stop (${SHORTCUTS.interrupt})`} onClick={() => interrupt(s)}>
             <Icon name="stop" size={14} />

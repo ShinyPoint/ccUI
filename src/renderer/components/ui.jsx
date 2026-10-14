@@ -49,7 +49,9 @@ export function Collapse({ open, children }) {
   }, [open]);
   if (!mounted) return null;
   const onEnd = (e) => {
-    if (e.target !== e.currentTarget || e.propertyName !== 'grid-template-rows') return;
+    // Height and opacity run for the same time; either one ending will do (the height does not transition
+    // when the content has no height).
+    if (e.target !== e.currentTarget || (e.propertyName !== 'height' && e.propertyName !== 'opacity')) return;
     if (open) setSettled(true);
     else setMounted(false);
   };
@@ -60,8 +62,9 @@ export function Collapse({ open, children }) {
   );
 }
 
-// A button that opens a small menu of options. `options`: [{ value, label, hint, disabled }]
-export function Menu({ label, title, value, options, onSelect, align = 'left', up = true, className = '' }) {
+// A button that opens a small menu of options. `options`: [{ value, label, hint, disabled }]; `footer`: more
+// controls under the options (picking one of them leaves the menu open).
+export function Menu({ label, title, value, options, onSelect, footer, align = 'left', up = true, className = '' }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -93,6 +96,7 @@ export function Menu({ label, title, value, options, onSelect, align = 'left', u
               </button>
             </li>
           ))}
+          {footer && <li class="menu-footer" role="presentation">{footer}</li>}
         </ul>
       )}
     </div>
@@ -100,7 +104,8 @@ export function Menu({ label, title, value, options, onSelect, align = 'left', u
 }
 
 // <dialog> driven by an `open` flag; closing (Esc, backdrop, buttons) calls onClose.
-export function Dialog({ open, onClose, wide, title, children }) {
+// `title`: shown as the heading (leave it out to lay the dialog out yourself); `className`: extra classes.
+export function Dialog({ open, onClose, wide, title, className = '', children }) {
   const ref = useRef(null);
   useEffect(() => {
     const d = ref.current;
@@ -108,11 +113,11 @@ export function Dialog({ open, onClose, wide, title, children }) {
     if (!open && d.open) d.close();
   }, [open]);
   return (
-    <dialog ref={ref} class={`dialog ${wide ? 'dialog-wide' : ''}`} onClose={onClose}
+    <dialog ref={ref} class={`dialog ${wide ? 'dialog-wide' : ''} ${className}`} onClose={onClose}
             onMouseDown={(e) => { if (e.target === ref.current) onClose(); }}>
       {open && (
         <div class="dialog-body">
-          <h3>{title}</h3>
+          {title && <h3>{title}</h3>}
           {children}
         </div>
       )}

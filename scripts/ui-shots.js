@@ -60,6 +60,19 @@ app.on('browser-window-created', (_e, win) => {
       await wait(400);
       console.log('centering:', await js(MEASURE));
       await shot('2-chat-dark');
+      // A Markdown table as Claude would write it (rounded like code blocks), added for the picture and removed.
+      await js(`{ const el = document.createElement('div');
+        el.className = 'msg-text md shot-table';
+        el.innerHTML = '<p>Here is the comparison:</p><table><thead><tr><th>Option</th><th>Speed</th><th>Notes</th></tr></thead>'
+          + '<tbody><tr><td>Haiku</td><td>Fastest</td><td>Quick answers</td></tr><tr><td>Sonnet</td><td>Fast</td><td>Routine work</td></tr>'
+          + '<tr><td>Opus</td><td>Thorough</td><td>Complex tasks</td></tr></tbody></table>';
+        document.querySelector('.chat-intro').style.display = 'none';
+        document.querySelector('.timeline').append(el); } true`);
+      await wait(300);
+      console.log('table corners:', await js("getComputedStyle(document.querySelector('.shot-table table')).borderRadius"));
+      await shot('2c-table');
+      await js(`document.querySelector('.shot-table').remove(); document.querySelector('.chat-intro').style.display = ''; true`);
+      await wait(300);
       // Long draft so the message box scrolls; hover it to reveal the scrollbar.
       const box = await js(`{ const el = document.querySelector('.chat-composer .composer-input');
         el.value = Array.from({ length: 40 }, (_, i) => 'Line ' + (i + 1) + ' of a long prompt').join('\\n');
@@ -77,12 +90,25 @@ app.on('browser-window-created', (_e, win) => {
       await shot('4-terminal-panel-light');
       // Accent color: pick Blue in Settings, then save and see it applied.
       await js(`[...document.querySelectorAll('.sidebar-bottom button')].find((b) => b.textContent.includes('Settings')).click()`);
-      for (let i = 0; i < 40 && !(await js(`Boolean(document.querySelector('.swatch'))`)); i++) await wait(100);
+      for (let i = 0; i < 40 && !(await js(`Boolean(document.querySelector('.settings-nav'))`)); i++) await wait(100);
+      await js(`[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent.includes('Appearance')).click()`);
+      await wait(200);
       await js(`document.querySelector('.swatch input[value="blue"]').click()`);
       await wait(300);
       await shot('5-accent-picker');
       // Also turn on suggested prompts, then empty the message box to see the intro with them.
-      await js(`[...document.querySelectorAll('.dialog .check')].find((l) => l.textContent.includes('suggested prompts')).querySelector('input').click()`);
+      await js(`[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent.includes('General')).click()`);
+      await wait(200);
+      await shot('5b-settings-general');
+      await js(`[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent.includes('Terminal')).click()`);
+      await wait(200);
+      await shot('5c-settings-terminal');
+      await js(`[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent.includes('Claude Code')).click()`);
+      await wait(600);
+      await shot('5d-settings-claude');
+      await js(`[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent.includes('General')).click()`);
+      await wait(200);
+      await js(`[...document.querySelectorAll('.dialog .set-row')].find((r) => r.textContent.includes('Suggested prompts')).querySelector('input').click()`);
       await js(`document.querySelector('.dialog .primary-btn[type="submit"]').click()`);
       await wait(500);
       await js(`{ const el = document.querySelector('.chat-composer .composer-input');

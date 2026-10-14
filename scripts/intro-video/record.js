@@ -293,13 +293,13 @@ app.on('browser-window-created', (_e, win) => {
     await sleep(2000);
     await click(['.sidebar-bottom .ghost-btn']);
     await sleep(900);
+    await click(['.settings-nav button', 'Appearance']);
+    await sleep(600);
     await click(['.swatch[title="Purple"]']);
     await sleep(900);
     const image = path.join(root, 'dusk.png');
     fs.writeFileSync(image, wallpaper(960, 540));
     new Background(profile, settings).use(image);
-    await js(`document.querySelector('dialog[open] button[type="submit"]').scrollIntoView({ block: 'nearest' })`);
-    await sleep(500);
     await click(['dialog[open] button[type="submit"]']);
     await sleep(2600);
     await click(['.sidebar-bottom .icon-btn']);

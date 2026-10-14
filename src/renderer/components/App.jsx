@@ -1,13 +1,14 @@
 import { useEffect } from 'preact/hooks';
-import { Icon, Toasts, ContextMenu } from './ui.jsx';
+import { Icon, Toasts, ContextMenu, openContextMenu } from './ui.jsx';
 import { Sidebar, STATE_WORDS } from './Sidebar.jsx';
 import { ChatView } from './chat/ChatView.jsx';
 import { MODE_LABELS } from './chat/Prompts.jsx';
 import { TerminalStack, TerminalOverlay, TerminalComposer } from './TerminalPane.jsx';
 import { NewSessionDialog } from './dialogs/NewSessionDialog.jsx';
 import { SettingsDialog } from './dialogs/SettingsDialog.jsx';
+import { SkillsDialog } from './dialogs/SkillsDialog.jsx';
 import {
-  api, active, sessions, settings, saveSettings, claudeCheck, info, newSessionDialog, themeMode,
+  api, active, sessions, settings, saveSettings, claudeCheck, info, newSessionDialog, themeMode, toast,
 } from '../lib/store.js';
 import { terminalMode } from '../lib/terminal.js';
 import { togglePanel } from '../lib/panel.js';
@@ -30,8 +31,16 @@ function Topbar({ s }) {
       )}
       {s && (
         <div class="topbar-title">
-          <span class="top-name">{displayName(s)}</span>
-          <button class="path-chip no-drag" title={`Open ${s.cwd}`} onClick={() => api.openPath(s.cwd)}>{tildify(s.cwd)}</button>
+          <button class="project-btn no-drag" title={`${tildify(s.cwd)}
+Click to open in the file manager`}
+                  onClick={() => api.openPath(s.cwd)}
+                  onContextMenu={(e) => openContextMenu(e, [
+                    { label: 'Open in file manager', run: () => api.openPath(s.cwd) },
+                    { label: 'Copy path', run: () => { api.writeClipboard(s.cwd); toast('Path copied.'); } },
+                  ])}>
+            <Icon name="folder" size={15} />
+            <span>{basename(s.cwd)}</span>
+          </button>
           {s.title.value && <span class="top-task">{s.title.value}</span>}
         </div>
       )}
@@ -172,6 +181,7 @@ export function App() {
       </main>
       <NewSessionDialog />
       <SettingsDialog />
+      <SkillsDialog />
       <Toasts />
       <ContextMenu />
     </div>

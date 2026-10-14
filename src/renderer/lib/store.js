@@ -13,6 +13,7 @@ export const activeUid = signal(null);
 export const active = computed(() => sessions.value.find((s) => s.uid === activeUid.value) || null);
 export const newSessionDialog = signal(null); // null when closed, else prefill object
 export const settingsDialog = signal(false);
+export const skillsDialog = signal(null); // the chat session whose skills are being managed, or null
 // Find in chat (Ctrl+F) and the sidebar's project search (Ctrl+Shift+F): 0 while closed, otherwise a number
 // that goes up each time the shortcut is pressed, so an open box takes the focus again.
 export const findBar = signal(0);
@@ -40,6 +41,7 @@ export function makeSession({ kind, cwd, name = null, sessionId = null }) {
     meta: signal({ commands: [], models: [] }),
     context: signal(null),
     selectedModel: signal(''), // model the conversation runs on ('' = Claude Code default)
+    effort: signal(''), // reasoning effort chosen for this session ('' = the model's default)
     mode: signal(''), // permission mode the conversation runs in
     problem: signal(null), // { code, text } when the chat cannot run
     draft: '',

@@ -37,7 +37,7 @@ const DEFAULTS = {
   bounds: null,
   apiKeyEnc: '',
   trustedFolders: [], // folders the user trusted for chat sessions (main process only, see trust.js)
-  settingsVersion: 2,
+  settingsVersion: 6,
 };
 
 // Kept by the main process; the window can neither read nor change them through settings:set.
@@ -51,6 +51,12 @@ function acceptable(key, value) {
   if (Array.isArray(def)) return Array.isArray(value);
   return typeof value === typeof def && value !== null;
 }
+
+// Short-lived defaults of the terminal font (settings versions 3 to 5), put back to JetBrains Mono.
+const OLD_TERMINAL_FONTS = [
+  '"Cascadia Code", Consolas, monospace', 'Consolas, Menlo, monospace',
+  'ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
+];
 
 const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
@@ -80,8 +86,13 @@ class Settings {
       // so it is cheap and on by default.
       this.data.restoreSessions = true;
     }
-    if (version < 2) {
-      this.data.settingsVersion = 2;
+    if (version < 6 && OLD_TERMINAL_FONTS.includes(this.data.fontFamily)) {
+      // The terminal font briefly defaulted to Cascadia Code, Consolas or the system monospace; a font the user
+      // picked is kept.
+      this.data.fontFamily = DEFAULTS.fontFamily;
+    }
+    if (version < 6) {
+      this.data.settingsVersion = 6;
       try { this.save(); } catch { /* read-only profile: keep the in-memory upgrade */ }
     }
   }

@@ -114,14 +114,16 @@ app.on('browser-window-created', (_e, win) => {
       await wait(1200);
       await shot('3-chat-terminal-light');
       await js("[...document.querySelectorAll('.sidebar-bottom button')].find((b) => b.textContent.includes('Settings')).click(); true");
-      await wait(1200);
+      await wait(800);
+      await js("[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent.includes('Appearance')).click(); true");
+      await wait(400);
       check('Settings shows the image and its sliders', await js(`Boolean(document.querySelector('.bg-thumb:not(.empty)'))
-        && [...document.querySelectorAll('.dialog .field-label')].some((l) => l.textContent.includes('Visibility'))`));
+        && [...document.querySelectorAll('.dialog .set-label')].some((l) => l.textContent.includes('Visibility'))`));
       await shot('4-settings');
       // Stronger image, less blur: saved and applied.
-      await js(`{ const set = (label, v) => { const input = [...document.querySelectorAll('.dialog .field')]
-          .find((f) => f.textContent.includes(label)).querySelector('input[type=range]');
-          input.value = v; input.dispatchEvent(new Event('input', { bubbles: true })); };
+      await js(`{ const set = (label, v) => { const input = [...document.querySelectorAll('.dialog .set-row')]
+          .find((f) => f.querySelector('.set-label').textContent === label).querySelector('input[type=range]');
+          input.value = v; input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true })); };
         set('Visibility', 70); set('Blur', 2); } true`);
       await wait(200);
       await js("document.querySelector('.dialog .primary-btn[type=\"submit\"]').click(); true");

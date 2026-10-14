@@ -34,6 +34,9 @@ own **terminal** interface and back, keeping the same conversation. Runs on Wind
 - Your sessions come back when you relaunch, with their history and titles. Only the one you had open starts
   right away; the others start when you click them (turn this off in Settings).
 - Plain shell sessions, recent folders, renaming, dark and light themes, ten accent colors, adjustable text sizes.
+- Skills in chat: type `/skills` to see every skill (yours, the project's, plugins', Claude Code's own), what each
+  costs in context, and turn them on, name-only, /name-only or off, for this project or all projects. Commands that
+  only work in Claude Code's CLI aren't sent to Claude as a message.
 - A background image of your own (Settings → Appearance): drawn blurred behind the whole window, with the
   panels, chat and terminals see-through over it; how much shows through and the blur are adjustable.
 
@@ -79,6 +82,8 @@ npm run smoke      # end-to-end: real Claude session on Haiku in a temp folder, 
 npm run check:actions  # end-to-end: Stop with a queued message, edit and resend with file undo, fork (Haiku, a few cents)
 npm run check:find     # end-to-end: Find in chat and the project search (Haiku, about a cent)
 npm run check:background  # background image: choose/remove, applied in chat, CLI and Terminal, screenshots (no API usage)
+npm run check:look        # chat look and motion: bubbles, easing to new lines, Terminal joined to the chat (scripted, no API usage)
+npm run check:skills      # /skills in a chat: list, turn a project skill off and on, CLI-only commands (real Claude Code, no prompts sent)
 npm run video      # records the intro video in dist/intro-video/ccui-intro.mp4 (scripted session, no API usage; needs ffmpeg)
 npm run sdk-check  # checks the Agent SDK features the app relies on (costs a few tens of cents)
 ```

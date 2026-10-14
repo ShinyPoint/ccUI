@@ -19,17 +19,27 @@
     "check:actions": "vite build && electron scripts/message-actions-check.js",
     "check:find": "vite build && electron scripts/find-check.js",
     "check:background": "vite build && electron scripts/background-check.js",
+    "check:look": "vite build && electron scripts/chat-look-check.js",
+    "check:skills": "vite build && electron scripts/skills-check.js",
     "video": "vite build && electron scripts/intro-video/record.js && electron scripts/intro-video/compose.js"
   },
   "author": "ccUI",
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.287",
+    "@fontsource/instrument-sans": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
     "@lydell/node-pty": "^1.2.0-beta.15"
   },
   "devDependencies": {
+    "@fontsource/instrument-serif": "^5.3.0",
     "@preact/preset-vite": "^2.10.6",
     "@preact/signals": "^2.11.3",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-unicode11": "^0.9.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/addon-webgl": "^0.19.0",
+    "@xterm/xterm": "^6.0.0",
     "diff": "^9.0.0",
     "dompurify": "^3.4.16",
     "electron": "^44.5.1",
@@ -37,15 +47,7 @@
     "highlight.js": "^11.12.0",
     "marked": "^18.0.14",
     "preact": "^11.0.0",
-    "vite": "^8.3.2",
-    "@fontsource/instrument-sans": "^5.3.0",
-    "@fontsource/instrument-serif": "^5.3.0",
-    "@fontsource/jetbrains-mono": "^5.3.0",
-    "@xterm/addon-fit": "^0.11.0",
-    "@xterm/addon-unicode11": "^0.9.0",
-    "@xterm/addon-web-links": "^0.12.0",
-    "@xterm/addon-webgl": "^0.19.0",
-    "@xterm/xterm": "^6.0.0"
+    "vite": "^8.3.2"
   },
   "productName": "ccUI",
   "build": {

@@ -10,9 +10,12 @@ const CLOSED = Symbol('closed');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const MODELS = [
-  { value: 'default', displayName: 'Default (recommended)', description: 'Use the default model (currently Opus 5.5)', resolvedModel: 'claude-opus-5-5', supportsAutoMode: true },
-  { value: 'claude-opus-5-5', displayName: 'Opus', description: 'Opus 5.5 · Best for everyday, complex tasks', supportsAutoMode: true },
-  { value: 'sonnet', displayName: 'Sonnet', description: 'Sonnet 5.5 · Efficient for routine tasks', supportsAutoMode: true },
+  { value: 'default', displayName: 'Default (recommended)', description: 'Use the default model (currently Opus 5.5)', resolvedModel: 'claude-opus-5-5', supportsAutoMode: true,
+    supportsEffort: true, supportedEffortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] },
+  { value: 'claude-opus-5-5', displayName: 'Opus', description: 'Opus 5.5 · Best for everyday, complex tasks', supportsAutoMode: true,
+    supportsEffort: true, supportedEffortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] },
+  { value: 'sonnet', displayName: 'Sonnet', description: 'Sonnet 5.5 · Efficient for routine tasks', supportsAutoMode: true,
+    supportsEffort: true, supportedEffortLevels: ['low', 'medium', 'high', 'max'] },
   { value: 'haiku', displayName: 'Haiku', description: 'Haiku 4.5 · Fastest for quick answers' },
 ];
 const COMMANDS = [

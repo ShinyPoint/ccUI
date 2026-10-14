@@ -2,13 +2,16 @@
 // SDK messages are forwarded to the window in small batches; permission requests become
 // round-trips to the UI.
 const fs = require('fs');
+const path = require('path');
 const { randomUUID } = require('crypto');
 const { shellEnvReady, childEnv } = require('./shell-env');
+const skills = require('./skills');
 
 let sdkModule = null;
 const loadSdk = () => (sdkModule ??= import('@anthropic-ai/claude-agent-sdk'));
 
 const MAX_TEXT = 200_000; // characters of any single tool result forwarded to the UI
+const EFFORT_LEVELS = new Set(['low', 'medium', 'high', 'xhigh', 'max']); // the SDK's EffortLevel
 const RECORD = process.env.CCUI_RECORD;
 
 // Credentials a shareable app may use. Claude.ai subscription logins are not allowed for third-party apps.
@@ -88,13 +91,15 @@ class AgentSession {
     this.batch = [];
     this.flushTimer = null;
     this.stderr = '';
+    this.models = [];
+    this.skillsSeen = new Map(); // name -> what the Skills panel has learned about it (kept when a skill is turned off)
   }
 
   async start() {
     const sdk = await loadSdk();
     await shellEnvReady;
     if (this.closed) return { ok: false, code: 'closed', error: 'Session closed.' }; // closed while loading
-    const { cwd, model, permissionMode, resume, claudeFile, apiKey } = this.opts;
+    const { cwd, model, effort, permissionMode, resume, claudeFile, apiKey } = this.opts;
     const self = this;
     async function* input() {
       while (!self.closed) {
@@ -109,6 +114,7 @@ class AgentSession {
       options: {
         cwd,
         model: model || undefined,
+        effort: EFFORT_LEVELS.has(effort) ? effort : undefined,
         permissionMode: permissionMode || 'default',
         // Makes "Bypass permissions" selectable later in the session; it does not bypass anything by itself.
         allowDangerouslySkipPermissions: true,
@@ -146,8 +152,72 @@ class AgentSession {
   async loadMeta() {
     try {
       const [commands, models] = await Promise.all([this.q.supportedCommands(), this.q.supportedModels()]);
+      this.models = models;
       this.emit('agent:meta', this.id, { commands, models });
     } catch { /* optional */ }
+  }
+
+  async refreshCommands() {
+    this.emit('agent:meta', this.id, { commands: await this.q.supportedCommands(), models: this.models });
+  }
+
+  // Every skill this session knows of, with where it comes from and its current state: what Claude Code reports
+  // (listed skills with their token cost, commands with their descriptions), the skills folders on disk, and
+  // the settings' skillOverrides (a skill that is off is reported by none of the others).
+  async listSkills() {
+    const [context, commands, settings] = await Promise.all([
+      this.q.getContextUsage({ detail: 'summary' }),
+      this.q.supportedCommands(),
+      this.q.getSettings(),
+    ]);
+    const overrides = settings.effective?.skillOverrides || {};
+    const onDisk = skills.skillsOnDisk(this.opts.cwd);
+    const seen = this.skillsSeen;
+    const learn = (name, info) => seen.set(name, { ...(seen.get(name) || {}), ...info });
+    for (const f of context.skills?.skillFrontmatter || []) learn(f.name, { source: f.source, tokens: f.tokens });
+    for (const [name, d] of onDisk) learn(name, { description: d.description, dir: d.dir, source: seen.get(name)?.source || d.source });
+    for (const name of Object.keys(overrides)) learn(name, {});
+    const byName = new Map(commands.map((c) => [c.name, c]));
+    for (const [name, info] of seen) {
+      const c = byName.get(name);
+      if (c) learn(name, { description: info.description || c.description, argumentHint: c.argumentHint, invocable: true });
+    }
+    const listed = new Set((context.skills?.skillFrontmatter || []).map((f) => f.name));
+    const list = [...seen].map(([name, info]) => ({
+      name,
+      description: info.description || '',
+      argumentHint: info.argumentHint || '',
+      source: info.source || 'unknown',
+      tokens: listed.has(name) ? info.tokens || 0 : 0,
+      dir: info.dir || '',
+      state: overrides[name] || 'on',
+      project: skills.overrideIn('project', this.opts.cwd, name),
+      user: skills.overrideIn('user', this.opts.cwd, name),
+    }));
+    return {
+      skills: list,
+      folders: { user: path.join(skills.configDir(), 'skills'), project: path.join(this.opts.cwd, '.claude', 'skills') },
+    };
+  }
+
+  // Writes the skillOverrides entry, waits for Claude Code to read the settings file again, and reloads the skills.
+  // 'on' removes the entry rather than writing it, unless another settings file would then still turn it off.
+  async setSkill({ name, state, scope }) {
+    if (!skills.STATES.includes(state)) throw new Error(`Unknown skill state ${state}`);
+    const where = scope === 'user' ? 'user' : 'project';
+    skills.writeOverride(where, this.opts.cwd, name, state === 'on' ? null : state);
+    const effective = async () => (await this.q.getSettings()).effective?.skillOverrides?.[name] || 'on';
+    const settle = async (want) => {
+      for (let i = 0; i < 20 && (await effective()) !== want; i++) await new Promise((r) => setTimeout(r, 100));
+    };
+    await settle(state);
+    if (state === 'on' && (await effective()) !== 'on') {
+      skills.writeOverride(where, this.opts.cwd, name, 'on');
+      await settle('on');
+    }
+    await this.q.reloadSkills();
+    await this.refreshCommands();
+    return this.listSkills();
   }
 
   async pump() {
@@ -156,6 +226,10 @@ class AgentSession {
       for await (const message of this.q) {
         // Debug aid: CCUI_RECORD=<file> saves the raw stream (used to build reducer test fixtures).
         if (RECORD) fs.appendFileSync(RECORD, `${JSON.stringify(message)}\n`);
+        // Skills found or changed while working: the command list (autocomplete) is replaced.
+        if (message.type === 'system' && message.subtype === 'commands_changed') {
+          this.emit('agent:meta', this.id, { commands: message.commands, models: this.models });
+        }
         this.batch.push(slim(message));
         if (!this.flushTimer) this.flushTimer = setTimeout(() => this.flush(), 16);
       }
@@ -246,10 +320,28 @@ class AgentSession {
         // the next turn right after the interrupted one. `value.cancelled` lists their uuids.
         case 'interrupt': return { ok: true, value: (await this.q.interrupt({ cancelQueued: true })) || null };
         case 'model': await this.q.setModel(arg || undefined); return { ok: true };
+        // Reasoning effort for the rest of the session; '' goes back to the model's default.
+        case 'effort':
+          if (arg && !EFFORT_LEVELS.has(arg)) return { ok: false, error: `Unknown effort level ${arg}` };
+          await this.q.applyFlagSettings({ effortLevel: arg || null });
+          return { ok: true };
         case 'mode': await this.q.setPermissionMode(arg); return { ok: true };
         // Put files back the way they were when the user sent message `arg.uuid` (`dryRun`: only report).
         case 'rewind': return { ok: true, value: await this.q.rewindFiles(arg.uuid, { dryRun: Boolean(arg.dryRun) }) };
         case 'context': return { ok: true, value: await this.q.getContextUsage({ detail: 'summary' }) };
+        case 'skills': return { ok: true, value: await this.listSkills() };
+        // arg: { name, state, scope: 'project' | 'user' }
+        case 'set-skill': return { ok: true, value: await this.setSkill(arg) };
+        // Creates the user's or the project's skills folder if needed, so it can be opened to add a skill.
+        case 'skills-folder': {
+          const dir = arg === 'user' ? path.join(skills.configDir(), 'skills') : path.join(this.opts.cwd, '.claude', 'skills');
+          fs.mkdirSync(dir, { recursive: true });
+          return { ok: true, value: dir };
+        }
+        case 'reload-skills':
+          await this.q.reloadSkills();
+          await this.refreshCommands();
+          return { ok: true, value: await this.listSkills() };
         default: return { ok: false, error: `Unknown action ${action}` };
       }
     } catch (err) {
