@@ -27,57 +27,78 @@
   --ease: cubic-bezier(.2, .7, .2, 1);
 }
 
+/* Backgrounds and text are one neutral grey, with no blue or warm cast (Apple's system greys); only the accent
+   and the status colors carry hue. */
 :root[data-theme="dark"] {
-  --chrome: #191B22;
-  --base: #1D2028;
-  --surface: #13151B;
-  --raise: #262A35;
-  --line: #2C303B;
-  --line-soft: #23262F;
-  --text: #E9E4DA;
-  --text-2: #B9B4AA;
-  --muted: #868B97;
+  --chrome: #1A1A1C;
+  --base: #202022;
+  --surface: #161618;
+  --raise: #2C2C2E;
+  --line: #38383A;
+  --line-soft: #2A2A2C;
+  --text: #F2F2F4;
+  --text-2: #C2C2C6;
+  --muted: #8E8E93;
   --accent: #E58A5E; /* default (Ember); the chosen accent overrides --accent and --accent-ink inline */
   --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
   --accent-ink: #1B120D;
   --ok: #7DC4A5;
   --wait: #E9B860;
-  --off: #5A5F6B;
+  --off: #636366;
   --danger: #E5685F;
   /* popovers and dialogs */
   --shadow: 0 0 0 1px rgba(255, 255, 255, .04), 0 12px 32px -8px rgba(0, 0, 0, .55), 0 32px 80px -24px rgba(0, 0, 0, .6);
-  /* floating bars (message box, Latest, task strip): no border, only a soft black glow around them */
-  --glow: 0 0 26px -4px rgba(0, 0, 0, .55), 0 10px 28px -10px rgba(0, 0, 0, .6);
-  --glow-focus: 0 0 32px -2px rgba(0, 0, 0, .7), 0 12px 32px -10px rgba(0, 0, 0, .7);
+  /* floating bars (message box, Latest, task strip), the Apple way: a hairline edge, a tight contact shadow and a
+     faint, wide lift; no border, nothing dark spreading around them. Focus only deepens it a little. */
+  --glow: 0 0 0 .5px rgba(255, 255, 255, .09), 0 1px 2px rgba(0, 0, 0, .2), 0 6px 20px -6px rgba(0, 0, 0, .32);
+  /* Light buttons (secondary, chips, the chosen segment): a fill and the message box's glow, no border. */
+  --btn: var(--raise);
+  --btn-hover: color-mix(in srgb, var(--text) 6%, var(--raise));
+  /* Borderless surfaces: cards and fields stand out by a tint, lists are split by a faint hairline. */
+  --card: color-mix(in srgb, var(--text) 4%, var(--base));
+  --fill: color-mix(in srgb, var(--text) 7%, transparent);
+  --fill-2: color-mix(in srgb, var(--text) 10%, transparent);
+  --hair: color-mix(in srgb, var(--text) 7%, transparent);
+  --glow-focus: 0 0 0 .5px rgba(255, 255, 255, .14), 0 1px 2px rgba(0, 0, 0, .22), 0 8px 26px -6px rgba(0, 0, 0, .4);
   color-scheme: dark;
 }
 
 :root[data-theme="light"] {
-  --chrome: #ECEEF2;
-  --base: #F6F7F9;
-  --surface: #FCFCFD;
-  --raise: #E2E5EB;
-  --line: #D5D9E0;
-  --line-soft: #E3E6EB;
-  --text: #1C1F26;
-  --text-2: #434853;
-  --muted: #6B717D;
+  --chrome: #F9FAFB;
+  --base: #F5F5F7;
+  --surface: #FCFCFC;
+  --raise: #E5E5EA;
+  --line: #D2D2D7;
+  --line-soft: #E5E5EA;
+  --text: #1D1D1F;
+  --text-2: #424245;
+  --muted: #6E6E73;
   --accent: #C4653D;
   --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
   --accent-ink: #FFFFFF;
   --ok: #2F9670;
   --wait: #B9831C;
-  --off: #A3A8B2;
+  --off: #AEAEB2;
   --danger: #C4423A;
-  --shadow: 0 0 0 1px rgba(30, 35, 50, .04), 0 12px 32px -10px rgba(30, 35, 50, .18), 0 30px 70px -24px rgba(30, 35, 50, .22);
-  --glow: 0 0 24px -4px rgba(10, 12, 20, .16), 0 10px 26px -12px rgba(10, 12, 20, .22);
-  --glow-focus: 0 0 30px -2px rgba(10, 12, 20, .24), 0 12px 30px -12px rgba(10, 12, 20, .28);
+  --shadow: 0 0 0 1px rgba(0, 0, 0, .04), 0 12px 32px -10px rgba(0, 0, 0, .15), 0 30px 70px -24px rgba(0, 0, 0, .18);
+  --glow: 0 0 0 .5px rgba(0, 0, 0, .07), 0 1px 2px rgba(0, 0, 0, .04), 0 6px 18px -6px rgba(0, 0, 0, .08);
+  --btn: #FFFFFF;
+  --btn-hover: #FFFFFF;
+  --card: #FFFFFF;
+  --fill: color-mix(in srgb, var(--text) 5%, transparent);
+  --fill-2: color-mix(in srgb, var(--text) 8%, transparent);
+  --hair: color-mix(in srgb, var(--text) 8%, transparent);
+  --glow-focus: 0 0 0 .5px rgba(0, 0, 0, .1), 0 1px 2px rgba(0, 0, 0, .05), 0 8px 24px -6px rgba(0, 0, 0, .11);
   color-scheme: light;
 }
 
 /* ---------- base ---------- */
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
+/* Selected text: the text color as the highlight with the page's color on it (dark on light, light on dark),
+   rather than the system's blue; in the message boxes and fields too. Terminals have their own (lib/themes.js). */
+::selection { background: color-mix(in srgb, var(--text) 88%, transparent); color: var(--surface); }
+
 /* Numbers that change in place (counts, sizes, timers) keep their width in the proportional UI font. */
 .count, .set-slider output, .field-label output, .find-count, .context-meter, .activity-time, .tasks-count, .ws-details, .ws-cost, .turn-end { font-variant-numeric: tabular-nums; }
 body {
@@ -150,8 +171,9 @@ body.sidebar-collapsed #app { grid-template-columns: 0 minmax(0, 1fr); }
 }
 .primary-btn { background: var(--accent); color: var(--accent-ink); }
 .primary-btn:hover { filter: brightness(1.08); }
-.secondary-btn { background: var(--raise); color: var(--text); font-weight: 500; }
-.secondary-btn:hover { background: var(--line); }
+.secondary-btn { background: var(--btn); color: var(--text); font-weight: 500; box-shadow: var(--glow); transition: box-shadow .2s, background .15s; }
+.secondary-btn:hover { background: var(--btn-hover); box-shadow: var(--glow-focus); }
+.secondary-btn:disabled { box-shadow: none; opacity: .55; }
 
 .ghost-btn {
   display: inline-flex; align-items: center; gap: 8px;
@@ -168,31 +190,28 @@ body.sidebar-collapsed #app { grid-template-columns: 0 minmax(0, 1fr); }
   min-width: 0;
   overflow: hidden;
   background: var(--chrome);
-  border-right: 1px solid var(--line-soft);
   transition: visibility 0s;
 }
 /* Hiding the sidebar: its column eases to 0 while the contents keep their width and are clipped from the
    right, so nothing reflows mid-animation. Once hidden it is out of the tab order. */
 .sidebar-top, .sidebar-scroll { min-width: var(--sidebar-w); }
 .new-session { min-width: calc(var(--sidebar-w) - 24px); }
-.sidebar-bottom { min-width: calc(var(--sidebar-w) - 16px); }
+.sidebar-bottom { min-width: calc(var(--sidebar-w) - 24px); }
 body.sidebar-collapsed #sidebar { visibility: hidden; transition: visibility 0s .22s; }
-/* Frosted glass (html.glass, see main.jsx): the window is backed by the system's blurred material, the page is
-   see-through where the sidebar is, and a light tint of the theme's chrome color keeps the text readable.
-   The main column keeps its own solid background. */
+/* Frosted glass (html.glass, see main.jsx): the window is backed by the system's blurred material and the whole
+   frame around the work area (the sidebar, the top bar, the gaps) is one see-through surface with a light tint of
+   the theme's chrome color. Only the chat / CLI sheet and the Terminal panel stay solid. Mostly solid: just a
+   hint of what is behind; dark needs a little more, or bright windows wash it out. */
 html.glass, html.glass body { background: transparent; }
-/* Mostly solid: just a hint of what is behind. Dark needs a little more, or bright windows wash it out. */
-html.glass #sidebar {
-  background: color-mix(in srgb, var(--chrome) 78%, transparent);
-  border-right-color: var(--line);
-}
-html.glass[data-theme="dark"] #sidebar { background: color-mix(in srgb, var(--chrome) 88%, transparent); }
+html.glass #sidebar, html.glass #main { background: transparent; }
+html.glass #app { background: color-mix(in srgb, var(--chrome) 90%, transparent); } /* light: nearly opaque, so the frame stays this light over any desktop */
+html.glass[data-theme="dark"] #app { background: color-mix(in srgb, var(--chrome) 88%, transparent); }
 
 /* Glass panes on the glass (New session, the selected conversation, the Settings bar): a see-through fill and a
    soft shadow under it, no edges. */
 :is(html.glass, html.has-bg) {
   --pane-fill: color-mix(in srgb, var(--surface) 50%, transparent);
-  --pane-shadow: 0 2px 10px -5px rgba(30, 35, 50, .28);
+  --pane-shadow: 0 2px 10px -5px rgba(0, 0, 0, .22);
 }
 :is(html.glass, html.has-bg)[data-theme="dark"] {
   --pane-fill: color-mix(in srgb, var(--raise) 55%, transparent);
@@ -208,10 +227,6 @@ html.glass[data-theme="dark"] #sidebar { background: color-mix(in srgb, var(--ch
 :is(html.glass, html.has-bg) .session[aria-current="true"] {
   --row: color-mix(in srgb, var(--accent) 16%, var(--pane-fill));
   background: var(--row);
-  box-shadow: var(--pane-shadow);
-}
-:is(html.glass, html.has-bg) .sidebar-bottom {
-  background: var(--pane-fill);
   box-shadow: var(--pane-shadow);
 }
 
@@ -233,12 +248,12 @@ html.has-bg body::before {
   pointer-events: none;
 }
 html.has-bg #app { position: relative; z-index: 0; }
-html.has-bg #sidebar { background: color-mix(in srgb, var(--chrome) 30%, transparent); border-right-color: var(--line); }
-html.has-bg #main { background: transparent; }
+html.has-bg #sidebar, html.has-bg #main { background: transparent; }
+html.has-bg #app { background: color-mix(in srgb, var(--chrome) 30%, transparent); }
 html.has-bg #stage,
 html.has-bg .bottom-panel { background: color-mix(in srgb, var(--surface) 45%, transparent); }
 html.has-bg #stage.term-dark,
-html.has-bg .bottom-panel.term-dark .panel-body { background: rgba(19, 21, 27, .6); } /* = DARK.background */
+html.has-bg .bottom-panel.term-dark .panel-body { background: rgba(22, 22, 24, .6); } /* = DARK.background */
 html.has-bg .panel-head { background: color-mix(in srgb, var(--base) 40%, transparent); }
 html.has-bg .chat, html.has-bg .composer { background: transparent; }
 html.has-bg .chip { background: color-mix(in srgb, var(--surface) 60%, transparent); }
@@ -275,13 +290,19 @@ body.platform-darwin .sidebar-top { padding-left: 84px; }
 .new-session kbd { margin-left: auto; color: inherit; background: color-mix(in srgb, var(--accent) 14%, transparent); opacity: .85; }
 
 .sidebar-scroll { flex: 1; overflow-y: auto; padding: 0 8px 12px; }
+/* Small headings, everywhere they appear: the sidebar's Projects, Recent folders, a project's Recent, Settings'
+   group titles, the chat's dividers. Written as they read ("Recent folders"), not in capitals; one size and
+   color, so they stay alike. */
+.section-label, .dialog h4, .recents-head, .divider {
+  font: 600 12px/1.2 var(--ui);
+  letter-spacing: 0;
+  color: var(--muted);
+}
+.recents-head { font-size: 11.5px; }
+.divider { font-weight: 500; }
 .section-label {
   display: flex; align-items: center; gap: 6px;
   margin: 14px 8px 6px;
-  font: 600 11px/1 var(--ui);
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  color: var(--muted);
 }
 .count { font: 500 10.5px var(--ui); letter-spacing: 0; }
 .section-action { width: 22px; height: 22px; margin: -6px -2px -6px auto; }
@@ -292,13 +313,12 @@ body.platform-darwin .sidebar-top { padding-left: 84px; }
   margin: 0 4px 8px;
   height: 32px;
   padding: 0 4px 0 10px;
-  border: 1px solid var(--line);
   border-radius: var(--r-sm);
-  background: var(--surface);
+  background: var(--fill);
   color: var(--muted);
-  transition: border-color .15s;
+  transition: box-shadow .15s, background .15s;
 }
-.project-search:focus-within { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.project-search:focus-within { background: var(--fill-2); box-shadow: 0 0 0 3px var(--accent-soft); }
 .project-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 13px; }
 .project-search input::placeholder { color: var(--muted); }
 .project-search .icon-btn { width: 22px; height: 22px; }
@@ -406,23 +426,38 @@ body.platform-darwin .sidebar-top { padding-left: 84px; }
 .recent:hover .icon-btn, .recent .icon-btn:focus-visible { opacity: 1; }
 .recent .icon-btn svg { width: 14px; height: 14px; }
 
-/* Footer card: its top edge curves down into the sides, like the other rounded surfaces (--r-lg).
-   Buttons inside are concentric: 18px − 6px padding = 12px. */
+/* Footer: not a card, just one more row of the sidebar, like a macOS sidebar's bottom. It mirrors New session at
+   the top (same side insets, icon and label at the same x, same height); the theme switch sits at the end of the
+   row. Nothing is drawn until you hover, apart from a faint line above. */
 .sidebar-bottom {
-  display: flex; align-items: center; justify-content: space-between;
-  margin: 4px 8px 8px;
-  padding: 6px;
-  border-radius: var(--r-lg);
-  background: color-mix(in srgb, var(--raise) 45%, transparent);
+  display: flex; align-items: center; gap: 2px;
+  margin: 0 12px;
+  padding: 6px 0 8px;
+  border-top: 1px solid color-mix(in srgb, var(--text) 7%, transparent);
 }
-.sidebar-bottom .ghost-btn, .sidebar-bottom .icon-btn { border-radius: var(--r-md); }
+.sidebar-bottom .footer-row {
+  flex: 1; min-width: 0;
+  height: 36px;
+  gap: 8px;
+  padding: 0 12px;
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  font-weight: 500;
+}
+.footer-icon { display: grid; place-items: center; color: var(--muted); }
+.sidebar-bottom .icon-btn { width: 36px; height: 36px; border-radius: var(--r-sm); }
+.sidebar-bottom .footer-row:hover, .sidebar-bottom .icon-btn:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text);
+}
+.sidebar-bottom .footer-row:hover .footer-icon { color: var(--text-2); }
 
 /* ---------- main column ---------- */
 #main {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: var(--base);
+  background: var(--chrome); /* the same surface as the sidebar */
 }
 #topbar {
   display: flex; align-items: center; gap: 10px;
@@ -442,36 +477,48 @@ body.sidebar-collapsed.platform-darwin #topbar { padding-left: 84px; }
   height: 28px;
   padding: 0 10px 0 8px;
   border-radius: var(--r-sm);
-  background: color-mix(in srgb, var(--raise) 55%, transparent);
+  background: var(--btn);
+  box-shadow: var(--glow);
   font-weight: 600;
   white-space: nowrap;
-  transition: background .15s, border-color .15s;
+  transition: background .15s, box-shadow .2s;
 }
 .project-btn [data-icon] { color: var(--accent); flex-shrink: 0; }
 .project-btn span { overflow: hidden; text-overflow: ellipsis; }
-.project-btn:hover { background: var(--raise); }
+.project-btn:hover { background: var(--btn-hover); box-shadow: var(--glow-focus); }
+:is(html.glass, html.has-bg) :is(#topbar, .composer) :is(.icon-btn, .text-btn, .chip):hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
 .project-btn:active { transform: translateY(.5px); }
 .top-task {
   min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: var(--text-2);
 }
-.topbar-actions { display: flex; gap: 2px; }
+.topbar-actions { display: flex; align-items: center; gap: 2px; }
+.panel-toggle.on, .changes-toggle.on { background: var(--accent-soft); color: var(--accent); }
 body.no-session .topbar-actions { visibility: hidden; }
 
-/* The chat / CLI area is a rounded card inset from the window edges. */
+/* The chat / CLI area is a sheet 8px in from both sides (the same gap left and right) that runs down to the
+   window's bottom edge: rounded at the top only, with no bottom border. With "Work area to the window's edge"
+   (html.fill-edge, Settings → Appearance) it runs out to the right edge too, rounded at its top-left only. */
 #stage {
   position: relative;
   flex: 1;
   min-height: 0;
   margin: 0 8px;
   border: 1px solid var(--line-soft);
-  border-radius: var(--r-lg);
+  border-bottom: 0;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
   overflow: hidden;
   background: var(--surface);
 }
+html.fill-edge #stage { margin-right: 0; border-right: 0; border-top-right-radius: 0; }
 /* "Always dark" terminal on the light theme: the padding around xterm matches DARK.background in lib/themes.js. */
-#stage.term-dark { background: #13151B; }
+#stage.term-dark { background: #161618; }
+/* A CLI session has its message bar under the terminal, so there the card's bottom-left corner is rounded too and
+   the bar is what reaches the bottom (8px above it, like the gap to the sidebar). */
+#stage.mode-terminal { border-bottom: 1px solid var(--line-soft); border-radius: var(--r-lg); }
+html.fill-edge #stage.mode-terminal { border-radius: var(--r-lg) 0 0 var(--r-lg); }
+#main > .composer:has(+ .bottom-panel[hidden]), #main > .composer:last-child { padding-bottom: 8px; }
 .term-stack-host, #term-stack { position: absolute; inset: 0; }
 #stage:not(.mode-terminal) .term-host.active { visibility: hidden; }
 .term-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
@@ -544,9 +591,9 @@ body.no-session .empty-state { display: block; }
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center; gap: 6px;
   padding: 10px 10px 10px 14px;
-  border-top: 1px solid var(--line-soft);
+  position: relative;
 }
-.empty-recent:last-child { border-bottom: 1px solid var(--line-soft); }
+.empty-recent + .empty-recent::before { content: ''; position: absolute; top: 0; left: 14px; right: 0; height: 1px; background: var(--hair); }
 .empty-recent .name { font-weight: 600; }
 .empty-recent .path { font: 11.5px var(--ui); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .empty-recent .secondary-btn, .empty-recent .primary-btn { height: 28px; padding: 0 12px; font-size: 12.5px; }
@@ -565,7 +612,7 @@ body.no-session .empty-state { display: block; }
 .composer {
   flex-shrink: 0;
   padding: 8px 8px 0;
-  background: var(--base);
+  background: transparent; /* on the frame, like the top bar */
 }
 body.no-session .composer { display: none; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
@@ -573,13 +620,14 @@ body.no-session .composer { display: none; }
   height: 24px;
   padding: 0 10px;
   border-radius: var(--r-full);
-  background: color-mix(in srgb, var(--raise) 60%, transparent);
+  background: var(--btn);
+  box-shadow: var(--glow);
   font: 11.5px var(--mono);
   color: var(--text-2);
-  transition: border-color .15s, color .15s, background .15s;
+  transition: box-shadow .2s, color .15s, background .15s;
 }
 .chip:hover { color: var(--accent); background: var(--accent-soft); }
-.chip.key { color: var(--muted); background: color-mix(in srgb, var(--raise) 30%, transparent); }
+.chip.key { color: var(--muted); }
 .composer-row {
   display: flex; align-items: flex-end; gap: 8px;
   padding: 6px 6px 6px 12px;
@@ -610,29 +658,13 @@ body.no-session .composer { display: none; }
 .send-btn:disabled { background: var(--raise); color: var(--muted); }
 
 /* ---------- status bar ---------- */
-#statusbar {
-  font-variant-numeric: tabular-nums;
-  display: flex; align-items: center; gap: 16px;
-  height: 26px;
-  padding: 0 14px;
-  font: 11px var(--ui);
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-}
-#statusbar .spacer { flex: 1; }
-.st-state { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); }
-.st-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--off); }
-.st-state[data-status="working"]::before { background: var(--ok); }
-.st-state[data-status="attention"]::before { background: var(--wait); }
-.st-state[data-status="idle"]::before { background: var(--text-2); }
 
 /* ---------- dialogs ---------- */
 .dialog {
   outline: none; /* the dialog itself takes the focus when it opens; no ring around the whole box */
   width: min(520px, calc(100vw - 48px));
   padding: 0;
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: var(--r-lg);
   background: var(--base);
   color: var(--text);
@@ -640,7 +672,7 @@ body.no-session .composer { display: none; }
 }
 .dialog-wide { width: min(760px, calc(100vw - 48px)); }
 .dialog[open] { animation: pop .18s var(--ease); }
-.dialog::backdrop { background: rgba(10, 12, 18, .45); backdrop-filter: blur(3px); }
+.dialog::backdrop { background: rgba(0, 0, 0, .4); backdrop-filter: blur(3px); }
 @keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.985); } }
 .dialog-body { padding: 22px 24px 18px; }
 .dialog h3 {
@@ -649,7 +681,7 @@ body.no-session .composer { display: none; }
   transform: var(--display-stretch); transform-origin: left center;
   width: fit-content; max-width: var(--display-fit);
 }
-.dialog h4 { margin: 4px 0 12px; font: 600 11px/1 var(--ui); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.dialog h4 { margin: 4px 0 12px; }
 .dialog h4:not(:first-child) { margin-top: 22px; }
 .field { display: block; margin-bottom: 16px; }
 .field-label { display: flex; align-items: baseline; gap: 6px; margin-bottom: 6px; font-weight: 500; color: var(--text-2); }
@@ -662,28 +694,20 @@ body.no-session .composer { display: none; }
   width: 100%;
   height: 34px;
   padding: 0 10px;
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: var(--r-sm);
-  background: var(--surface);
+  background: var(--fill);
   font: 12.5px var(--mono);
   outline: none;
   user-select: text;
+  transition: box-shadow .15s, background .15s;
 }
-.dialog input[type="text"]:focus, .dialog input[type="password"]:focus, .dialog select:focus { border-color: var(--accent); }
+.dialog input[type="text"]:focus, .dialog input[type="password"]:focus, .dialog select:focus {
+  background: var(--fill-2);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
 .dialog input[type="range"] { width: 100%; accent-color: var(--accent); }
 .input-row { display: flex; gap: 8px; }
-.recent-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: -6px 0 16px; }
-.recent-chips:empty { display: none; }
-.recent-chips button {
-  max-width: 200px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  padding: 3px 9px;
-  border-radius: var(--r-full);
-  background: var(--raise);
-  font-size: 12px;
-  color: var(--text-2);
-}
-.recent-chips button:hover { color: var(--text); }
 
 .segmented {
   display: inline-flex;
@@ -702,7 +726,7 @@ body.no-session .composer { display: none; }
   white-space: nowrap;
   transition: background .15s, color .15s;
 }
-.segmented input:checked + span { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, .18); }
+.segmented input:checked + span { background: var(--btn); color: var(--text); font-weight: 600; box-shadow: var(--glow); }
 .segmented input:focus-visible + span { outline: 2px solid var(--accent); }
 
 /* Accent color swatches: the chosen one gets a ring with a gap, like macOS. */
@@ -743,6 +767,50 @@ body.no-session .composer { display: none; }
    A fixed-size panel: the section list on the left, the chosen section on the right (its body scrolls).
    Sections are grouped cards of rows, the name on the left and the control on the right, like the system
    settings apps. */
+.dialog-confirm { width: min(440px, calc(100vw - 48px)); }
+.dialog-confirm h3 { margin-bottom: 10px; font-size: 24px; }
+.confirm-message { margin: 0; color: var(--text-2); line-height: 1.55; white-space: pre-line; }
+.confirm-detail {
+  margin: 0 0 12px; padding: 8px 12px;
+  border-radius: var(--r-sm);
+  background: var(--fill);
+  font: 12px/1.5 var(--mono); color: var(--text);
+  overflow-wrap: anywhere; user-select: text;
+  white-space: pre-line;
+}
+.dialog-confirm .dialog-actions { margin-top: 20px; }
+.dialog-confirm .danger-btn { height: 32px; padding: 0 14px; }
+/* New session (NewSessionDialog.jsx): the Settings look, tinted cards of rows, with a head and a footer. */
+.dialog-new { width: min(580px, calc(100vw - 48px)); }
+.dialog-new .dialog-body { padding: 18px 22px 20px; }
+.ns-head { display: flex; align-items: center; justify-content: space-between; margin: 0 -6px 16px 0; }
+.ns-head h3 { margin: 0; }
+.ns-form .set-group + .set-group { margin-top: 18px; }
+.ns-folder { display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 16px; }
+.ns-folder input[type="text"] { flex: 1; min-width: 0; }
+.ns-folder .secondary-btn { flex-shrink: 0; height: 34px; }
+.ns-folder-icon { display: grid; place-items: center; flex-shrink: 0; color: var(--muted); }
+.ns-recent {
+  position: relative;
+  display: grid; grid-template-columns: auto auto minmax(0, 1fr) 16px; align-items: center; gap: 10px;
+  width: 100%; min-height: 40px;
+  padding: 0 14px 0 16px;
+  text-align: left;
+  transition: background .15s;
+}
+.ns-recent::before { content: ''; position: absolute; top: 0; left: 16px; right: 0; height: 1px; background: var(--hair); }
+.ns-recent:hover { background: var(--fill); }
+.ns-recent:last-child { border-radius: 0 0 var(--r-md) var(--r-md); }
+.ns-recent-name { font-weight: 500; color: var(--text); white-space: nowrap; }
+.ns-recent-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
+.ns-recent.chosen .ns-folder-icon, .ns-check { display: grid; place-items: center; color: var(--accent); }
+.ns-history { padding: 0 12px 12px 16px; }
+.ns-history .history-list { margin: 0; background: var(--fill); }
+.ns-empty { margin: 0; padding: 4px 0; font-size: 12.5px; color: var(--muted); }
+.ns-foot { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
+.ns-foot > span { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.4; color: var(--muted); }
+.ns-foot .form-error { margin: 0; color: var(--danger); }
+
 .dialog-settings {
   width: min(860px, calc(100vw - 48px));
   height: min(620px, calc(100vh - 48px));
@@ -754,7 +822,6 @@ body.no-session .composer { display: none; }
 .settings-nav {
   display: flex; flex-direction: column; gap: 2px;
   padding: 20px 10px 14px;
-  border-right: 1px solid var(--line-soft);
   background: color-mix(in srgb, var(--chrome) 70%, var(--base));
 }
 .settings-nav h3 { margin: 0 0 16px 8px; font-size: 26px; }
@@ -789,22 +856,28 @@ body.no-session .composer { display: none; }
 .set-group h4 { margin: 0 0 8px 4px; }
 .dialog .set-group h4:not(:first-child) { margin-top: 0; }
 .set-card {
-  border: 1px solid var(--line-soft);
   border-radius: var(--r-md);
-  background: color-mix(in srgb, var(--surface) 70%, var(--base));
+  background: var(--card);
 }
 .set-row {
   display: flex; align-items: center; justify-content: space-between; gap: 20px;
   min-height: 52px;
   padding: 10px 16px;
 }
-.set-row + .set-row { border-top: 1px solid var(--line-soft); }
+.set-row { position: relative; }
+.set-row + .set-row::before, .set-progress + .set-row::before {
+  content: ''; position: absolute; top: 0; left: 16px; right: 0;
+  height: 1px; background: var(--hair);
+}
 .set-row.stack { flex-direction: column; align-items: stretch; gap: 10px; padding: 14px 16px; }
 .set-text { min-width: 0; }
 .set-label { font-weight: 500; color: var(--text); }
 .set-note { margin: 2px 0 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
 .set-note.ok { color: var(--ok); }
-.set-note.bad { color: var(--danger); }
+.set-note.bad, .set-note .bad { color: var(--danger); }
+/* Download progress of a Claude Code update, under its row. */
+.set-progress { height: 3px; margin: -4px 16px 10px; border-radius: 2px; background: var(--fill-2); overflow: hidden; }
+.set-progress > span { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width .3s ease; }
 .set-row.stack .set-text + .set-control .set-note { margin-top: 8px; }
 .set-control { display: flex; align-items: center; justify-content: flex-end; flex-shrink: 0; }
 .set-row.stack .set-control { display: block; }
@@ -842,9 +915,10 @@ body.no-session .composer { display: none; }
 .skills-list { flex: 1; min-height: 0; max-height: 52vh; overflow-y: auto; margin: 0 -6px; padding: 0 6px; }
 .skills-list section + section { margin-top: 14px; }
 .skills-list h4 { margin: 0 0 6px 4px; }
-.skills-list ul { list-style: none; margin: 0; padding: 0; border-radius: var(--r-md); background: color-mix(in srgb, var(--surface) 70%, var(--base)); }
+.skills-list ul { list-style: none; margin: 0; padding: 0; border-radius: var(--r-md); background: var(--card); }
 .skill { display: flex; align-items: center; gap: 14px; padding: 9px 12px 9px 14px; }
-.skill + .skill { border-top: 1px solid var(--line-soft); }
+.skill { position: relative; }
+.skill + .skill::before { content: ''; position: absolute; top: 0; left: 14px; right: 0; height: 1px; background: var(--hair); }
 .skill-text { flex: 1; min-width: 0; }
 .skill-name { display: flex; align-items: baseline; gap: 8px; font: 500 13px var(--mono); color: var(--text); }
 .skill-tokens { font: 11px var(--ui); color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -886,7 +960,7 @@ body.no-session .composer { display: none; }
 
 @media (max-width: 720px) {
   .settings { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
-  .settings-nav { flex-direction: row; flex-wrap: wrap; padding: 12px; border-right: 0; border-bottom: 1px solid var(--line-soft); }
+  .settings-nav { flex-direction: row; flex-wrap: wrap; padding: 12px; }
   .settings-nav h3, .settings-nav .spacer, .settings-saved { display: none; }
   .set-row { flex-wrap: wrap; }
 }

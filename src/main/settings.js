@@ -13,10 +13,12 @@ const DEFAULTS = {
   accent: 'ember', // accent color, a key of ACCENTS in renderer/lib/themes.js
   terminalTheme: 'match', // 'match' (follows the app theme) | 'dark'
   panelHeight: 260, // bottom Terminal panel, px
+  sidePanelWidth: 440, // the Changes panel at the right of a chat, px
   cursorBlink: true,
   copyOnSelect: false,
   scrollback: 10000,
   claudePath: '', // empty: the Claude Code build bundled with the app
+  autoUpdateClaude: true, // keep the built-in Claude Code current (claude-update.js)
   defaultKind: 'chat', // 'chat' | 'terminal'
   defaultModel: '', // empty: Claude Code's default
   defaultPermissionMode: 'default',
@@ -27,13 +29,14 @@ const DEFAULTS = {
   restoreSessions: true,
   sidebarCollapsed: false,
   sidebarGlass: true, // frosted-glass sidebar (system material; Windows 11 22H2+ and macOS)
+  fillEdge: false, // the chat / CLI area runs out to the window's right edge (no gap there)
   backgroundImage: '', // file name of the background image in <userData>/backgrounds (set by background.js)
   backgroundShow: 40, // how much of the background image shows through, percent
   backgroundBlur: 8, // blur of the background image, px
   recent: [], // [{ path, at }]
   lastSessions: [], // [{ kind, cwd, name, sessionId, model, permissionMode }]
   conversations: {}, // sessionId -> { model, permissionMode }, restored when a conversation is resumed
-  folders: {}, // folder path -> { collapsed }
+  folders: {}, // folder path -> { collapsed }; cleared at launch, so every folder starts folded
   bounds: null,
   apiKeyEnc: '',
   trustedFolders: [], // folders the user trusted for chat sessions (main process only, see trust.js)

@@ -1,52 +1,52 @@
 // Terminal palettes, tuned to sit on the app's own surfaces (see styles.css tokens).
 const DARK = {
-  background: '#13151B',
-  foreground: '#E6E2DA',
-  cursorAccent: '#13151B', // cursor and selection follow the accent color (xtermTheme)
-  scrollbarSliderBackground: 'rgba(233, 228, 218, 0.20)', // = CSS scrollbars (app.css)
-  scrollbarSliderHoverBackground: 'rgba(233, 228, 218, 0.34)',
-  scrollbarSliderActiveBackground: 'rgba(233, 228, 218, 0.46)',
-  black: '#262A35',
+  background: '#161618', // = --surface (app.css)
+  foreground: '#F2F2F4', // = --text
+  cursorAccent: '#161618', // cursor and selection follow the accent color (xtermTheme)
+  scrollbarSliderBackground: 'rgba(242, 242, 244, 0.20)', // = CSS scrollbars (app.css)
+  scrollbarSliderHoverBackground: 'rgba(242, 242, 244, 0.34)',
+  scrollbarSliderActiveBackground: 'rgba(242, 242, 244, 0.46)',
+  black: '#2C2C2E',
   red: '#E5685F',
   green: '#8CC79A',
   yellow: '#E9B860',
   blue: '#7EA6E6',
   magenta: '#C792D8',
   cyan: '#6EC4C4',
-  white: '#D6D1C7',
-  brightBlack: '#5F6574',
+  white: '#C7C7CC',
+  brightBlack: '#636366',
   brightRed: '#F08A80',
   brightGreen: '#A6DCB2',
   brightYellow: '#F3CC80',
   brightBlue: '#9DBDF0',
   brightMagenta: '#DAAEE6',
   brightCyan: '#8FD8D6',
-  brightWhite: '#F4F0E8',
+  brightWhite: '#F5F5F7',
 };
 
 const LIGHT = {
-  background: '#FCFCFD',
-  foreground: '#1F2229',
-  cursorAccent: '#FCFCFD',
-  scrollbarSliderBackground: 'rgba(28, 31, 38, 0.20)',
-  scrollbarSliderHoverBackground: 'rgba(28, 31, 38, 0.34)',
-  scrollbarSliderActiveBackground: 'rgba(28, 31, 38, 0.46)',
-  black: '#1F2229',
+  background: '#FCFCFC',
+  foreground: '#1D1D1F',
+  cursorAccent: '#FCFCFC',
+  scrollbarSliderBackground: 'rgba(29, 29, 31, 0.20)',
+  scrollbarSliderHoverBackground: 'rgba(29, 29, 31, 0.34)',
+  scrollbarSliderActiveBackground: 'rgba(29, 29, 31, 0.46)',
+  black: '#1D1D1F',
   red: '#C4423A',
   green: '#2F8A52',
   yellow: '#9A6B0E',
   blue: '#2F63C0',
   magenta: '#9248AD',
   cyan: '#1C8585',
-  white: '#8A8F99',
-  brightBlack: '#5D626D',
+  white: '#8E8E93',
+  brightBlack: '#6E6E73',
   brightRed: '#D9574E',
   brightGreen: '#3DA265',
   brightYellow: '#B9831C',
   brightBlue: '#4479D6',
   brightMagenta: '#A85EC2',
   brightCyan: '#2A9C9C',
-  brightWhite: '#B5B9C1',
+  brightWhite: '#C7C7CC',
 };
 
 // Accent colors to choose from (Settings → Appearance). Each has a shade tuned for the dark and the light
@@ -88,6 +88,6 @@ export function xtermTheme(mode, accentName, seeThrough = false) {
   };
 }
 
-// Colors for the native window-controls overlay on Windows/Linux (sits on the top bar).
+// Colors for the native window-controls overlay on Windows/Linux (sits on the top bar, which is --chrome).
 export const chromeColors = (mode) =>
-  mode === 'light' ? { color: '#F6F7F9', symbolColor: '#434853' } : { color: '#1D2028', symbolColor: '#B9B4AA' };
+  mode === 'light' ? { color: '#F9FAFB', symbolColor: '#424245' } : { color: '#1A1A1C', symbolColor: '#C2C2C6' };

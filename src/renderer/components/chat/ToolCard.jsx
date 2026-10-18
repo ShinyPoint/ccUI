@@ -3,38 +3,18 @@
 import { memo } from 'preact/compat';
 import { useContext, useState } from 'preact/hooks';
 import { ChatContext } from './context.js';
-import { structuredPatch } from 'diff';
 import { Markdown } from './Items.jsx';
 import { Collapse } from '../ui.jsx';
 import { PermissionPrompt, QuestionPrompt, PlanPrompt } from './Prompts.jsx';
 import { highlight, languageForPath } from '../../lib/markdown.js';
 import { relPath, formatDuration, formatBytes, pluralize } from '../../lib/format.js';
+import { countDiff, patchesFor, EDIT_TOOLS } from '../../lib/diff.js';
+import { openChanges } from '../../lib/side.js';
 
 const TASK_TOOLS = new Set(['TodoWrite', 'TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet']);
 const SUBAGENT_TOOLS = new Set(['Agent', 'Task']);
 const firstLine = (s) => String(s || '').split('\n')[0];
 const lineCount = (s) => (s ? String(s).split('\n').length : 0);
-
-function countDiff(patches) {
-  let add = 0;
-  let del = 0;
-  for (const h of patches || []) {
-    for (const l of h.lines) {
-      if (l[0] === '+') add++;
-      else if (l[0] === '-') del++;
-    }
-  }
-  return { add, del };
-}
-
-function patchesFor(item) {
-  if (item.data?.structuredPatch?.length) return item.data.structuredPatch;
-  const { input } = item;
-  const edits = Array.isArray(input.edits) ? input.edits : [input];
-  return edits.flatMap((e) => (typeof e.old_string === 'string' && typeof e.new_string === 'string'
-    ? structuredPatch('a', 'b', e.old_string, e.new_string, '', '', { context: 3 }).hunks
-    : []));
-}
 
 // Verb, target and a small meta label for the collapsed row.
 export function describe(item, cwd) {
@@ -95,7 +75,7 @@ export function describe(item, cwd) {
   }
 }
 
-function DiffView({ patches, path }) {
+export function DiffView({ patches, path }) {
   const lang = languageForPath(path);
   return (
     <div class="diff">
@@ -313,7 +293,22 @@ function hasBody(item) {
   }
 }
 
-export const ToolCard = memo(function ToolCard({ item, cwd, session, childItems, nested }) {
+// An agent sent to the background: its tool result only says it was launched. The card shows it running until
+// Claude Code reports it ended (bgStatus, from the reducer), then its outcome and summary.
+const BG_STATUS = { completed: 'done', failed: 'error', stopped: 'cancelled' };
+function backgroundView(item) {
+  if (item.data?.status !== 'async_launched') return item;
+  return {
+    ...item,
+    status: item.bgStatus ? BG_STATUS[item.bgStatus] || 'done' : 'running',
+    isError: item.bgStatus === 'failed',
+    result: item.bgSummary || '',
+    background: true,
+  };
+}
+
+export const ToolCard = memo(function ToolCard({ item: raw, cwd, session, childItems, nested }) {
+  const item = backgroundView(raw);
   const permissions = useContext(ChatContext).permissions;
   const permission = permissions[item.id];
   const info = describe(item, cwd);
@@ -348,13 +343,21 @@ export const ToolCard = memo(function ToolCard({ item, cwd, session, childItems,
         <span class={`tool-verb ${inProgress ? 'in-progress' : ''}`}>
           {verb}{inProgress && <span class="dots" aria-hidden="true" />}
         </span>
-        {target && <span class={`tool-target ${info.mono ? 'mono' : ''}`}>{target}</span>}
+        {target && (EDIT_TOOLS.has(item.name) && item.status === 'done' && session?.side
+          ? <span class="tool-target file-link" role="link" tabIndex={0} title="Show in Changes"
+                  onClick={(e) => { e.stopPropagation(); openChanges(session, { toolId: item.id, path: item.input?.file_path || item.input?.notebook_path }); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); openChanges(session, { toolId: item.id, path: item.input?.file_path || item.input?.notebook_path }); } }}>
+              {target}
+            </span>
+          : <span class={`tool-target ${info.mono ? 'mono' : ''}`}>{target}</span>)}
         <span class="tool-meta">
           {info.diff && (info.diff.add > 0 || info.diff.del > 0) && (
             <span class="diffstat"><span class="add">+{info.diff.add}</span> <span class="del">−{info.diff.del}</span></span>
           )}
           {info.meta && <span>{info.meta}</span>}
           {SUBAGENT_TOOLS.has(item.name) && childItems?.length > 0 && <span>{pluralize(childItems.filter((c) => c.type === 'tool').length, 'step')}</span>}
+          {item.background && item.status === 'running' && <span>In the background</span>}
+          {item.background && item.bgStatus === 'stopped' && <span>Stopped</span>}
           {status === 'denied' && <span class="denied">Denied</span>}
           {duration && <span>{duration}</span>}
         </span>

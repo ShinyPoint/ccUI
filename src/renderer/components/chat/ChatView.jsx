@@ -5,11 +5,13 @@ import { ToolCard } from './ToolCard.jsx';
 import { PermissionPrompt } from './Prompts.jsx';
 import { Composer } from './Composer.jsx';
 import { FindBar } from './FindBar.jsx';
-import { UserItem, TextItem, ThinkingItem, NoticeItem, CommandOutputItem, TurnItem, DividerItem } from './Items.jsx';
-import { topLevel, childrenOf, currentActivity, groupTurns } from '../../lib/chat-reducer.js';
+import { UserItem, TextItem, ThinkingItem, NoticeItem, CommandOutputItem, TurnItem, DividerItem, WakeItem } from './Items.jsx';
+import { topLevel, childrenOf, currentActivity, groupTurns, backgroundTasks } from '../../lib/chat-reducer.js';
 import { settings, settingsDialog, findBar } from '../../lib/store.js';
-import { openInTerminal, retryChat, displayName } from '../../lib/sessions.js';
+import { openInTerminal, retryChat, displayName, stopTask, stopAllTasks } from '../../lib/sessions.js';
 import { formatCost, formatDuration, pluralize } from '../../lib/format.js';
+import { turnChanges } from '../../lib/diff.js';
+import { openChanges } from '../../lib/side.js';
 
 const ITEM_VIEWS = {
   user: UserItem,
@@ -19,6 +21,7 @@ const ITEM_VIEWS = {
   'command-output': CommandOutputItem,
   turn: TurnItem,
   divider: DividerItem,
+  wake: WakeItem,
 };
 
 const STARTERS = [
@@ -47,6 +50,55 @@ function TaskStrip({ tasks, busy }) {
             <li key={t.id} data-status={t.status}>
               <span class="task-box">{t.status === 'completed' && <Icon name="check" size={11} />}</span>
               <span>{t.content}</span>
+            </li>
+          ))}
+        </ul>
+      </Collapse>
+    </div>
+  );
+}
+
+// Background tasks (subagents, background shells) above the message box: what each is doing, and a button to
+// stop it. Ended ones stay a few seconds, then fold away.
+const ENDED_SHOWN_MS = 5000;
+const ENDED_LABEL = { completed: 'Done', failed: 'Failed', stopped: 'Stopped' };
+function AgentStrip({ s, chat }) {
+  s.traceTick.value; // elapsed times, and ended tasks leaving
+  const [open, setOpen] = useState(true);
+  const now = Date.now();
+  const shown = backgroundTasks(chat).filter((a) => a.status === 'running' || now - a.endedAt < ENDED_SHOWN_MS);
+  if (!shown.length) return null;
+  const running = shown.filter((a) => a.status === 'running').length;
+  return (
+    <div class={`tasks agents ${open ? 'open' : ''}`}>
+      <div class="agents-head">
+        <button class="agents-toggle" onClick={() => setOpen(!open)} aria-expanded={open}>
+          <span class={`agents-dot ${running ? 'busy' : ''}`} />
+          <span class="tasks-current">
+            {running ? `${pluralize(running, 'background task')} running` : 'Background tasks done'}
+          </span>
+          <Icon name="chevron" size={14} />
+        </button>
+        {running > 1 && <button class="agents-stop-all" onClick={() => stopAllTasks(s)}>Stop all</button>}
+      </div>
+      <Collapse open={open}>
+        <ul class="agent-list">
+          {shown.map((a) => (
+            <li key={a.id} data-status={a.status}>
+              <span class="agent-mark">
+                {a.status === 'completed' ? <Icon name="check" size={12} /> : a.status !== 'running' ? <Icon name="x" size={12} /> : null}
+              </span>
+              <span class="agent-type">{a.subagentType || (a.kind === 'local_bash' ? 'Shell' : 'Agent')}</span>
+              <span class="agent-desc" title={a.summary || a.description}>{a.description || 'Working'}</span>
+              <span class="agent-meta">
+                {a.status === 'running'
+                  ? [formatDuration(now - a.startedAt), a.toolUses ? pluralize(a.toolUses, 'tool') : '', a.lastTool].filter(Boolean).join(' · ')
+                  : ENDED_LABEL[a.status] || 'Ended'}
+              </span>
+              {a.status === 'running'
+                ? <button class="icon-btn agent-stop" title="Stop this task" aria-label={`Stop ${a.description || 'this task'}`}
+                          onClick={() => stopTask(s, a.id)}><Icon name="stop" size={12} /></button>
+                : <span />}
             </li>
           ))}
         </ul>
@@ -202,25 +254,34 @@ function Turn({ g, s, renderItem }) {
   if (!foldable) {
     return <>{renderItem(g.user)}{g.work.map(renderItem)}{g.errors.map(renderItem)}{g.answer.map(renderItem)}{g.end && renderItem(g.end)}</>;
   }
-  const files = new Set(steps.filter((i) => ['Edit', 'MultiEdit', 'Write', 'NotebookEdit'].includes(i.name) && i.status === 'done')
-    .map((i) => i.input?.file_path || i.input?.notebook_path)).size;
+  const changes = turnChanges(s.chat.value, g);
+  const added = changes.reduce((n, c) => n + c.add, 0);
+  const removed = changes.reduce((n, c) => n + c.del, 0);
   const failed = steps.filter((i) => i.status === 'error').length;
   const duration = g.end?.durationMs ? formatDuration(g.end.durationMs) : '';
   const details = [
     steps.length ? pluralize(steps.length, 'step') : '',
-    files ? `${pluralize(files, 'file')} edited` : '',
+
     failed ? `${failed} failed` : '',
   ].filter(Boolean).join(' · ');
   return (
     <>
       {renderItem(g.user)}
-      <button class={`work-summary ${open ? 'open' : ''}`} aria-expanded={open} onClick={toggle}
-              title={open ? 'Hide the steps Claude took' : 'Show the steps Claude took'}>
-        <Icon name="chevron" size={14} />
-        <span class="ws-title">{g.end?.interrupted ? 'Stopped' : 'Worked'}{duration && ` for ${duration}`}</span>
-        {details && <span class="ws-details">{details}</span>}
-        {g.end?.cost > 0 && <span class="ws-cost">{formatCost(g.end.cost)}</span>}
-      </button>
+      <div class="ws-row">
+        <button class={`work-summary ${open ? 'open' : ''}`} aria-expanded={open} onClick={toggle}
+                title={open ? 'Hide the steps Claude took' : 'Show the steps Claude took'}>
+          <Icon name="chevron" size={14} />
+          <span class="ws-title">{g.end?.interrupted ? 'Stopped' : 'Worked'}{duration && ` for ${duration}`}</span>
+          {details && <span class="ws-details">{details}</span>}
+          {g.end?.cost > 0 && <span class="ws-cost">{formatCost(g.end.cost)}</span>}
+        </button>
+        {changes.length > 0 && (
+          <button class="ws-files" title="Show what this turn changed" onClick={() => openChanges(s, { turnKey: g.key })}>
+            <Icon name="diff" size={13} />{pluralize(changes.length, 'file')}
+            <span class="diffstat"><span class="add">+{added}</span> <span class="del">−{removed}</span></span>
+          </button>
+        )}
+      </div>
       <Collapse open={open}><div class="work-steps">{g.work.map(renderItem)}</div></Collapse>
       {g.errors.map(renderItem)}
       {g.answer.map(renderItem)}
@@ -398,6 +459,7 @@ export function ChatView({ s }) {
               <Icon name="arrowDown" size={14} />Latest
             </button>
           )}
+          <AgentStrip s={s} chat={chat} />
           <TaskStrip tasks={chat.tasks} busy={chat.busy} />
           <Composer key={s.uid} s={s} prefill={prefill} />
         </div>

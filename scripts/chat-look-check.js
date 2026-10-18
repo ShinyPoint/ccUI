@@ -42,7 +42,7 @@ install({
 });
 
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  theme: 'dark', confirmClose: false, notify: false, sidebarGlass: false,
+  theme: 'dark', confirmClose: false, notify: false, sidebarGlass: true,
   recent: [{ path: project, at: Date.now() }], trustedFolders: [project],
 }));
 app.setPath('userData', profile);
@@ -111,8 +111,75 @@ app.on('browser-window-created', (_e, win) => {
       await wait(800);
       check('it ends at the bottom', await js("{ const el = document.querySelector('.chat-scroll'); el.scrollHeight - el.clientHeight - el.scrollTop < 2 }"));
 
+      // No status bar; the chat card runs down to the window's edge, rounded at the top only, 8px in on both sides.
+      check('there is no status bar', await js("!document.querySelector('#statusbar')"));
+      // Frosted glass: the sidebar, the top bar and the gaps are one see-through surface; the work area stays solid.
+      const glass = await js(`{ const cs = (q) => getComputedStyle(document.querySelector(q));
+        JSON.stringify({ on: document.documentElement.classList.contains('glass'), app: cs('#app').backgroundColor,
+          sidebar: cs('#sidebar').backgroundColor, main: cs('#main').backgroundColor, seam: cs('#sidebar').borderRightWidth,
+          stage: cs('#stage').backgroundColor }) }`);
+      const g = JSON.parse(glass);
+      if (g.on) {
+        // Opacity of a computed color: rgb(…) is 1, rgba(…, a) and color(srgb … / a) carry it.
+        const alpha = (c) => { const m = /\/\s*([\d.]+)\)$/.exec(c) || /^rgba\([^)]*,\s*([\d.]+)\)$/.exec(c); return m ? Number(m[1]) : 1; };
+        check('the frame is one see-through surface', alpha(g.app) < 1 && alpha(g.sidebar) === 0 && alpha(g.main) === 0, glass);
+        check('with no seam between the sidebar and the top bar', g.seam === '0px', glass);
+        check('and the work area stays solid', alpha(g.stage) === 1, glass);
+      } else console.log('(glass not available here: skipped the glass checks)');
+      const sheet = await js(`{ const st = document.querySelector('#stage'); const r = st.getBoundingClientRect(); const cs = getComputedStyle(st);
+        const side = document.querySelector('#sidebar').getBoundingClientRect();
+        JSON.stringify({ bottom: Math.round(innerHeight - r.bottom), left: Math.round(r.left - side.right), right: Math.round(innerWidth - r.right),
+          top: cs.borderTopLeftRadius + ' ' + cs.borderTopRightRadius, under: cs.borderBottomLeftRadius + ' ' + cs.borderBottomRightRadius }) }`);
+      const sh = JSON.parse(sheet);
+      check('the chat card reaches the bottom edge', sh.bottom === 0, sheet);
+      check('rounded at the top only', sh.top === '18px 18px' && sh.under === '0px 0px', sheet);
+      check('with the same gap on the left and the right', sh.left === 8 && sh.right === 8, sheet);
+      // The option (Settings → Appearance): the work area runs out to the window's right edge.
+      const edge = async () => JSON.parse(await js(`{ const st = document.querySelector('#stage'); const r = st.getBoundingClientRect(); const cs = getComputedStyle(st);
+        JSON.stringify({ right: Math.round(innerWidth - r.right), top: cs.borderTopLeftRadius + ' ' + cs.borderTopRightRadius }) }`));
+      const toggleEdge = async () => {
+        await js("document.querySelector('.sidebar-bottom .ghost-btn').click(); true");
+        await until('Settings', "Boolean(document.querySelector('.settings-nav'))");
+        await js("[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent.includes('Appearance')).click(); true");
+        await wait(200);
+        await js("[...document.querySelectorAll('.dialog .set-row')].find((r) => r.textContent.includes('window’s edge')).querySelector('input').click(); true");
+        await wait(300);
+        await js("document.querySelector('.settings-head .primary-btn').click(); true");
+        await wait(400);
+      };
+      check('the option is off by default', !(await js("document.documentElement.classList.contains('fill-edge')")));
+      await toggleEdge();
+      const on = await edge();
+      check('turned on, the work area reaches the right edge, rounded at its top-left only', on.right === 0 && on.top === '18px 0px', JSON.stringify(on));
+      await toggleEdge();
+      const off = await edge();
+      check('turned off again, the gap is back', off.right === 8 && off.top === '18px 18px', JSON.stringify(off));
+      check('the context button sits right of the model menu', await js(`{ const bar = [...document.querySelector('.composer-bar').children];
+        bar.indexOf(document.querySelector('.composer-bar .menu:not(.mode-menu):not(.context-menu-wrap)')) < bar.indexOf(document.querySelector('.context-menu-wrap')) }`));
+      check('small headings are written as they are, not in capitals', await js("getComputedStyle(document.querySelector('.section-label')).textTransform === 'none'"));
+      check('your bubble is plain grey', await js("getComputedStyle(document.querySelector('.msg-user')).backgroundColor === getComputedStyle(document.querySelector('.composer-bar .menu-button')).getPropertyValue('--raise') || getComputedStyle(document.querySelector('.msg-user')).backgroundColor === 'rgb(44, 44, 46)'"));
+
+      // The context pop-up.
+      await js("document.querySelector('.context-menu-wrap .menu-button').click(); true");
+      await until('the context pop-up', "Boolean(document.querySelector('.context-pop .ctx-rows li'))");
+      const pop = await js(`JSON.stringify({ rows: [...document.querySelectorAll('.context-pop .ctx-rows li span:first-child')].map((e) => e.textContent),
+        total: document.querySelector('.ctx-total').textContent, cost: document.querySelector('.ctx-cost').textContent })`);
+      const p = JSON.parse(pop);
+      check('it lists what takes the space, without deferred tools', p.rows.includes('Messages') && p.rows.includes('Free space') && !p.rows.includes('MCP tools'), pop);
+      check('and the session cost', /\$0\.0\d/.test(p.cost), p.cost);
+      await shot('2b-context');
+      await js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true");
+      await wait(200);
+      check('Esc closes it', await js("!document.querySelector('.context-pop')"));
+      await js("document.querySelector('.context-menu-wrap .menu-button').click(); true");
+      await until('the context pop-up again', "Boolean(document.querySelector('.context-pop'))");
+      await js("document.querySelector('.context-pop .secondary-btn').click(); true");
+      await until('the compact message', "[...document.querySelectorAll('.msg-user-text')].some((e) => e.textContent === '/compact')", 5000);
+      check('Compact conversation sends /compact', await js("!document.querySelector('.context-pop')"));
+      await until('idle again', idle);
+
       // Terminal panel joined to the chat.
-      await js("[...document.querySelectorAll('.st-btn')].find((b) => b.textContent.includes('Terminal')).click(); true");
+      await js("document.querySelector('.panel-toggle').click(); true");
       await wait(1500);
       const seam = await js(`{ const s = document.querySelector('#stage').getBoundingClientRect();
         const p = document.querySelector('.bottom-panel').getBoundingClientRect();

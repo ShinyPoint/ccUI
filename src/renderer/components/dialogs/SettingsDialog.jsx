@@ -2,10 +2,10 @@
 // as soon as it is made: switches, choices and swatches right away, sliders when let go (previewed while
 // dragging), text fields when they lose focus or on Enter.
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { Dialog, Segmented, Icon } from '../ui.jsx';
+import { Dialog, Segmented, Icon, SetGroup as Group, SetRow as Row, Switch } from '../ui.jsx';
 import { MODE_LABELS } from '../chat/Prompts.jsx';
 import { MODEL_CHOICES } from './NewSessionDialog.jsx';
-import { api, info, settings, saveSettings, settingsDialog, claudeCheck, toast, themeMode, backgroundUrl } from '../../lib/store.js';
+import { api, info, settings, saveSettings, settingsDialog, claudeCheck, claudeUpdate, toast, themeMode, backgroundUrl } from '../../lib/store.js';
 import { SHORTCUT_LIST } from '../../lib/keyboard.js';
 import { ACCENTS, accentColors } from '../../lib/themes.js';
 
@@ -24,38 +24,6 @@ let lastSection = 'general'; // reopening Settings shows the section you left
 const preview = (patch) => { settings.value = { ...settings.value, ...patch }; };
 
 // ---------- building blocks ----------
-
-function Group({ title, children }) {
-  return (
-    <section class="set-group">
-      {title && <h4>{title}</h4>}
-      <div class="set-card">{children}</div>
-    </section>
-  );
-}
-
-// A setting: its name and an optional note on the left, the control on the right (`stack`: under them).
-function Row({ label, note, stack, children }) {
-  return (
-    <div class={`set-row ${stack ? 'stack' : ''}`}>
-      <div class="set-text">
-        <div class="set-label">{label}</div>
-        {note && <div class="set-note">{note}</div>}
-      </div>
-      <div class="set-control">{children}</div>
-    </div>
-  );
-}
-
-function Switch({ checked, disabled, onChange, label }) {
-  return (
-    <label class="switch">
-      <input type="checkbox" role="switch" aria-label={label} checked={checked} disabled={disabled}
-             onChange={(e) => onChange(e.currentTarget.checked)} />
-      <span />
-    </label>
-  );
-}
 
 function ToggleRow({ setting, label, note, disabled, value }) {
   return (
@@ -180,6 +148,7 @@ function ApiKey({ focus }) {
 function Executable() {
   const path = settings.value.claudePath || '';
   const [check, setCheck] = useState(claudeCheck.value);
+  const builtIn = claudeUpdate.value.current; // checked again when an update replaces the built-in build
   useEffect(() => {
     let live = true;
     setCheck(null);
@@ -189,7 +158,7 @@ function Executable() {
       claudeCheck.value = res;
     });
     return () => { live = false; };
-  }, [path]);
+  }, [path, builtIn]);
   const save = (value) => saveSettings({ claudePath: value.trim() });
   return (
     <>
@@ -205,6 +174,42 @@ function Executable() {
           : !check.ok ? 'Not found. Leave empty to use the built-in Claude Code.'
           : `Claude Code ${check.version}${check.bundled ? ' (built in)' : ''}${check.chatCapable ? '' : '. CLI sessions only: chat needs an executable file'}`}
       </p>
+    </>
+  );
+}
+
+// Updates of the built-in Claude Code: what the app has, what npm has, and a button for the next step.
+function ClaudeUpdates() {
+  const u = claudeUpdate.value;
+  const own = Boolean((settings.value.claudePath || '').trim());
+  const busy = ['checking', 'downloading', 'installing'].includes(u.state);
+  const pct = u.total ? Math.min(100, Math.round(((u.received || 0) / u.total) * 100)) : null;
+  const note = own ? 'Not in use: you chose your own Claude Code above. Update that one yourself.'
+    : u.state === 'checking' ? 'Checking for a newer version…'
+    : u.state === 'available' ? `Version ${u.latest} is available. You have ${u.current}.`
+    : u.state === 'downloading' ? `Downloading ${u.latest}…${pct == null ? '' : ` ${pct}%`}`
+    : u.state === 'installing' ? `Installing ${u.latest}…`
+    : u.state === 'up-to-date' ? `Version ${u.current}, the newest.`
+    : u.state === 'ready' ? `Updated to ${u.latest}. New sessions use it; running ones keep their version.`
+    : u.state === 'error' ? u.error
+    : u.current ? `Version ${u.current}` : '';
+  const run = (action) => { action().catch(() => {}); };
+  return (
+    <>
+      <Row label="Built-in Claude Code" note={<span class={u.state === 'error' && !own ? 'bad' : ''}>{note}</span>}>
+        {u.state === 'available' && !own
+          ? <button type="button" class="primary-btn" onClick={() => run(api.claudeUpdate.run)}>Update to {u.latest}</button>
+          : <button type="button" class="secondary-btn" disabled={own || busy} onClick={() => run(api.claudeUpdate.check)}>
+              {u.state === 'downloading' || u.state === 'installing' ? 'Updating…' : u.state === 'checking' ? 'Checking…' : 'Check for updates'}
+            </button>}
+      </Row>
+      {u.state === 'downloading' && !own && (
+        <div class="set-progress" role="progressbar" aria-label="Download" aria-valuenow={pct ?? undefined}>
+          <span style={{ width: `${pct ?? 0}%` }} />
+        </div>
+      )}
+      <ToggleRow setting="autoUpdateClaude" label="Update automatically" disabled={own}
+                 note="Checks when ccUI starts and every 6 hours, and downloads new versions in the background" />
     </>
   );
 }
@@ -268,10 +273,11 @@ function Appearance() {
         <SliderRow setting="chatFontSize" label="Chat text size" min={11} max={22} step={1} format={(v) => `${v}px`} />
       </Group>
       <Group title="Window">
-        <ToggleRow setting="sidebarGlass" label="Frosted glass sidebar" disabled={!glassSupported}
+        <ToggleRow setting="sidebarGlass" label="Frosted glass" disabled={!glassSupported}
                    value={Boolean(glassSupported && s.sidebarGlass)}
                    note={!glassSupported ? 'Needs Windows 11 (22H2 or later) or macOS'
-                     : backgroundUrl.value ? 'The background image takes its place' : 'The desktop shows through, blurred'} />
+                     : backgroundUrl.value ? 'The background image takes its place' : 'The desktop shows through the sidebar and top bar, blurred'} />
+        <ToggleRow setting="fillEdge" label="Work area to the window’s edge" note="No gap to the right of the chat and CLI" />
         <Row label="Background image" note="Drawn blurred behind the whole window">
           <BackgroundImage />
         </Row>
@@ -326,6 +332,9 @@ function ClaudeCode({ focusAccount }) {
         <Row stack label="Claude Code" note="Leave empty to use the version built into the app">
           <Executable />
         </Row>
+      </Group>
+      <Group title="Updates">
+        <ClaudeUpdates />
       </Group>
     </>
   );

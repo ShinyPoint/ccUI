@@ -25,8 +25,7 @@ const LAYOUT = `{ const box = (el) => { if (!el) return null; const r = el.getBo
     cliHost: [...document.querySelectorAll('#term-stack .term-host')].map(box).filter(Boolean),
     overlay: box(document.querySelector('.term-composer, .terminal-composer')),
     panel: box(document.querySelector('.bottom-panel')),
-    panelTerm: [...document.querySelectorAll('.panel-stack .term-host')].map((h) => box(h.querySelector('.xterm-screen'))).filter(Boolean),
-    status: box(document.querySelector('.statusbar, .status-bar')) }) }`;
+    panelTerm: [...document.querySelectorAll('.panel-stack .term-host')].map((h) => box(h.querySelector('.xterm-screen'))).filter(Boolean) }) }`;
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -82,7 +81,7 @@ app.on('browser-window-created', (_e, win) => {
       win.webContents.sendInputEvent({ type: 'mouseMove', x: box.x, y: box.y });
       await wait(400);
       await shot('2b-scrollbar-hover');
-      await js(`[...document.querySelectorAll('.st-btn')].find((b) => b.textContent.includes('Terminal')).click()`);
+      await js(`document.querySelector('.panel-toggle').click()`);
       await wait(3500);
       await shot('3-terminal-panel-dark');
       await js(`document.querySelector('.sidebar-bottom .icon-btn').click()`);
@@ -121,7 +120,7 @@ app.on('browser-window-created', (_e, win) => {
       await wait(7000);
       console.log('cli layout:', await js(LAYOUT));
       await shot('7-cli-with-panel');
-      await js(`[...document.querySelectorAll('.st-btn')].find((b) => b.textContent.includes('Terminal')).click()`);
+      await js(`document.querySelector('.panel-toggle').click()`);
       await wait(1500);
       console.log('cli layout, panel closed:', await js(LAYOUT));
       await shot('8-cli');

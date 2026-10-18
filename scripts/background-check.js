@@ -107,7 +107,7 @@ app.on('browser-window-created', (_e, win) => {
       await wait(5000);
       await js(`{ const el = document.querySelector('.chat-composer .composer-input');
         el.value = 'Draft prompt over the background'; el.dispatchEvent(new Event('input', { bubbles: true })); } true`);
-      await js("[...document.querySelectorAll('.st-btn')].find((b) => b.textContent.includes('Terminal')).click(); true");
+      await js("document.querySelector('.panel-toggle').click(); true");
       await wait(3500);
       await shot('2-chat-terminal-dark');
       await js("document.querySelector('.sidebar-bottom .icon-btn').click(); true");

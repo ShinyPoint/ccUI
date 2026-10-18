@@ -125,7 +125,8 @@ class AgentSession {
         systemPrompt: { type: 'preset', preset: 'claude_code' },
         settingSources: ['user', 'project', 'local'],
         pathToClaudeCodeExecutable: claudeFile || undefined,
-        env: childEnv(apiKey ? { ANTHROPIC_API_KEY: apiKey } : {}),
+        // session_state_changed 'idle' tells the chat for certain that the turn and its background work are over.
+        env: childEnv({ CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1', ...(apiKey ? { ANTHROPIC_API_KEY: apiKey } : {}) }),
         canUseTool: (toolName, toolInput, options) => this.askPermission(toolName, toolInput, options),
         stderr: (data) => { this.stderr = (this.stderr + data).slice(-4000); },
       },
@@ -319,6 +320,11 @@ class AgentSession {
         // Stop means stop everything: messages still waiting in Claude Code's queue would otherwise start
         // the next turn right after the interrupted one. `value.cancelled` lists their uuids.
         case 'interrupt': return { ok: true, value: (await this.q.interrupt({ cancelQueued: true })) || null };
+        // One background task (a subagent, a background shell); Claude Code reports it with task_notification.
+        case 'stop-task':
+          if (typeof arg !== 'string' || !arg) return { ok: false, error: 'No task given.' };
+          await this.q.stopTask(arg);
+          return { ok: true };
         case 'model': await this.q.setModel(arg || undefined); return { ok: true };
         // Reasoning effort for the rest of the session; '' goes back to the model's default.
         case 'effort':

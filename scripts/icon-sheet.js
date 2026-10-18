@@ -31,7 +31,7 @@ app.whenReady().then(async () => {
   const html = `<!doctype html><meta charset="utf-8"><style>
     body { margin: 0; font: 11px system-ui, sans-serif; }
     section { padding: 14px 18px; }
-    .dark { background: #13151B; color: #E9E4DA; } .light { background: #FCFCFD; color: #1C1F26; }
+    .dark { background: #161618; color: #F2F2F4; } .light { background: #FCFCFC; color: #1D1D1F; }
     .row { display: flex; align-items: center; height: 46px; }
     .names { height: 24px; opacity: .55; }
     .label { width: 54px; flex-shrink: 0; opacity: .55; }

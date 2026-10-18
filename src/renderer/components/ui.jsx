@@ -1,7 +1,7 @@
 // Shared UI pieces: icons, dropdown menus, the dialog wrapper, toasts.
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { signal } from '@preact/signals';
-import { toasts } from '../lib/store.js';
+import { toasts, confirms } from '../lib/store.js';
 import { ICONS, ICON_STROKE } from '../lib/icons.js';
 
 
@@ -62,9 +62,11 @@ export function Collapse({ open, children }) {
   );
 }
 
-// A button that opens a small menu of options. `options`: [{ value, label, hint, disabled }]; `footer`: more
-// controls under the options (picking one of them leaves the menu open).
-export function Menu({ label, title, value, options, onSelect, footer, align = 'left', up = true, className = '' }) {
+// A button that opens a panel above (or below) it. The panel closes on a click outside it or on Esc, like every
+// pop-up in the app. `button`: what the button shows; `as`: the panel's element; `children`: its content, or a
+// function given `close`. `onOpen` runs as it opens (to refresh what it shows).
+export function Popover({ button, title, as: Panel = 'div', role = 'dialog', align = 'left', up = true, className = '',
+  panelClass = '', onOpen, children }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -78,28 +80,44 @@ export function Menu({ label, title, value, options, onSelect, footer, align = '
       document.removeEventListener('keydown', esc, true);
     };
   }, [open]);
+  const close = () => setOpen(false);
   return (
     <div class={`menu ${className}`} ref={ref}>
-      <button type="button" class="menu-button" title={title} aria-haspopup="listbox" aria-expanded={open}
-              onClick={() => setOpen(!open)}>
-        {label}<Icon name="chevron" size={13} />
+      <button type="button" class="menu-button" title={title} aria-haspopup={role} aria-expanded={open}
+              onClick={() => { if (!open) onOpen?.(); setOpen(!open); }}>
+        {button}
       </button>
       {open && (
-        <ul class={`menu-list ${up ? 'up' : 'down'} ${align}`} role="listbox">
+        <Panel class={`menu-list ${up ? 'up' : 'down'} ${align} ${panelClass}`} role={role}>
+          {typeof children === 'function' ? children(close) : children}
+        </Panel>
+      )}
+    </div>
+  );
+}
+
+// A button that opens a small menu of options. `options`: [{ value, label, hint, disabled }]; `footer`: more
+// controls under the options (picking one of them leaves the menu open).
+export function Menu({ label, title, value, options, onSelect, footer, align = 'left', up = true, className = '' }) {
+  return (
+    <Popover button={<>{label}<Icon name="chevron" size={13} /></>} title={title} as="ul" role="listbox"
+             align={align} up={up} className={className}>
+      {(close) => (
+        <>
           {options.map((o) => (
             <li key={o.value}>
               <button type="button" role="option" aria-selected={o.value === value} disabled={o.disabled}
                       class={o.value === value ? 'selected' : ''}
-                      onClick={() => { setOpen(false); onSelect(o.value); }}>
+                      onClick={() => { close(); onSelect(o.value); }}>
                 <span class="menu-label">{o.label}</span>
                 {o.hint && <span class="menu-hint">{o.hint}</span>}
               </button>
             </li>
           ))}
           {footer && <li class="menu-footer" role="presentation">{footer}</li>}
-        </ul>
+        </>
       )}
-    </div>
+    </Popover>
   );
 }
 
@@ -122,6 +140,67 @@ export function Dialog({ open, onClose, wide, title, className = '', children })
         </div>
       )}
     </dialog>
+  );
+}
+
+// The app's own confirmation dialog (asked through confirmDialog in store.js), shown instead of the system's
+// message boxes. The safe button (Cancel) takes the focus for risky questions, so Enter doesn't do the risky
+// thing by accident; Esc always cancels.
+export function ConfirmHost() {
+  const c = confirms.value[0];
+  const answer = (value) => {
+    if (!c) return;
+    confirms.value = confirms.value.slice(1);
+    c.resolve(value);
+  };
+  // One <dialog> per question (keyed), so a queued one opens fresh after the one before closes.
+  return (
+    <Dialog key={c?.id} open={Boolean(c)} className="dialog-confirm" onClose={() => answer(false)}>
+      {c && (
+        <form onSubmit={(e) => { e.preventDefault(); answer(true); }}>
+          <h3>{c.title}</h3>
+          {c.detail && <p class="confirm-detail">{c.detail}</p>}
+          {c.message && <p class="confirm-message">{c.message}</p>}
+          <div class="dialog-actions">
+            <button type="button" class="secondary-btn" autofocus={c.safeDefault} onClick={() => answer(false)}>{c.cancel}</button>
+            <button type="submit" class={c.danger ? 'danger-btn' : 'primary-btn'} autofocus={!c.safeDefault}>{c.confirm}</button>
+          </div>
+        </form>
+      )}
+    </Dialog>
+  );
+}
+
+// Grouped rows on a tinted card, as in Settings (also New session).
+export function SetGroup({ title, children }) {
+  return (
+    <section class="set-group">
+      {title && <h4>{title}</h4>}
+      <div class="set-card">{children}</div>
+    </section>
+  );
+}
+
+// A row of a SetGroup: its name and an optional note on the left, the control on the right (`stack`: under them).
+export function SetRow({ label, note, stack, children }) {
+  return (
+    <div class={`set-row ${stack ? 'stack' : ''}`}>
+      <div class="set-text">
+        <div class="set-label">{label}</div>
+        {note && <div class="set-note">{note}</div>}
+      </div>
+      <div class="set-control">{children}</div>
+    </div>
+  );
+}
+
+export function Switch({ checked, disabled, onChange, label }) {
+  return (
+    <label class="switch">
+      <input type="checkbox" role="switch" aria-label={label} checked={checked} disabled={disabled}
+             onChange={(e) => onChange(e.currentTarget.checked)} />
+      <span />
+    </label>
   );
 }
 

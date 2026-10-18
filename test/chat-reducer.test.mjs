@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { initialChat, reduce, topLevel, childrenOf, currentActivity, groupTurns } from '../src/renderer/lib/chat-reducer.js';
+import { initialChat, reduce, topLevel, childrenOf, currentActivity, groupTurns, backgroundTasks } from '../src/renderer/lib/chat-reducer.js';
 
 const stream = (event, parent = null) => ({ type: 'stream_event', event, parent_tool_use_id: parent });
 const start = (id) => stream({ type: 'message_start', message: { id } });
@@ -273,4 +273,120 @@ test('queuing a message mid-turn does not repeat the answer as command output', 
     result(0.01, { result: 'the answer' }),
   ]);
   assert.equal(s.items.filter((i) => i.type === 'command-output').length, 0);
+});
+
+// ---------- background subagents ----------
+const system = (subtype, fields = {}) => ({ type: 'system', subtype, ...fields });
+const launchBackgroundAgent = (s, id = 'agent1') => reduce(s, [
+  start('m1'),
+  assistant('m1', [{ type: 'tool_use', id, name: 'Agent', input: { description: 'Survey the code', prompt: 'Look around' } }]),
+  toolResult(id, 'Async agent launched', { status: 'async_launched', agentId: 'a1', description: 'Survey the code' }),
+  system('task_started', { task_id: 't1', tool_use_id: id, description: 'Survey the code', subagent_type: 'Explore', task_type: 'local_agent' }),
+]);
+
+test('a background agent keeps working after the turn ends, without making the chat busy again', () => {
+  let s = reduce(initialChat(), [{ type: 'ui/user', uuid: 'u1', text: 'look around' }]);
+  s = launchBackgroundAgent(s);
+  // the subagent's own step, still running when the turn ends
+  s = reduce(s, [assistant('sub1', [{ type: 'tool_use', id: 'grep1', name: 'Grep', input: { pattern: 'x' } }], 'agent1')]);
+  s = reduce(s, [result(0.01)]);
+  assert.equal(s.busy, false);
+  assert.equal(s.items.find((i) => i.id === 'grep1').status, 'pending', 'its running step is not cancelled');
+  s = reduce(s, [
+    assistant('sub2', [{ type: 'tool_use', id: 'read1', name: 'Read', input: { file_path: 'a' } }], 'agent1'),
+    { type: 'tool_progress', tool_use_id: 'read1', tool_name: 'Read', parent_tool_use_id: 'agent1', elapsed_time_seconds: 1 },
+    system('task_progress', { task_id: 't1', description: 'Survey the code', usage: { total_tokens: 900, tool_uses: 2, duration_ms: 3000 }, last_tool_name: 'Read' }),
+  ]);
+  assert.equal(s.busy, false, 'subagent messages leave the chat idle');
+  assert.equal(currentActivity(s), '');
+  const [task] = backgroundTasks(s);
+  assert.equal(task.status, 'running');
+  assert.equal(task.subagentType, 'Explore');
+  assert.equal(task.toolUses, 2);
+  assert.equal(task.lastTool, 'Read');
+});
+
+test('a finished background agent reports on its card, and the turn Claude starts by itself gets a marker', () => {
+  let s = reduce(initialChat(), [{ type: 'ui/user', uuid: 'u1', text: 'look around' }]);
+  s = launchBackgroundAgent(s);
+  s = reduce(s, [result(0.01)]);
+  s = reduce(s, [system('task_notification', { task_id: 't1', tool_use_id: 'agent1', status: 'completed', summary: 'Found 3 modules', output_file: '/tmp/x' })]);
+  assert.equal(backgroundTasks(s)[0].status, 'completed');
+  const card = s.items.find((i) => i.id === 'agent1');
+  assert.equal(card.bgStatus, 'completed');
+  assert.equal(card.bgSummary, 'Found 3 modules');
+  s = reduce(s, [start('m2'), blockStart(0, { type: 'text', text: '' }), delta(0, { type: 'text_delta', text: 'The survey is in.' })]);
+  assert.equal(s.busy, true);
+  const wake = s.items.find((i) => i.type === 'wake');
+  assert.ok(wake, 'a wake marker opens the new turn');
+  assert.match(wake.text, /Survey the code/);
+  s = reduce(s, [assistant('m2', [{ type: 'text', text: 'The survey is in.' }]), result(0.02)]);
+  const turns = groupTurns(topLevel(s), s.busy).filter((g) => g.kind === 'turn');
+  assert.equal(turns.length, 2);
+  assert.equal(turns[1].user.type, 'wake');
+  assert.equal(turns[1].answer[0].text, 'The survey is in.');
+});
+
+test('a message queued during a turn starts the next one without a wake marker', () => {
+  let s = reduce(initialChat(), [{ type: 'ui/user', uuid: 'u1', text: 'one' }]);
+  s = launchBackgroundAgent(s);
+  s = reduce(s, [{ type: 'ui/user', uuid: 'u2', text: 'two' }, result(0.01)]);
+  s = reduce(s, [start('m2'), blockStart(0, { type: 'text', text: '' })]);
+  assert.equal(s.items.some((i) => i.type === 'wake'), false);
+  assert.equal(s.items.find((i) => i.key === 'u2').queued, false);
+});
+
+test('Stop with no turn to end, Claude Code going idle, and Claude Code exiting all end the work', () => {
+  let s = reduce(initialChat(), [{ type: 'ui/user', uuid: 'u1', text: 'go' }]);
+  s = reduce(s, [{ type: 'ui/stopped' }]);
+  assert.equal(s.busy, false);
+  s = reduce(s, [{ type: 'ui/user', uuid: 'u2', text: 'again' }, system('session_state_changed', { state: 'idle' })]);
+  assert.equal(s.busy, false);
+  s = launchBackgroundAgent(reduce(s, [{ type: 'ui/user', uuid: 'u3', text: 'more' }]));
+  s = reduce(s, [{ type: 'ui/exit' }]);
+  assert.equal(backgroundTasks(s)[0].status, 'stopped');
+});
+
+test('the set of background tasks replaces what is thought to run', () => {
+  let s = launchBackgroundAgent(reduce(initialChat(), [{ type: 'ui/user', uuid: 'u1', text: 'go' }]));
+  s = reduce(s, [system('background_tasks_changed', { tasks: [{ task_id: 'sh1', task_type: 'local_bash', description: 'npm run dev' }] })]);
+  const byId = Object.fromEntries(backgroundTasks(s).map((t) => [t.id, t]));
+  assert.equal(byId.t1.status, 'completed');
+  assert.equal(byId.sh1.status, 'running');
+  assert.equal(byId.sh1.kind, 'local_bash');
+});
+
+// ---------- task notifications in a replayed conversation ----------
+const notification = (summary, status = 'completed') =>
+  `<task-notification>\n<task-id>b1</task-id>\n<output-file>C:\tmp\b1.output</output-file>\n<status>${status}</status>\n<summary>${summary}</summary>\n</task-notification>`;
+const replayed = (content, uuid) => ({ type: 'user', uuid, message: { role: 'user', content }, parent_tool_use_id: null });
+
+test('a replayed task notification is a quiet line that opens a turn, never a message of yours', () => {
+  const s = reduce(initialChat(), [{ type: 'ui/history', messages: [
+    replayed('Run the tests in the background', 'u1'),
+    { type: 'assistant', message: { id: 'm1', content: [{ type: 'text', text: 'Started.' }] }, parent_tool_use_id: null },
+    replayed(notification('Background command "npm test" completed (exit code 0)'), 'u2'),
+    { type: 'assistant', message: { id: 'm2', content: [{ type: 'text', text: 'All tests pass.' }] }, parent_tool_use_id: null },
+  ] }]);
+  const users = s.items.filter((i) => i.type === 'user');
+  assert.deepEqual(users.map((u) => u.text), ['Run the tests in the background']);
+  const wake = s.items.find((i) => i.type === 'wake');
+  assert.equal(wake.text, 'Background command "npm test" completed (exit code 0)');
+  assert.equal(wake.status, 'completed');
+  const turns = groupTurns(topLevel(s), false).filter((g) => g.kind === 'turn');
+  assert.equal(turns[1].user.type, 'wake');
+  assert.equal(turns[1].answer[0].text, 'All tests pass.');
+});
+
+test('every notification in a message counts, also in a text block or inside a system reminder, with its status', () => {
+  const s = reduce(initialChat(), [{ type: 'ui/history', messages: [
+    replayed([{ type: 'text', text: `${notification('Agent "Map" finished')}\n${notification('Command "dev" was stopped', 'killed')}` }], 'u1'),
+    replayed(`<system-reminder>\nAn automated event.\n\n${notification('Agent "Lint" failed', 'failed')}\n</system-reminder>`, 'u2'),
+  ] }]);
+  assert.equal(s.items.some((i) => i.type === 'user'), false);
+  assert.deepEqual(s.items.filter((i) => i.type === 'wake').map((w) => [w.text, w.status]), [
+    ['Agent "Map" finished', 'completed'],
+    ['Command "dev" was stopped', 'stopped'],
+    ['Agent "Lint" failed', 'failed'],
+  ]);
 });

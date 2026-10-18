@@ -118,3 +118,11 @@ export const TurnItem = memo(({ item }) => (
 export const DividerItem = memo(({ item }) => (
   <div class="divider"><span>{item.text}</span></div>
 ));
+
+// Claude picking up again by itself: a background task it started has ended, and Claude Code told it.
+const WAKE_ICON = { completed: 'check', failed: 'x', stopped: 'stop' };
+export const WakeItem = memo(({ item }) => (
+  <div class="wake" data-status={item.status || 'completed'}>
+    <Icon name={WAKE_ICON[item.status] || 'check'} size={13} /><span>{item.text}</span>
+  </div>
+));

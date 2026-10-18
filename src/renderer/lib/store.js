@@ -7,6 +7,8 @@ export const api = window.ccui;
 export const info = signal(null); // { platform, home, version, windowsBuild, hasBundledClaude }
 export const settings = signal({});
 export const claudeCheck = signal(null); // { ok, version, bundled, chatCapable } | { ok: false, error }
+// Updates of the built-in Claude Code (main/claude-update.js): { state, current, latest, received, total, error }
+export const claudeUpdate = signal({ state: 'idle' });
 export const themeMode = signal('dark');
 export const sessions = signal([]);
 export const activeUid = signal(null);
@@ -62,6 +64,8 @@ export function makeSession({ kind, cwd, name = null, sessionId = null }) {
     lastResizeAt: 0,
     // bottom Terminal panel: a shell in the session's folder (see lib/panel.js)
     panel: { open: signal(false), exited: signal(false), term: null, fit: null, host: null, ptyId: null },
+    // the Changes panel at the right of a chat (components/SidePanel.jsx): which turn and file it shows
+    side: signal({ open: false, turnKey: null, toolId: null, path: null, tab: 'diff' }),
     // activity trace for the sidebar
     activity: new Array(TRACE_LEN).fill(0),
     bucket: 0,
@@ -78,6 +82,16 @@ export function saveSettings(patch) {
   return api.setSettings(patch).then((s) => {
     if (s && seq === saveSeq) settings.value = s;
     return s || settings.value;
+  });
+}
+
+// Questions for the user (ConfirmHost in ui.jsx shows them one at a time). Resolves true when confirmed.
+// `danger`: a red confirm button; `safeDefault` (on with danger): Cancel has the focus.
+export const confirms = signal([]);
+let confirmId = 0;
+export function confirmDialog({ title, message, detail, confirm = 'OK', cancel = 'Cancel', danger = false, safeDefault = danger }) {
+  return new Promise((resolve) => {
+    confirms.value = [...confirms.value, { id: ++confirmId, title, message, detail, confirm, cancel, danger, safeDefault, resolve }];
   });
 }
 

@@ -38,6 +38,7 @@ class FakeAgentSession {
     this.cost = 0;
     this.tokens = opts.resume ? 21400 : 0;
     this.msg = null; // the assistant message being streamed: { id, index }
+    this.tasks = new Map(); // background tasks still running: task_id -> { toolUseId, description }
     if (!director.transcripts.has(this.sessionId)) director.transcripts.set(this.sessionId, []);
   }
 
@@ -159,7 +160,47 @@ class FakeAgentSession {
     if (effect) ({ result, data } = effect(input));
     this.toolResult(id, result, data, false);
     this.tokens += 900 + Math.round((json.length + String(result).length) / 3);
-    return { answer, input };
+    return { answer, input, id };
+  }
+
+  // ---------- background tasks (subagents) ----------
+  // A step of the subagent behind the Agent call `parent`: its tool call and, after `run` ms, its result.
+  async childTool(parent, name, input, { run = 300, result = '', data = null } = {}) {
+    const id = `toolu_${randomUUID().slice(0, 16)}`;
+    const msgId = `msg_${randomUUID().slice(0, 12)}`;
+    this.events({ type: 'assistant', parent_tool_use_id: parent, message: { id: msgId, role: 'assistant', content: [{ type: 'tool_use', id, name, input }] } });
+    await this.pause(run);
+    this.events({
+      type: 'user', parent_tool_use_id: parent,
+      message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: result || 'ok', is_error: false }] },
+      ...(data ? { tool_use_result: data } : {}),
+    });
+    return id;
+  }
+
+  startTask({ id, toolUseId, description, subagentType = 'general-purpose', kind = 'local_agent' }) {
+    this.tasks.set(id, { toolUseId, description });
+    this.events({ type: 'system', subtype: 'task_started', task_id: id, tool_use_id: toolUseId, description, subagent_type: subagentType, task_type: kind, is_backgrounded: true });
+  }
+
+  taskProgress(id, { toolUses, lastTool, tokens = 1000 }) {
+    const t = this.tasks.get(id);
+    if (!t) return;
+    this.events({ type: 'system', subtype: 'task_progress', task_id: id, tool_use_id: t.toolUseId, description: t.description, usage: { total_tokens: tokens, tool_uses: toolUses, duration_ms: 0 }, last_tool_name: lastTool });
+  }
+
+  endTask(id, status = 'completed', summary = '') {
+    const t = this.tasks.get(id);
+    if (!t) return false;
+    this.tasks.delete(id);
+    this.events({ type: 'system', subtype: 'task_notification', task_id: id, tool_use_id: t.toolUseId, status, summary, output_file: '' });
+    return true;
+  }
+
+  // A turn Claude starts by itself (after a background task ended).
+  wake() {
+    this.turnStart = Date.now();
+    this.steps = 0;
   }
 
   toolResult(id, content, data, isError) {
@@ -202,10 +243,28 @@ class FakeAgentSession {
   // ---------- the rest of what main.js calls ----------
   async control(action, arg) {
     if (action === 'mode') this.mode = arg;
-    if (action === 'interrupt') return { ok: true, value: { cancelled: [] } };
+    // Stop also ends background tasks, as Claude Code does for a client that doesn't stop them one by one.
+    if (action === 'interrupt') {
+      for (const id of [...this.tasks.keys()]) this.endTask(id, 'stopped');
+      return { ok: true, value: { cancelled: [] } };
+    }
+    if (action === 'stop-task') {
+      (this.director.stopped ||= []).push(arg);
+      this.endTask(arg, 'stopped');
+      return { ok: true };
+    }
     if (action === 'context') {
       const totalTokens = 18200 + this.tokens;
-      return { ok: true, value: { totalTokens, maxTokens: 200000, percentage: (totalTokens / 200000) * 100 } };
+      const categories = [
+        { name: 'System prompt', tokens: 3100, kind: 'used' },
+        { name: 'System tools', tokens: 11800, kind: 'used' },
+        { name: 'Memory files', tokens: 1200, kind: 'used' },
+        { name: 'Messages', tokens: totalTokens - 16100, kind: 'used' },
+        { name: 'Free space', tokens: 200000 - totalTokens - 33000, kind: 'free' },
+        { name: 'Autocompact buffer', tokens: 33000, kind: 'buffer' },
+        { name: 'MCP tools', tokens: 900, kind: 'deferred' },
+      ];
+      return { ok: true, value: { totalTokens, maxTokens: 200000, percentage: (totalTokens / 200000) * 100, categories } };
     }
     return { ok: true };
   }

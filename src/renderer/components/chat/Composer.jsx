@@ -1,12 +1,12 @@
 // Message box for chat sessions: slash-command and @file autocomplete, image attachments,
 // permission-mode and model menus (with the effort slider), context meter, send / stop.
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { Icon, Menu } from '../ui.jsx';
+import { Icon, Menu, Popover } from '../ui.jsx';
 import { MODE_LABELS } from './Prompts.jsx';
-import { api, toast, skillsDialog } from '../../lib/store.js';
-import { sendMessage, interrupt, setMode, setModel, setEffort } from '../../lib/sessions.js';
+import { api, toast, skillsDialog, confirmDialog } from '../../lib/store.js';
+import { sendMessage, interrupt, setMode, setModel, setEffort, refreshContext } from '../../lib/sessions.js';
 import { EffortSlider } from './EffortSlider.jsx';
-import { formatTokens } from '../../lib/format.js';
+import { formatTokens, formatCost } from '../../lib/format.js';
 import { SHORTCUTS } from '../../lib/keyboard.js';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -67,20 +67,55 @@ function findTrigger(text, caret) {
   return null;
 }
 
-function ContextMeter({ context }) {
+// How full the context window is: a ring and a percentage that open the breakdown (what takes the space, the
+// session's cost) and a button to compact the conversation.
+function ContextButton({ s, onCompact }) {
+  const context = s.context.value;
   if (!context?.maxTokens) return null;
   const pct = Math.min(100, Math.round(context.percentage ?? (context.totalTokens / context.maxTokens) * 100));
   const r = 7;
   const c = 2 * Math.PI * r;
+  const rows = (context.categories || []).filter((x) => x.kind !== 'deferred' && x.tokens > 0);
+  const cost = s.chat.value.costTotal;
   return (
-    <span class={`context-meter ${pct >= 80 ? 'high' : ''}`}
-          title={`Context: ${formatTokens(context.totalTokens)} of ${formatTokens(context.maxTokens)} tokens used (${pct}%). Send /compact to summarize the conversation.`}>
-      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-        <circle cx="9" cy="9" r={r} class="track" />
-        <circle cx="9" cy="9" r={r} class="fill" stroke-dasharray={`${(c * pct) / 100} ${c}`} transform="rotate(-90 9 9)" />
-      </svg>
-      {pct}%
-    </span>
+    <Popover className={`context-menu-wrap ${pct >= 80 ? 'high' : ''}`} align="right" panelClass="context-pop"
+             title={`Context: ${pct}% used`} onOpen={() => refreshContext(s)}
+             button={(
+               <span class="context-meter">
+                 <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                   <circle cx="9" cy="9" r={r} class="track" />
+                   <circle cx="9" cy="9" r={r} class="fill" stroke-dasharray={`${(c * pct) / 100} ${c}`} transform="rotate(-90 9 9)" />
+                 </svg>
+                 {pct}%
+               </span>
+             )}>
+      {(close) => (
+        <>
+          <div class="ctx-head">
+            <span class="ctx-title">Context</span>
+            <span class="ctx-total">{formatTokens(context.totalTokens)} / {formatTokens(context.maxTokens)}</span>
+          </div>
+          <div class="ctx-bar" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+            <span style={{ width: `${pct}%` }} />
+          </div>
+          <div class="ctx-pct">{pct}% used</div>
+          {rows.length > 0 && (
+            <ul class="ctx-rows">
+              {rows.map((x) => (
+                <li key={x.name} class={`ctx-${x.kind}`}><span>{x.name}</span><span>{formatTokens(x.tokens)}</span></li>
+              ))}
+            </ul>
+          )}
+          <div class="ctx-foot">
+            <div class="ctx-cost"><span>This session</span><span>{formatCost(cost || 0)}</span></div>
+            <button type="button" class="secondary-btn" title="Summarize the conversation so far to free up context (/compact)"
+                    onClick={() => { close(); onCompact(); }}>
+              Compact conversation
+            </button>
+          </div>
+        </>
+      )}
+    </Popover>
   );
 }
 
@@ -329,8 +364,10 @@ export function Composer({ s, prefill }) {
           label={<><span class={`mode-icon mode-${mode}`}><Icon name={MODE_ICONS[mode] || 'modeAsk'} size={14} /></span>{MODE_LABELS[mode] || mode}</>}
           value={mode}
           options={[...modes, 'bypassPermissions'].map((m) => ({ value: m, label: MODE_LABELS[m], hint: MODE_HINTS[m] }))}
-          onSelect={(m) => {
-            if (m === 'bypassPermissions' && mode !== m && !window.confirm(BYPASS_WARNING)) return;
+          onSelect={async (m) => {
+            if (m === 'bypassPermissions' && mode !== m && !(await confirmDialog({
+              title: 'Bypass permissions?', message: BYPASS_WARNING, confirm: 'Bypass permissions', danger: true,
+            }))) return;
             setMode(s, m);
           }}
         />
@@ -340,7 +377,6 @@ export function Composer({ s, prefill }) {
         <input ref={fileInput} type="file" accept="image/*" multiple hidden
                onChange={(e) => { addFiles([...e.currentTarget.files]); e.currentTarget.value = ''; }} />
         <span class="spacer" />
-        <ContextMeter context={s.context.value} />
         {models.length > 0 && (
           <Menu
             title="Model and effort"
@@ -358,6 +394,7 @@ export function Composer({ s, prefill }) {
             )}
           />
         )}
+        <ContextButton s={s} onCompact={() => sendMessage(s, { text: '/compact' })} />
         {busy && !canSend ? (
           <button type="button" class="send-btn stop" title={`Stop (${SHORTCUTS.interrupt})`} onClick={() => interrupt(s)}>
             <Icon name="stop" size={14} />
@@ -381,6 +418,6 @@ const MODE_HINTS = {
 };
 
 // Bypass is only chosen on purpose: it is in the menu (with this warning), not in the Shift+Tab cycle.
-const BYPASS_WARNING = 'Bypass permissions?\n\nClaude will edit files and run any command in this session without asking you first, '
+const BYPASS_WARNING = 'Claude will edit files and run any command in this session without asking you first, '
   + 'including ones that delete files or reach the internet. Use it only in a folder you can afford to lose, '
   + 'such as a disposable copy or a container.';

@@ -1,8 +1,11 @@
-// Finds the Claude Code executable: a user-chosen file, or the one bundled with the Agent SDK.
+// Finds the Claude Code executable: a user-chosen file, or the built-in one. The built-in one is the newer of
+// the build shipped with the Agent SDK and the newest one downloaded by claude-update.js.
 const fs = require('fs');
 const path = require('path');
 
 const isWin = process.platform === 'win32';
+const EXE = isWin ? 'claude.exe' : 'claude';
+const VERSION = /^\d+\.\d+\.\d+$/;
 
 function isMusl() {
   if (process.platform !== 'linux') return false;
@@ -13,20 +16,64 @@ function isMusl() {
   }
 }
 
-function bundledClaude() {
-  const pkg = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}${isMusl() ? '-musl' : ''}`;
+// The npm package holding the executable for this computer.
+const platformPackage = () => `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}${isMusl() ? '-musl' : ''}`;
+
+// -1, 0 or 1, like a sort comparator, for "1.2.3" versions.
+function compareVersions(a, b) {
+  const pa = String(a).split('.').map(Number);
+  const pb = String(b).split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0) ? 1 : -1;
+  }
+  return 0;
+}
+
+// The build shipped with the app: { file, version } (the Claude Code version, from the SDK's package.json).
+function shipped() {
   try {
-    const dir = path.dirname(require.resolve(`${pkg}/package.json`));
+    const dir = path.dirname(require.resolve(`${platformPackage()}/package.json`));
     // Executables cannot run from inside app.asar; electron-builder unpacks them next to it.
-    const file = path.join(dir, isWin ? 'claude.exe' : 'claude')
-      .replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`);
-    return fs.existsSync(file) ? file : null;
+    const file = path.join(dir, EXE).replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`);
+    if (!fs.existsSync(file)) return null;
+    let version = null;
+    try {
+      // The SDK's own package.json is not exported, so it is read from next to the platform package.
+      version = JSON.parse(fs.readFileSync(path.join(dir, '..', 'claude-agent-sdk', 'package.json'), 'utf8')).claudeCodeVersion || null;
+    } catch { /* unknown: any download is used instead */ }
+    return { file, version };
   } catch {
     return null;
   }
 }
 
-// `custom` is the Settings value: empty for the bundled build, otherwise a path or a command name.
+let downloadsDir = null;
+// Where claude-update.js puts downloaded builds: <dir>/<version>/claude(.exe). Set once at startup.
+function useDownloads(dir) { downloadsDir = dir; }
+
+// The newest downloaded build: { file, version }, or null.
+function downloaded(dir = downloadsDir) {
+  if (!dir) return null;
+  let names = [];
+  try { names = fs.readdirSync(dir); } catch { return null; }
+  const found = names.filter((n) => VERSION.test(n) && fs.existsSync(path.join(dir, n, EXE)))
+    .sort((a, b) => compareVersions(b, a));
+  return found.length ? { file: path.join(dir, found[0], EXE), version: found[0] } : null;
+}
+
+// The built-in Claude Code: { file, version, downloaded }, or null.
+function builtIn() {
+  const ship = shipped();
+  const down = downloaded();
+  if (down && (!ship || !ship.version || compareVersions(down.version, ship.version) > 0)) return { ...down, downloaded: true };
+  return ship ? { ...ship, downloaded: false } : null;
+}
+
+function bundledClaude() {
+  return builtIn()?.file || null;
+}
+
+// `custom` is the Settings value: empty for the built-in build, otherwise a path or a command name.
 function resolveClaude(custom) {
   const value = (custom || '').trim();
   // A .cmd/.bat (e.g. npm's claude.cmd shim) cannot be started directly; it runs through cmd.exe instead,
@@ -38,4 +85,4 @@ function resolveClaude(custom) {
   return bundled ? { file: bundled, bundled: true } : { command: 'claude' };
 }
 
-module.exports = { bundledClaude, resolveClaude };
+module.exports = { EXE, VERSION, platformPackage, compareVersions, shipped, downloaded, useDownloads, builtIn, bundledClaude, resolveClaude };

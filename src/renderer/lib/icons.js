@@ -91,6 +91,14 @@ export const ICONS = {
   // shield.slash: Bypass permissions
   modeBypass: `<path d="${SHIELD}"/><path d="M4.4 3.9l15.2 16.2"/>`,
 
+  // rectangle.bottomthird.inset: a window with its bottom part marked, for the Terminal panel
+  panelBottom: '<rect x="3.75" y="5" width="16.5" height="14" rx="2.6"/><path d="M3.75 14.25h16.5"/><path d="M7 16.6h4" />',
+
+  // rectangle.righthalf.inset: a window with a panel at its right, for the Changes panel
+  panelRight: '<rect x="3.75" y="5" width="16.5" height="14" rx="2.6"/><path d="M14.5 5v14"/><path d="M16.6 8.6h1.4M16.6 11h1.4"/>',
+  // plus.forwardslash.minus: a file's changes
+  diff: '<path d="M12 4.5v7M8.5 8h7M8.5 18.5h7"/>',
+
   // keyboard: rounded body, a row of keys, the space bar
   keyboard: '<rect x="3.25" y="6.25" width="17.5" height="11.5" rx="2.4"/><path d="M7.1 10h.01M10.37 10h.01M13.63 10h.01M16.9 10h.01M8.6 14h6.8"/>',
 

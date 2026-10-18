@@ -1,7 +1,7 @@
 // Session lifecycle for chat (Agent SDK) and terminal (pty) sessions, and the glue between
 // main-process events and the per-session signals the components read.
 import {
-  api, sessions, activeUid, settings, saveSettings, toast, makeSession, TRACE_LEN,
+  api, sessions, activeUid, settings, saveSettings, toast, confirmDialog, makeSession, TRACE_LEN,
 } from './store.js';
 import { reduce, initialChat } from './chat-reducer.js';
 import { createTerminal, fitTerminal } from './terminal.js';
@@ -33,7 +33,7 @@ function chatStatus(s) {
   if (!s.agentId) return 'exited';
   const chat = s.chat.value;
   if (chat.permissions.length) return 'needs-you';
-  if (chat.busy) return 'working';
+  if (chat.busy || Object.values(chat.agents).some((a) => a.status === 'running')) return 'working';
   const prev = s.status.value;
   if (prev === 'working' || prev === 'needs-you') return isSeen(s) ? 'idle' : 'attention';
   return prev === 'attention' ? 'attention' : 'idle';
@@ -109,8 +109,8 @@ async function loadTitle(s, sessionId) {
   const h = res.ok && res.sessions.find((x) => x.sessionId === sessionId);
   if (h) setTitle(s, conversationTitle(h));
   if (!s.title.value) {
-    // Fall back to the first prompt in the replayed conversation.
-    const first = s.chat.value.items.find((i) => i.type === 'user' && i.text && !i.text.startsWith('/'));
+    // Fall back to the first prompt in the replayed conversation (not a command, nor Claude Code's own markup).
+    const first = s.chat.value.items.find((i) => i.type === 'user' && i.text && !/^\s*[/<]/.test(i.text));
     if (first) setTitle(s, first.text);
   }
   if (s.title.value) persistSessions();
@@ -235,7 +235,17 @@ export async function sendMessage(s, { text, images = [] }) {
 // Those leave the timeline and go back into the message box.
 export async function interrupt(s) {
   if (!s.agentId) return;
+  const turns = (c) => c.items.reduce((n, i) => n + (i.type === 'turn'), 0);
+  const before = turns(s.chat.value);
   const res = await api.agent.control(s.agentId, 'interrupt');
+  // A stopped turn ends with a result. If none comes (there was no turn left to end, only work Claude Code
+  // had already finished), the chat stops showing itself as working anyway.
+  if (res.ok) {
+    setTimeout(() => {
+      const chat = s.chat.value;
+      if (chat.busy && turns(chat) === before) dispatch(s, [{ type: 'ui/stopped' }]);
+    }, 3000);
+  }
   const cancelled = (res.ok && res.value?.cancelled) || [];
   const unsent = s.chat.value.items.filter((i) => i.type === 'user' && cancelled.includes(i.key));
   if (!unsent.length) return;
@@ -244,6 +254,17 @@ export async function interrupt(s) {
     text: unsent.map((i) => i.text).filter(Boolean).join('\n\n'),
     images: unsent.flatMap((i) => i.images || []),
   };
+}
+
+// Stops one background task (a subagent or a background shell); Claude Code then reports it as stopped.
+export async function stopTask(s, taskId) {
+  if (!s.agentId) return;
+  const res = await api.agent.control(s.agentId, 'stop-task', taskId);
+  if (!res.ok) toast(res.error || 'The task could not be stopped.', 'error');
+}
+
+export function stopAllTasks(s) {
+  return Promise.all(Object.values(s.chat.value.agents).filter((a) => a.status === 'running').map((a) => stopTask(s, a.id)));
 }
 
 export async function setModel(s, value) {
@@ -284,8 +305,11 @@ export async function refreshContext(s) {
   if (!s.agentId) return;
   const res = await api.agent.control(s.agentId, 'context');
   if (res.ok && res.value) {
-    const { percentage, totalTokens, maxTokens } = res.value;
-    s.context.value = { percentage, totalTokens, maxTokens };
+    const { percentage, totalTokens, maxTokens, categories = [] } = res.value;
+    // Each row of the breakdown (the context pop-up): kind is 'used', 'free', 'buffer' (reserved for compacting)
+    // or 'deferred' (tool schemas outside the window).
+    const rows = categories.map(({ name, tokens, kind, isDeferred }) => ({ name, tokens, kind: kind || (isDeferred ? 'deferred' : 'used') }));
+    s.context.value = { percentage, totalTokens, maxTokens, categories: rows };
   }
 }
 
@@ -336,7 +360,12 @@ export async function undoFileChanges(s, item, { silentIfNone = false } = {}) {
     return silentIfNone;
   }
   const what = `${pluralize(changes.count, 'file')} (+${changes.insertions} −${changes.deletions})`;
-  if (!window.confirm(`Undo Claude's changes to ${what} made since this message?\n\nChanges you made yourself to those files since then are undone too.`)) return false;
+  if (!(await confirmDialog({
+    title: 'Undo file changes?',
+    message: `Claude's changes to ${what} made since this message are undone. Changes you made yourself to those files since then are undone too.`,
+    confirm: 'Undo changes',
+    danger: true,
+  }))) return false;
   const res = await api.agent.control(s.agentId, 'rewind', { uuid: item.key });
   if (!res.ok || !res.value?.canRewind) {
     toast(res.value?.error || res.error || 'The files could not be restored.', 'error');
@@ -567,7 +596,47 @@ async function latestSessionId(cwd) {
   return res.ok ? res.sessions[0]?.sessionId : undefined;
 }
 
-export async function openInTerminal(s) {
+// Background tasks a chat's Claude Code is running (subagents, background shells).
+export function runningTasks(s) {
+  return s.kind.value === 'chat' ? Object.values(s.chat.value.agents || {}).filter((a) => a.status === 'running') : [];
+}
+
+const taskList = (tasks) => tasks.slice(0, 4).map((a) => `${a.kind === 'local_bash' ? 'Shell' : a.subagentType || 'Agent'}: ${a.description || 'working'}`)
+  .concat(tasks.length > 4 ? [`and ${tasks.length - 4} more`] : []).join('\n');
+
+// Before something closes a chat's Claude Code (switching to the CLI, ending the session): asks first if Claude is
+// still working or has background tasks running, which would lose their link to the conversation. True to go on.
+export async function confirmLeaving(s, action) {
+  if (s.kind.value !== 'chat' || s.removed) return true;
+  const tasks = runningTasks(s);
+  const busy = s.chat.value.busy;
+  if (!tasks.length && !busy) return true;
+  const verb = action === 'switch' ? 'Switching' : 'Ending the session';
+  if (!tasks.length) {
+    return confirmDialog(action === 'switch'
+      ? { title: 'Switch to the CLI?', message: 'Claude is still working. Switching stops it, and the conversation continues in the CLI.', confirm: 'Stop and switch' }
+      : { title: 'End this session?', message: 'Claude is still working. Ending the session stops it. The conversation is saved.', confirm: 'Stop and end', danger: true });
+  }
+  return confirmDialog({
+    title: tasks.length === 1 ? '1 background task is still running' : `${tasks.length} background tasks are still running`,
+    detail: taskList(tasks),
+    message: tasks.length === 1
+      ? `${verb} closes this chat’s Claude Code. The task may keep running on its own, but Claude is no longer told `
+        + 'when it finishes, so it won’t carry on from there. You can wait for it here instead.'
+      : `${verb} closes this chat’s Claude Code. The tasks may keep running on their own, but Claude is no longer told `
+        + 'when they finish, so it won’t carry on from there. You can wait for them here instead.',
+    confirm: action === 'switch' ? 'Switch anyway' : 'End anyway',
+    safeDefault: true,
+  });
+}
+
+// Ends a session after asking, if it would leave work behind (see confirmLeaving).
+export async function endSession(s) {
+  if (await confirmLeaving(s, 'end')) closeSession(s);
+}
+
+export async function openInTerminal(s, { confirmed = false } = {}) {
+  if (!confirmed && !(await confirmLeaving(s, 'switch'))) return;
   s.dormant = null;
   if (s.starting) await s.starting;
   const resume = s.chat.value.sessionId || s.sessionId || undefined;
@@ -625,10 +694,13 @@ export async function openSession(opts, { activate = true } = {}) {
     s.mode.value = opts.permissionMode ?? remembered?.permissionMode ?? '';
   }
   sessions.value = [...sessions.value, s];
-  const folders = settings.value.folders || {};
-  const folderKey = Object.keys(folders).find((p) => samePath(p, opts.cwd));
-  if (folderKey && folders[folderKey].collapsed) {
-    saveSettings({ folders: { ...folders, [folderKey]: { ...folders[folderKey], collapsed: false } } });
+  // A session you start shows in its folder; restored ones leave the folders folded (they all start folded).
+  if (!opts.lazy) {
+    const folders = settings.value.folders || {};
+    const folderKey = Object.keys(folders).find((p) => samePath(p, opts.cwd)) || opts.cwd;
+    if (folders[folderKey]?.collapsed !== false) {
+      saveSettings({ folders: { ...folders, [folderKey]: { ...folders[folderKey], collapsed: false } } });
+    }
   }
   if (opts.lazy) {
     // Restored at launch: listed (with its history) right away, started when first selected.

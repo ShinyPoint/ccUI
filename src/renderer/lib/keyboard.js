@@ -1,8 +1,9 @@
 // App-wide keyboard shortcuts. Handled in the capture phase so the terminal never sees them.
 // On Windows/Linux they use Ctrl+Shift where plain Ctrl+letter means something to Claude Code.
 import { sessions, active, settings, saveSettings, newSessionDialog, settingsDialog, findBar, projectSearch } from './store.js';
-import { selectSession, closeSession, copySelection, pasteInto, writePty } from './sessions.js';
+import { selectSession, endSession, copySelection, pasteInto, writePty } from './sessions.js';
 import { togglePanel, copyFromPanel, pasteIntoPanel } from './panel.js';
+import { toggleChanges } from './side.js';
 
 const isMac = /Mac/i.test(navigator.platform);
 const isWin = /Win/i.test(navigator.platform);
@@ -15,6 +16,7 @@ export const SHORTCUTS = {
   composer: isMac ? '⌘⇧K' : 'Ctrl+Shift+K',
   panel: isMac ? '⌃`' : 'Ctrl+`',
   sidebar: isMac ? '⌘⇧B' : 'Ctrl+Shift+B',
+  changes: isMac ? '⌘⇧D' : 'Ctrl+Shift+D',
   copy: isMac ? '⌘C' : 'Ctrl+C or Ctrl+Shift+C',
   paste: isMac ? '⌘V' : isWin ? 'Ctrl+V' : 'Ctrl+Shift+V',
   newline: 'Shift+Enter',
@@ -36,6 +38,7 @@ export const SHORTCUT_LIST = [
   ['Search projects and sessions', SHORTCUTS.searchProjects],
   ['Show / hide Terminal', SHORTCUTS.panel],
   ['Show / hide sidebar', SHORTCUTS.sidebar],
+  ['Show / hide changed files (chat)', SHORTCUTS.changes],
   ['Stop Claude (chat)', SHORTCUTS.interrupt],
   ['Cycle permission mode (chat)', SHORTCUTS.mode],
   ['New line', SHORTCUTS.newline],
@@ -127,9 +130,10 @@ function onKeyDown(e) {
 
   const appMod = isMac ? e.metaKey : e.ctrlKey && e.shiftKey;
   if (appMod && key === 't') { handled(); newSessionDialog.value = {}; return; }
-  if (appMod && key === 'w') { handled(); if (s) closeSession(s); return; }
+  if (appMod && key === 'w') { handled(); if (s) endSession(s); return; }
   if (appMod && key === 'b') { handled(); saveSettings({ sidebarCollapsed: !settings.value.sidebarCollapsed }); return; }
   if (appMod && key === 'k') { handled(); focusComposer(); return; }
+  if (appMod && key === 'd' && s?.kind.value === 'chat') { handled(); toggleChanges(s); return; }
   if (e.ctrlKey && e.shiftKey && key === 'i') { handled(); window.ccui.toggleDevTools(); return; }
   if (mod && key === ',') { handled(); settingsDialog.value = true; return; }
   const list = sessions.value;

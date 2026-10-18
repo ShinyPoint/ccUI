@@ -11,6 +11,9 @@ export function initialChat() {
     unconfirmed: {}, // assistant msgId -> { text: [keys], thinking: [keys] } streamed but not yet final
     permissions: [], // pending permission requests from canUseTool
     tasks: [], // [{ id, content, status, activeForm }]
+    // Background work Claude Code reports (subagents, background shells): task_id -> { id, toolUseId,
+    // description, kind, subagentType, status, startedAt, endedAt, tokens, toolUses, lastTool, summary, error }
+    agents: {},
     busy: false,
     activity: '', // 'requesting' | 'thinking' | 'compacting' | 'tool' | ''
     init: null,
@@ -41,6 +44,7 @@ export function reduce(state, messages) {
     children: { ...state.children },
     streams: { ...state.streams },
     unconfirmed: { ...state.unconfirmed },
+    agents: { ...state.agents },
   };
   for (const m of messages) apply(d, m, Date.now());
   return d;
@@ -82,16 +86,41 @@ function ensureTool(d, id, fields, now) {
   });
 }
 
-function stopStreaming(d, interrupted, now) {
+// Ends what was streaming or running. `spare`: the end of a turn, which background agents outlive; their steps
+// (and their streams) carry on.
+function stopStreaming(d, interrupted, now, spare = false) {
+  const live = spare ? liveAgentTools(d) : new Set();
+  const underLive = (item) => {
+    for (let parent = item.parent, hops = 0; parent && hops < 20; hops++) {
+      if (live.has(parent)) return true;
+      parent = get(d, parent)?.parent;
+    }
+    return false;
+  };
+  const kept = new Set();
   d.items.forEach((item, i) => {
+    if (live.size && underLive(item)) { kept.add(item.key); return; }
     if (item.streaming) d.items[i] = { ...item, streaming: false, endedAt: item.endedAt || now };
-    else if (item.type === 'tool' && RUNNING.has(item.status) && interrupted) {
+    else if (item.type === 'tool' && RUNNING.has(item.status) && interrupted && !live.has(item.id)) {
       d.items[i] = { ...item, status: 'cancelled', endedAt: now };
     }
   });
-  d.streams = {};
-  d.unconfirmed = {};
+  d.streams = Object.fromEntries(Object.entries(d.streams).filter(([key]) => live.has(key)));
+  d.unconfirmed = Object.fromEntries(Object.entries(d.unconfirmed)
+    .filter(([, pending]) => [...pending.text, ...pending.thinking].some((key) => kept.has(key))));
 }
+
+// Agent tool calls whose agent is still at work in the background.
+function liveAgentTools(d) {
+  const ids = new Set();
+  for (const a of Object.values(d.agents)) if (a.toolUseId && a.status === 'running') ids.add(a.toolUseId);
+  for (const item of d.items) {
+    if (item.type === 'tool' && item.data?.status === 'async_launched' && !item.bgStatus) ids.add(item.id);
+  }
+  return ids;
+}
+
+const runningAgents = (d) => Object.values(d.agents).filter((a) => a.status === 'running');
 
 // `current` plus `extra` unless it already has it (a final block repeating what streamed, or empty).
 function withText(current = '', extra = '') {
@@ -100,10 +129,16 @@ function withText(current = '', extra = '') {
 }
 
 // Queued messages Claude has taken off the queue (all of them, or the given uuids) stop showing as queued.
+// True if there were any.
 function pickedUp(d, uuids) {
+  let any = false;
   d.items.forEach((item, i) => {
-    if (item.type === 'user' && item.queued && (!uuids || uuids.includes(item.key))) d.items[i] = { ...item, queued: false };
+    if (item.type === 'user' && item.queued && (!uuids || uuids.includes(item.key))) {
+      d.items[i] = { ...item, queued: false };
+      any = true;
+    }
   });
+  return any;
 }
 
 function toolResultText(content) {
@@ -170,6 +205,20 @@ function replayUserText(d, text) {
     if (stdout[1].trim()) add(d, { key: nextKey(d, 'out'), type: 'command-output', text: stdout[1].trim(), parent: null });
     return null;
   }
+  // A background task's end, as Claude Code tells Claude (one or more, also inside a system reminder): a quiet
+  // line each, never a message of yours.
+  const finished = [...text.matchAll(/<task-notification>([\s\S]*?)<\/task-notification>/g)];
+  if (finished.length) {
+    for (const [, body] of finished) {
+      const field = (name) => new RegExp(`<${name}>([\\s\\S]*?)</${name}>`).exec(body)?.[1]?.trim();
+      add(d, {
+        key: nextKey(d, 'wake'), type: 'wake', parent: null,
+        text: field('summary') || 'A background task finished',
+        status: TASK_END[field('status')] || 'completed',
+      });
+    }
+    return null;
+  }
   if (/^\[Request interrupted/.test(text)) {
     notice(d, 'info', 'Interrupted');
     return null;
@@ -178,11 +227,102 @@ function replayUserText(d, text) {
   return { text };
 }
 
+// Claude starting a turn by itself (a background task finished and Claude Code told it so) gets a marker that
+// opens the turn, as your message would.
+function wakeIfIdle(d, now) {
+  let last = null;
+  for (let i = d.items.length - 1; i >= 0; i--) {
+    if (!d.items[i].parent) { last = d.items[i]; break; }
+  }
+  if (!last || last.type !== 'turn' || !Object.keys(d.agents).length) return;
+  const done = Object.values(d.agents).filter((a) => a.endedAt && a.status !== 'running').sort((a, b) => b.endedAt - a.endedAt)[0];
+  const what = done?.description ? `“${done.description}”` : 'A background task';
+  const how = done?.status === 'failed' ? 'failed' : done?.status === 'stopped' ? 'was stopped' : 'finished';
+  add(d, { key: nextKey(d, 'wake'), type: 'wake', text: `${what} ${how}`, status: done?.status || 'completed', parent: null, at: now });
+  d.turnHadText = false;
+}
+
+// ---------- background tasks (task_* system messages) ----------
+const TASK_END = { completed: 'completed', failed: 'failed', stopped: 'stopped', killed: 'stopped' };
+
+function patchAgent(d, id, patch, now) {
+  const before = d.agents[id] || { id, status: 'running', startedAt: now, tokens: 0, toolUses: 0, lastTool: '' };
+  const after = { ...before, ...patch };
+  if (after.status !== 'running' && !after.endedAt) after.endedAt = now;
+  d.agents[id] = after;
+  // The Agent card shows the background run's outcome (its tool result only said "launched").
+  if (after.toolUseId && after.status !== 'running' && get(d, after.toolUseId)) {
+    set(d, after.toolUseId, { bgStatus: after.status, bgSummary: after.summary || '', endedAt: now });
+  }
+  return after;
+}
+
+function onTask(d, m, now) {
+  if (m.ambient) return;
+  const id = m.task_id;
+  const prev = d.agents[id] || {};
+  switch (m.subtype) {
+    case 'task_started':
+      patchAgent(d, id, {
+        toolUseId: m.tool_use_id || null, description: m.description || '', kind: m.task_type || 'agent',
+        subagentType: m.subagent_type || '', status: 'running', startedAt: now, endedAt: null,
+      }, now);
+      return;
+    case 'task_progress':
+      patchAgent(d, id, {
+        ...(m.description ? { description: m.description } : {}),
+        ...(m.tool_use_id ? { toolUseId: m.tool_use_id } : {}),
+        tokens: m.usage?.total_tokens ?? prev.tokens ?? 0,
+        toolUses: m.usage?.tool_uses ?? prev.toolUses ?? 0,
+        lastTool: m.last_tool_name || prev.lastTool || '',
+        ...(m.summary ? { summary: m.summary } : {}),
+      }, now);
+      return;
+    case 'task_updated': {
+      const p = m.patch || {};
+      patchAgent(d, id, {
+        ...(p.status ? { status: TASK_END[p.status] || 'running' } : {}),
+        ...(p.description ? { description: p.description } : {}),
+        ...(p.error ? { error: p.error } : {}),
+      }, now);
+      return;
+    }
+    case 'task_notification':
+      patchAgent(d, id, {
+        ...(m.tool_use_id ? { toolUseId: m.tool_use_id } : {}),
+        status: TASK_END[m.status] || 'completed',
+        summary: m.summary || prev.summary || '',
+        tokens: m.usage?.total_tokens ?? prev.tokens ?? 0,
+        toolUses: m.usage?.tool_uses ?? prev.toolUses ?? 0,
+      }, now);
+      return;
+    default:
+  }
+}
+
+// The full set of background tasks still running: anything else we think runs has ended.
+function onBackgroundTasks(d, m, now) {
+  const running = new Set();
+  for (const t of m.tasks || []) {
+    if (t.ambient) continue;
+    running.add(t.task_id);
+    if (d.agents[t.task_id]?.status !== 'running') {
+      patchAgent(d, t.task_id, {
+        description: t.description || '', kind: t.task_type || 'agent', subagentType: t.subagent_type || '',
+        status: 'running', endedAt: null,
+      }, now);
+    }
+  }
+  for (const a of runningAgents(d)) if (!running.has(a.id)) patchAgent(d, a.id, { status: 'completed' }, now);
+}
+
 // ---------- message handlers ----------
 function apply(d, m, now) {
   // A message queued during the previous turn starts a new turn right after that turn's result.
-  if (!m.replay && (m.type === 'stream_event' || m.type === 'assistant' || m.type === 'tool_progress')) {
-    if (!d.busy) pickedUp(d);
+  // Only the main conversation makes the chat busy: a background agent's messages keep coming after the turn
+  // that started it has ended.
+  if (!m.replay && !m.parent_tool_use_id && (m.type === 'stream_event' || m.type === 'assistant' || m.type === 'tool_progress')) {
+    if (!d.busy && !pickedUp(d)) wakeIfIdle(d, now);
     d.busy = true;
   }
   // Claude Code stamps replies and results with the uuids of the messages they answer.
@@ -247,10 +387,16 @@ function apply(d, m, now) {
       stopStreaming(d, true, now); // tools without a result in the transcript never ran
       if (m.messages.length) add(d, { key: nextKey(d, 'divider'), type: 'divider', text: 'Earlier in this conversation', parent: null });
       return;
+    case 'ui/stopped':
+      // Stop got no answer from Claude Code (no turn was running to end): nothing is working any more.
+      d.busy = false;
+      d.activity = '';
+      return;
     case 'ui/exit':
       d.busy = false;
       d.activity = '';
       d.permissions = [];
+      for (const a of runningAgents(d)) patchAgent(d, a.id, { status: 'stopped' }, now);
       stopStreaming(d, true, now);
       if (m.error) notice(d, 'error', `Claude Code stopped: ${m.error}`);
       return;
@@ -392,7 +538,7 @@ function onResult(d, m, now) {
   const interrupted = m.subtype === 'error_during_execution'
     && (/^aborted/.test(m.terminal_reason || '') || !realErrors.length);
   m = { ...m, errors: realErrors };
-  stopStreaming(d, true, now);
+  stopStreaming(d, true, now, !interrupted);
   const total = typeof m.total_cost_usd === 'number' ? m.total_cost_usd : d.costTotal;
   const cost = Math.max(0, total - d.costTotal);
   d.costTotal = total;
@@ -457,6 +603,22 @@ function onSystem(d, m, now) {
     case 'permission_denied':
       set(d, m.tool_use_id, { decision: 'denied', deniedReason: m.message });
       return;
+    case 'task_started':
+    case 'task_progress':
+    case 'task_updated':
+    case 'task_notification':
+      onTask(d, m, now);
+      return;
+    case 'background_tasks_changed':
+      onBackgroundTasks(d, m, now);
+      return;
+    case 'session_state_changed':
+      // 'idle' is Claude Code's own word that the turn, and any background work it waited for, is over.
+      if (m.state === 'idle') {
+        d.busy = false;
+        d.activity = '';
+      }
+      return;
     default:
   }
 }
@@ -496,7 +658,7 @@ export function groupTurns(items, busy) {
     turn = null;
   };
   for (const item of items) {
-    if (item.type === 'user') {
+    if (item.type === 'user' || item.type === 'wake') {
       close(busy && item.queued);
       turn = { user: item, body: [] };
     } else if (!turn || item.type === 'divider') {
@@ -509,6 +671,16 @@ export function groupTurns(items, busy) {
   }
   close(busy);
   return out;
+}
+
+// Background tasks for the strip above the message box: running ones first (oldest first), then ended ones,
+// most recent first.
+export function backgroundTasks(state) {
+  const all = Object.values(state.agents || {});
+  return [
+    ...all.filter((a) => a.status === 'running').sort((a, b) => a.startedAt - b.startedAt),
+    ...all.filter((a) => a.status !== 'running').sort((a, b) => b.endedAt - a.endedAt),
+  ];
 }
 
 export function currentActivity(state) {

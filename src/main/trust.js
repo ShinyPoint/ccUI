@@ -46,22 +46,30 @@ function isTrusted(settings, cwd) {
 
 const asking = new Map(); // normalized folder -> pending answer, so two sessions starting together ask once
 
-// Resolves true when the folder may be used for a chat session.
-function ensureTrusted(settings, win, cwd) {
-  if (isTrusted(settings, cwd)) return Promise.resolve(true);
-  const key = norm(cwd);
-  if (asking.has(key)) return asking.get(key);
-  const answer = dialog.showMessageBox(win, {
+// The system's own box: used when the window can't ask (see askWindow in main.js).
+function askNatively(win, cwd) {
+  return dialog.showMessageBox(win, {
     type: 'warning',
     buttons: ['Trust this folder', 'Cancel'],
     defaultId: 1,
     cancelId: 1,
     message: 'Do you trust the files in this folder?',
-    detail: `${cwd}\n\nClaude Code will be able to read, edit and run files here. A project's settings can also run `
-      + 'commands as soon as a session starts. Only trust folders you created or whose contents you know.',
-  }).then(({ response }) => {
+    detail: `${cwd}\n\n${TRUST_DETAIL}`,
+  }).then(({ response }) => response === 0);
+}
+
+const TRUST_DETAIL = 'Claude Code will be able to read, edit and run files here. A project’s settings can also run '
+  + 'commands as soon as a session starts. Only trust folders you created or whose contents you know.';
+
+// Resolves true when the folder may be used for a chat session. `ask(cwd)` puts the question to the user and
+// resolves true if they trust the folder (the app's own dialog; the system's when left out).
+function ensureTrusted(settings, win, cwd, ask = (dir) => askNatively(win, dir)) {
+  if (isTrusted(settings, cwd)) return Promise.resolve(true);
+  const key = norm(cwd);
+  if (asking.has(key)) return asking.get(key);
+  const answer = Promise.resolve(ask(cwd)).catch(() => false).then((yes) => {
     asking.delete(key);
-    if (response !== 0) return false;
+    if (!yes) return false;
     const list = settings.data.trustedFolders || [];
     if (!list.some((p) => norm(p) === key)) settings.setPrivate({ trustedFolders: [...list, path.resolve(cwd)] });
     return true;
@@ -70,4 +78,4 @@ function ensureTrusted(settings, win, cwd) {
   return answer;
 }
 
-module.exports = { ensureTrusted, isTrusted };
+module.exports = { ensureTrusted, isTrusted, askNatively, TRUST_DETAIL };

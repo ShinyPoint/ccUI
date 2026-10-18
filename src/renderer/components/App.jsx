@@ -1,12 +1,13 @@
 import { useEffect } from 'preact/hooks';
-import { Icon, Toasts, ContextMenu, openContextMenu } from './ui.jsx';
-import { Sidebar, STATE_WORDS } from './Sidebar.jsx';
+import { Icon, Toasts, ContextMenu, openContextMenu, ConfirmHost } from './ui.jsx';
+import { Sidebar } from './Sidebar.jsx';
 import { ChatView } from './chat/ChatView.jsx';
-import { MODE_LABELS } from './chat/Prompts.jsx';
 import { TerminalStack, TerminalOverlay, TerminalComposer } from './TerminalPane.jsx';
 import { NewSessionDialog } from './dialogs/NewSessionDialog.jsx';
 import { SettingsDialog } from './dialogs/SettingsDialog.jsx';
 import { SkillsDialog } from './dialogs/SkillsDialog.jsx';
+import { SidePanel } from './SidePanel.jsx';
+import { toggleChanges } from '../lib/side.js';
 import {
   api, active, sessions, settings, saveSettings, claudeCheck, info, newSessionDialog, themeMode, toast,
 } from '../lib/store.js';
@@ -17,11 +18,20 @@ import { BottomPanel } from './BottomPanel.jsx';
 import {
   displayName, openSession, openInTerminal, openInChat, restartTerminal, chooseFolderAndStart,
 } from '../lib/sessions.js';
-import { basename, tildify, formatCost, formatDuration, formatTokens } from '../lib/format.js';
+import { basename, tildify, formatDuration } from '../lib/format.js';
+
+// A CLI or shell session's process, for the title's tooltip: "pid 4868 · 126×19 · up 5s".
+function processInfo(s) {
+  s.traceTick.value; // uptime moves every second
+  if (!s.pid.value) return '';
+  return [`pid ${s.pid.value}`, s.size.value, `up ${formatDuration(Date.now() - s.startedAt.value)}`].filter(Boolean).join(' · ');
+}
 
 function Topbar({ s }) {
   const collapsed = settings.value.sidebarCollapsed;
   const kind = s?.kind.value;
+  const proc = s && kind !== 'chat' ? processInfo(s) : '';
+  const panelOpen = s?.panel.open.value;
   return (
     <header id="topbar" class="drag">
       {collapsed && (
@@ -32,7 +42,8 @@ function Topbar({ s }) {
       {s && (
         <div class="topbar-title">
           <button class="project-btn no-drag" title={`${tildify(s.cwd)}
-Click to open in the file manager`}
+Click to open in the file manager${proc ? `
+${proc}` : ''}`}
                   onClick={() => api.openPath(s.cwd)}
                   onContextMenu={(e) => openContextMenu(e, [
                     { label: 'Open in file manager', run: () => api.openPath(s.cwd) },
@@ -41,14 +52,14 @@ Click to open in the file manager`}
             <Icon name="folder" size={15} />
             <span>{basename(s.cwd)}</span>
           </button>
-          {s.title.value && <span class="top-task">{s.title.value}</span>}
+          {s.title.value && <span class="top-task" title={proc || s.title.value}>{s.title.value}</span>}
         </div>
       )}
       {s && (
         <div class="topbar-actions no-drag">
           {kind === 'chat' && (
             <button class="text-btn" title="Continue this conversation in Claude Code’s own command-line interface" onClick={() => {
-              if (!s.chat.value.busy || window.confirm('Claude is still working. Stop it and switch to the CLI?')) openInTerminal(s);
+              openInTerminal(s); // asks first if Claude is working or has background tasks running
             }}>
               <Icon name="terminal" />CLI
             </button>
@@ -58,6 +69,18 @@ Click to open in the file manager`}
               <Icon name="chat" />Chat
             </button>
           )}
+          {kind === 'chat' && (
+            <button class={`icon-btn changes-toggle ${s.side.value.open ? 'on' : ''}`} aria-pressed={s.side.value.open}
+                    title={`${s.side.value.open ? 'Hide' : 'Show'} the files Claude changed (${SHORTCUTS.changes})`}
+                    onClick={() => toggleChanges(s)}>
+              <Icon name="panelRight" />
+            </button>
+          )}
+          <button class={`icon-btn panel-toggle ${panelOpen ? 'on' : ''}`} aria-pressed={panelOpen}
+                  title={`${panelOpen ? 'Hide' : 'Open'} a terminal in ${tildify(s.cwd)} (${SHORTCUTS.panel})`}
+                  onClick={() => togglePanel(s)}>
+            <Icon name="panelBottom" />
+          </button>
           {kind !== 'chat' && (
             <>
               <button class="icon-btn" title={kind === 'terminal' ? 'Restart (continues the conversation)' : 'Restart shell'} onClick={() => restartTerminal(s)}>
@@ -71,43 +94,6 @@ Click to open in the file manager`}
         </div>
       )}
     </header>
-  );
-}
-
-function StatusBar({ s }) {
-  const check = claudeCheck.value;
-  const version = check ? (check.ok ? `Claude Code ${check.version}${check.bundled ? '' : ' (custom)'}` : 'Claude Code not found') : '';
-  if (!s) return <footer id="statusbar"><span class="spacer" /><span>{version}</span></footer>;
-  const panelOpen = s.panel.open.value;
-  const panelButton = (
-    <button class={`st-btn ${panelOpen ? 'on' : ''}`} aria-pressed={panelOpen}
-            title={`${panelOpen ? 'Hide' : 'Open'} a shell in ${s.cwd} (${SHORTCUTS.panel})`} onClick={() => togglePanel(s)}>
-      <Icon name="terminal" size={12} />Terminal
-    </button>
-  );
-  s.traceTick.value; // refresh uptime every second
-  const status = s.status.value;
-  const parts = [];
-  if (s.kind.value === 'chat') {
-    const chat = s.chat.value;
-    if (chat.init?.model) parts.push(chat.init.model.replace(/^claude-/, ''));
-    if (chat.init?.permissionMode) parts.push(MODE_LABELS[chat.init.permissionMode] || chat.init.permissionMode);
-    const ctx = s.context.value;
-    if (ctx?.maxTokens) parts.push(`${formatTokens(ctx.totalTokens)} / ${formatTokens(ctx.maxTokens)} context`);
-    if (chat.costTotal) parts.push(`${formatCost(chat.costTotal)} this session`);
-  } else {
-    if (s.pid.value) parts.push(`pid ${s.pid.value}`);
-    if (s.size.value) parts.push(s.size.value);
-    if (s.pid.value) parts.push(`up ${formatDuration(Date.now() - s.startedAt.value)}`);
-  }
-  return (
-    <footer id="statusbar">
-      <span class="st-state" data-status={status}>{STATE_WORDS[status]}</span>
-      {parts.map((p) => <span key={p}>{p}</span>)}
-      <span class="spacer" />
-      {panelButton}
-      <span>{version}</span>
-    </footer>
   );
 }
 
@@ -173,17 +159,18 @@ export function App() {
           <TerminalStack />
           {s && kind !== 'chat' && <TerminalOverlay s={s} />}
           {s && kind === 'chat' && <ChatView key={s.uid} s={s} />}
+          {s && kind === 'chat' && <SidePanel key={s.uid} s={s} />}
           {!s && <EmptyState />}
         </div>
         {s && kind !== 'chat' && <TerminalComposer key={s.uid} s={s} />}
         <BottomPanel s={s} />
-        <StatusBar s={s} />
       </main>
       <NewSessionDialog />
       <SettingsDialog />
       <SkillsDialog />
       <Toasts />
       <ContextMenu />
+      <ConfirmHost />
     </div>
   );
 }

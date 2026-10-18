@@ -10,7 +10,7 @@
   @font-face { font-family: "Instrument Sans"; font-weight: 400; src: url("../../node_modules/@fontsource/instrument-sans/files/instrument-sans-latin-400-normal.woff2"); }
   @font-face { font-family: "Instrument Sans"; font-weight: 600; src: url("../../node_modules/@fontsource/instrument-sans/files/instrument-sans-latin-600-normal.woff2"); }
   @font-face { font-family: "JetBrains Mono"; src: url("../../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2"); }
-  :root { --accent: #E58A5E; --text: #EDE8DE; --muted: #8E8A82; --display: "Instrument Serif", Georgia, serif; --ui: "Instrument Sans", sans-serif; --mono: "JetBrains Mono", monospace; }
+  :root { --accent: #E58A5E; --text: #F2F2F4; --muted: #8E8E93; --display: "Instrument Serif", Georgia, serif; --ui: "Instrument Sans", sans-serif; --mono: "JetBrains Mono", monospace; }
   * { box-sizing: border-box; }
   html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #0D0E13; color: var(--text); }
   body::before {
@@ -22,7 +22,7 @@
 
   #stage {
     position: absolute; left: 160px; top: 44px; width: 1600px; height: 900px;
-    border-radius: 14px; overflow: hidden; background: #191B22;
+    border-radius: 14px; overflow: hidden; background: #1A1A1C;
     box-shadow: 0 0 0 1px rgba(255, 255, 255, .09), 0 40px 90px rgba(0, 0, 0, .55), 0 8px 24px rgba(0, 0, 0, .35);
     transform-origin: 50% 50%;
   }
@@ -31,7 +31,7 @@
   /* The window buttons the system draws over the top bar (not part of the page, so not in the recording). */
   #controls { position: absolute; right: 0; top: 0; height: 50px; display: flex; }
   #controls svg { width: 58px; height: 50px; }
-  #controls path, #controls rect { fill: none; stroke: #8E8A82; stroke-width: 1.2; }
+  #controls path, #controls rect { fill: none; stroke: #8E8E93; stroke-width: 1.2; }
   #pointer { position: absolute; left: 0; top: 0; width: 30px; height: 30px; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .45)); }
   #ring { position: absolute; left: 0; top: 0; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; border: 2.5px solid var(--accent); opacity: 0; }
 

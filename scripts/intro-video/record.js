@@ -279,12 +279,12 @@ app.on('browser-window-created', (_e, win) => {
 
     // 8. The Terminal panel
     caption('A shell in the project folder, one click away.');
-    await click(['.st-btn', 'Terminal']);
+    await click(['.panel-toggle']);
     await sleep(1600);
     await type('git status --short', 16);
     await key('Enter');
     await sleep(2600);
-    await click(['.st-btn', 'Terminal']);
+    await click(['.panel-toggle']);
     await sleep(500);
 
     // 9. Appearance

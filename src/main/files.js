@@ -1,5 +1,5 @@
-// Project file list for @-mentions in the composer. Uses git when available (respects .gitignore),
-// otherwise walks the folder while skipping the usual heavy directories.
+// Project files: the list for @-mentions in the composer (git when available, so .gitignore is respected,
+// otherwise a walk that skips the usual heavy directories), and reading one for the Changes panel.
 const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
@@ -47,4 +47,35 @@ async function listFiles(cwd) {
   return files;
 }
 
-module.exports = { listFiles };
+const READ_MAX = 2 * 1024 * 1024;
+
+// `to` is `root` or inside it (both real, absolute paths).
+function inside(root, to) {
+  const rel = path.relative(root, to);
+  return !rel.startsWith('..') && !path.isAbsolute(rel);
+}
+
+// The text of a file inside the project folder `cwd`: { ok, text, size } or { ok: false, reason } with reason
+// 'outside' (not in the folder, also through a link), 'missing', 'too-big' or 'binary'.
+async function readProjectFile(cwd, file) {
+  if (typeof cwd !== 'string' || typeof file !== 'string' || !cwd || !file) return { ok: false, reason: 'missing' };
+  let root;
+  let real;
+  try {
+    root = await fs.promises.realpath(path.resolve(cwd));
+    const full = path.resolve(root, file);
+    if (!inside(root, full)) return { ok: false, reason: 'outside' };
+    real = await fs.promises.realpath(full);
+  } catch {
+    return { ok: false, reason: 'missing' };
+  }
+  if (!inside(root, real)) return { ok: false, reason: 'outside' };
+  const stat = await fs.promises.stat(real).catch(() => null);
+  if (!stat?.isFile()) return { ok: false, reason: 'missing' };
+  if (stat.size > READ_MAX) return { ok: false, reason: 'too-big', size: stat.size };
+  const data = await fs.promises.readFile(real);
+  if (data.subarray(0, 8000).includes(0)) return { ok: false, reason: 'binary', size: stat.size };
+  return { ok: true, text: data.toString('utf8'), size: stat.size };
+}
+
+module.exports = { listFiles, readProjectFile };

@@ -7,7 +7,7 @@ import {
   projectSearch,
 } from '../lib/store.js';
 import {
-  selectSession, closeSession, openSession, openConversation, forgetRecent, renameSession,
+  selectSession, endSession, openSession, openConversation, forgetRecent, renameSession,
   openInTerminal, openInChat,
 } from '../lib/sessions.js';
 import { basename, tildify, samePath, relativeTime } from '../lib/format.js';
@@ -102,7 +102,7 @@ function sessionMenu(e, s) {
     kind === 'chat' && { label: 'Open in CLI', run: () => openInTerminal(s) },
     kind === 'terminal' && { label: 'Open in chat', run: () => openInChat(s) },
     '-',
-    { label: 'End session', run: () => closeSession(s) },
+    { label: 'End session', run: () => endSession(s) },
   ].filter(Boolean));
 }
 
@@ -140,7 +140,7 @@ function SessionRow({ s }) {
         </span>
         <canvas class="trace" ref={canvas} aria-hidden="true" />
       </button>
-      <button class="icon-btn session-close" title="End session" onClick={(e) => { e.stopPropagation(); closeSession(s); }}>
+      <button class="icon-btn session-close" title="End session" onClick={(e) => { e.stopPropagation(); endSession(s); }}>
         <Icon name="x" size={13} />
       </button>
     </li>
@@ -231,7 +231,8 @@ function folderMenu(e, path, open) {
 // `open`: the folder's sessions; `shown`: those that match the search (all of them when not searching).
 // While searching, folders with matches are shown open.
 function Folder({ path, open, shown = open, searching }) {
-  const collapsed = !searching && Boolean(settings.value.folders?.[path]?.collapsed);
+  // Folded unless opened since launch (main.jsx clears the folder states at launch).
+  const collapsed = !searching && (settings.value.folders?.[path]?.collapsed ?? true);
   const showRecents = recentsOpen.value.has(path);
   const busy = open.some((s) => s.status.value === 'working');
   const waiting = open.some((s) => s.status.value === 'attention' || s.status.value === 'needs-you');
@@ -355,7 +356,9 @@ export function Sidebar() {
       </div>
 
       <div class="sidebar-bottom">
-        <button class="ghost-btn" onClick={() => { settingsDialog.value = true; }}><Icon name="settings" />Settings</button>
+        <button class="ghost-btn footer-row" onClick={() => { settingsDialog.value = true; }}>
+          <span class="footer-icon"><Icon name="settings" /></span>Settings
+        </button>
         <button class="icon-btn" title={themeMode.value === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'} onClick={toggleTheme}>
           <Icon name={themeMode.value === 'dark' ? 'sun' : 'moon'} />
         </button>

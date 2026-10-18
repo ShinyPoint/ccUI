@@ -13,6 +13,9 @@ function channel(name) {
 contextBridge.exposeInMainWorld('ccui', {
   info: () => ipcRenderer.invoke('app:info'),
   detectClaude: (custom) => ipcRenderer.invoke('app:detect-claude', custom),
+  // Questions from the main process (quitting with sessions running, folder trust), answered with true/false.
+  onAsk: channel('app:ask'),
+  answer: (id, value) => ipcRenderer.send('app:answer', id, value),
 
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
@@ -25,6 +28,8 @@ contextBridge.exposeInMainWorld('ccui', {
   openPath: (p) => ipcRenderer.send('shell:open-path', p),
   openExternal: (url) => ipcRenderer.send('shell:open-external', url),
   listFiles: (cwd) => ipcRenderer.invoke('files:list', cwd),
+  // A text file inside the project folder (Changes panel): { ok, text } or { ok: false, reason }.
+  readFile: (cwd, file) => ipcRenderer.invoke('files:read', cwd, file),
 
   readClipboard: () => ipcRenderer.invoke('clipboard:read'),
   writeClipboard: (text) => ipcRenderer.send('clipboard:write', text),
@@ -63,6 +68,12 @@ contextBridge.exposeInMainWorld('ccui', {
     pick: () => ipcRenderer.invoke('background:pick'),
     clear: () => ipcRenderer.invoke('background:clear'),
     read: () => ipcRenderer.invoke('background:read'),
+  },
+  claudeUpdate: {
+    state: () => ipcRenderer.invoke('claude-update:state'),
+    check: () => ipcRenderer.invoke('claude-update:check'),
+    run: () => ipcRenderer.invoke('claude-update:run'),
+    onState: channel('claude-update:state'),
   },
   focusWindow: () => ipcRenderer.send('window:focus'),
   toggleDevTools: () => ipcRenderer.send('window:devtools'),

@@ -6,11 +6,12 @@ const { pathToFileURL, fileURLToPath } = require('url');
 const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, Menu, nativeTheme, screen, session } = require('electron');
 const { PtyManager, claudeLaunch } = require('./pty');
 const { AgentManager, listHistory, loadHistory, forkBefore } = require('./agent');
-const { resolveClaude, bundledClaude } = require('./claude-binary');
+const { resolveClaude, bundledClaude, useDownloads } = require('./claude-binary');
+const { ClaudeUpdater } = require('./claude-update');
 const { shellEnvReady } = require('./shell-env');
-const { listFiles } = require('./files');
+const { listFiles, readProjectFile } = require('./files');
 const { Settings } = require('./settings');
-const { ensureTrusted } = require('./trust');
+const { ensureTrusted, askNatively, TRUST_DETAIL } = require('./trust');
 const { Background } = require('./background');
 
 const isMac = process.platform === 'darwin';
@@ -22,11 +23,34 @@ const APP_URL = DEV_URL || pathToFileURL(path.join(RENDERER_DIR, 'index.html')).
 let win = null;
 let settings = null;
 let background = null;
+let updater = null;
 let quitConfirmed = false;
+let quitAsking = false;
 
 const send = (channel, ...args) => {
   if (win && !win.isDestroyed()) win.webContents.send(channel, ...args);
 };
+// Questions for the user, shown as the app's own dialogs (ui.jsx confirmDialog): the window answers on app:answer.
+// `fallback` (the system's message box) is used when there is no window that can ask.
+const asks = new Map();
+let askId = 0;
+function askWindow(kind, payload, fallback) {
+  if (!win || win.isDestroyed() || win.webContents.isCrashed() || win.webContents.isLoading()) return Promise.resolve(fallback());
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+  const id = ++askId;
+  return new Promise((resolve) => {
+    asks.set(id, resolve);
+    send('app:ask', id, kind, payload);
+  });
+}
+// A window that reloads or goes away can't answer any more: the questions count as declined.
+function dropAsks() {
+  for (const resolve of asks.values()) resolve(false);
+  asks.clear();
+}
+
 const ptys = new PtyManager(send);
 const agents = new AgentManager(send);
 
@@ -49,7 +73,7 @@ const APP_ID = 'dev.ccui.app'; // = build.appId in package.json
 // Frosted glass behind the sidebar: the system's own blurred material (acrylic on Windows 11 22H2+, vibrancy
 // on macOS). The page is transparent where the sidebar is, so the material shows through it.
 const GLASS_SUPPORTED = isMac || (process.platform === 'win32' && Number(os.release().split('.')[2]) >= 22621);
-const solidBackground = () => (nativeTheme.shouldUseDarkColors ? '#191B22' : '#F4F5F7');
+const solidBackground = () => (nativeTheme.shouldUseDarkColors ? '#1A1A1C' : '#F9FAFB'); // = --chrome (app.css)
 
 function applyGlass(on) {
   if (!win || win.isDestroyed() || !GLASS_SUPPORTED) return;
@@ -74,7 +98,7 @@ function createWindow() {
     titleBarStyle: 'hidden',
     ...(isMac
       ? { trafficLightPosition: { x: 14, y: 13 } }
-      : { titleBarOverlay: { color: '#00000000', symbolColor: '#8E8A82', height: TITLEBAR_HEIGHT } }),
+      : { titleBarOverlay: { color: '#00000000', symbolColor: '#8E8E93', height: TITLEBAR_HEIGHT } }),
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload.js'),
       contextIsolation: true,
@@ -125,25 +149,36 @@ function createWindow() {
     if (!DEV_URL || !url.startsWith(DEV_URL)) e.preventDefault();
   });
 
+  win.webContents.on('did-start-loading', dropAsks);
+  win.webContents.on('render-process-gone', dropAsks);
   win.on('close', (e) => {
     const live = ptys.liveCount + agents.liveCount;
     if (!quitConfirmed && live > 0 && settings.get().confirmClose) {
-      const choice = dialog.showMessageBoxSync(win, {
+      // Asked in the window; the window closes again once the answer is yes.
+      e.preventDefault();
+      if (quitAsking) return;
+      quitAsking = true;
+      askWindow('quit', { count: live }, () => dialog.showMessageBoxSync(win, {
         type: 'question',
         buttons: ['End sessions and quit', 'Cancel'],
         defaultId: 0,
         cancelId: 1,
         message: live === 1 ? '1 session is still running.' : `${live} sessions are still running.`,
         detail: 'Quitting ends them. Conversations are saved, so you can continue them later.',
+      }) === 0).then((yes) => {
+        quitAsking = false;
+        if (!yes || !win || win.isDestroyed()) return;
+        quitConfirmed = true;
+        win.close();
       });
-      if (choice !== 0) return e.preventDefault();
+      return;
     }
     quitConfirmed = true;
     settings.setPrivate({ bounds: { ...win.getNormalBounds(), maximized: win.isMaximized() } });
     ptys.killAll();
     agents.closeAll();
   });
-  win.on('closed', () => { win = null; });
+  win.on('closed', () => { win = null; dropAsks(); });
 }
 
 // Every request from the window must come from the app's own page (not from other content in it).
@@ -204,9 +239,23 @@ function registerIpc() {
     glassSupported: GLASS_SUPPORTED,
   }));
   ipc.handle('app:detect-claude', (_e, custom) => detectClaude(custom));
+  ipc.on('app:answer', (_e, id, value) => {
+    const resolve = asks.get(id);
+    asks.delete(id);
+    resolve?.(value === true);
+  });
 
   ipc.handle('settings:get', () => settings.get());
-  ipc.handle('settings:set', (_e, patch) => settings.set(patch));
+  ipc.handle('settings:set', (_e, patch) => {
+    const next = settings.set(patch);
+    updater.configure(); // automatic updates, or a Claude Code of your own, may have been switched
+    return next;
+  });
+
+  // Updates of the built-in Claude Code (claude-update.js)
+  ipc.handle('claude-update:state', () => updater.status);
+  ipc.handle('claude-update:check', () => updater.check());
+  ipc.handle('claude-update:run', () => updater.update());
   ipc.handle('settings:set-api-key', (_e, key) => {
     try {
       return { ok: true, settings: settings.setApiKey(key) };
@@ -258,7 +307,8 @@ function registerIpc() {
           + 'Choose one in Settings, or leave the setting empty to use the built-in Claude Code.',
       };
     }
-    if (!(await ensureTrusted(settings, win, opts.cwd))) {
+    const askTrust = (cwd) => askWindow('trust', { folder: cwd, detail: TRUST_DETAIL }, () => askNatively(win, cwd));
+    if (!(await ensureTrusted(settings, win, opts.cwd, askTrust))) {
       return { ok: false, code: 'untrusted', error: 'You did not trust this folder, so Claude Code was not started there.' };
     }
     return agents.start({ ...opts, claudeFile: claude.file, apiKey: settings.getApiKey() });
@@ -291,6 +341,7 @@ function registerIpc() {
     }
   });
   ipc.handle('files:list', (_e, cwd) => listFiles(cwd).catch(() => []));
+  ipc.handle('files:read', (_e, cwd, file) => readProjectFile(cwd, file).catch(() => ({ ok: false, reason: 'missing' })));
 
   ipc.handle('clipboard:read', () => clipboard.readText());
   ipc.on('clipboard:write', (_e, text) => clipboard.writeText(String(text)));
@@ -351,6 +402,9 @@ app.whenReady().then(() => {
   if (!primaryInstance) return;
   settings = new Settings(app.getPath('userData'));
   background = new Background(app.getPath('userData'), settings);
+  useDownloads(path.join(app.getPath('userData'), 'claude-code'));
+  updater = new ClaudeUpdater(path.join(app.getPath('userData'), 'claude-code'), settings, send);
+  updater.configure();
   nativeTheme.themeSource = settings.get().theme;
   guardRequests();
   registerIpc();
