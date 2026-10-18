@@ -100,12 +100,20 @@ app.on('browser-window-created', (_e, win) => {
       await press('Trust this folder');
       await until('the chat', "Boolean(document.querySelector('.chat-composer .composer-input'))");
       check('trusting starts the chat', true);
+      // Black is the default accent; the folder of the conversation on screen shows it, the others are faint.
+      await wait(400);
+      const accent = await js("getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()");
+      check('the default accent is black (white on dark)', /^#(000000|ffffff)$/i.test(accent), accent);
+      const icons = JSON.parse(await js("JSON.stringify([...document.querySelectorAll('#sidebar .folder')].map((f) => ({ active: f.classList.contains('has-active'), color: getComputedStyle(f.querySelector('.folder-icon')).color })))"));
+      const mine = icons.find((i) => i.active);
+      check('the current conversation’s folder icon is in the accent color, the others are not', Boolean(mine) && /rgb\((0, 0, 0|255, 255, 255)\)/.test(mine.color)
+        && icons.filter((i) => !i.active).every((i) => i.color !== mine.color), JSON.stringify(icons));
       check('and is remembered', JSON.parse(fs.readFileSync(path.join(profile, 'settings.json'), 'utf8')).trustedFolders?.length === 1);
 
       // Bypass permissions asks first
       await wait(800);
       await js("document.querySelector('.mode-menu .menu-button').click(); true");
-      await wait(200);
+      await until('the permission menu', "[...document.querySelectorAll('.mode-menu [role=option]')].some((b) => b.textContent.includes('Bypass'))", 5000);
       await js("[...document.querySelectorAll('.mode-menu [role=option]')].find((b) => b.textContent.includes('Bypass')).click(); true");
       await until('the bypass question', `/Bypass permissions\\?/.test(${confirmText})`);
       check('the bypass question is red, with Cancel focused', await js("Boolean(document.querySelector('.dialog-confirm[open] .danger-btn')) && document.activeElement?.textContent === 'Cancel'"));
@@ -114,6 +122,40 @@ app.on('browser-window-created', (_e, win) => {
       await js("document.querySelector('.dialog-confirm[open]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); document.querySelector('.dialog-confirm[open]')?.close(); true");
       await wait(400);
       check('Esc keeps the mode', !/Bypass/.test(await js("document.querySelector('.mode-menu .menu-button').textContent")));
+
+      // Tooltips are the app's own: hover a button with a hint and a rounded label shows it, no system tooltip.
+      const hover = async (selector) => {
+        const p = JSON.parse(await js(`JSON.stringify((() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })())`));
+        win.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(p.x) - 3, y: Math.round(p.y) });
+        win.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(p.x), y: Math.round(p.y) });
+      };
+      const shown = "(() => { const t = document.querySelector('.tooltip'); return t && t.matches(':popover-open') ? t.textContent : ''; })()";
+      await hover('#sidebar .sidebar-top .icon-btn');
+      if (!(await until('a tooltip', `Boolean(${shown})`, 3000))) {
+        console.log('state', await js(`JSON.stringify({ dialog: document.querySelector('dialog[open]')?.className || null, focus: document.hasFocus(),
+          under: (() => { const r = document.querySelector('#sidebar .sidebar-top .icon-btn').getBoundingClientRect(); const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return e && (e.className?.baseVal ?? e.className); })(),
+          popover: document.querySelector('.tooltip').matches(':popover-open') })`));
+      }
+      const tip = JSON.parse(await js(`JSON.stringify({ text: ${shown}, radius: getComputedStyle(document.querySelector('.tooltip')).borderRadius,
+        title: document.querySelector('#sidebar .sidebar-top .icon-btn').hasAttribute('title'), label: document.querySelector('#sidebar .sidebar-top .icon-btn').getAttribute('aria-label') })`));
+      check('hovering a button shows the app’s tooltip, not the system’s', tip.text === 'Hide sidebar' && !tip.title && tip.label === 'Hide sidebar', JSON.stringify(tip));
+      await wait(200);
+      await shot('6-tooltip');
+      if (process.platform !== 'darwin') {
+        // Window buttons drawn by the app, with the same tooltips and corners.
+        const btns = await js("JSON.stringify([...document.querySelectorAll('.window-controls .win-btn')].map((b) => [b.dataset.tip || b.title, getComputedStyle(b).borderRadius]))");
+        check('the window has its own minimize, maximize and close buttons', /Minimize.*Maximize.*Close/.test(btns) && JSON.parse(btns).every(([, r]) => r === tip.radius), btns);
+        await hover('.window-controls .win-btn');
+        await until('the Minimize tooltip', `${shown} === 'Minimize'`, 3000);
+        await wait(200);
+        await shot('7-window-tooltip');
+        await js("document.querySelectorAll('.window-controls .win-btn')[1].click(); true");
+        await wait(700);
+        check('Maximize maximizes, and the button turns into Restore', win.isMaximized() && await js("document.querySelectorAll('.window-controls .win-btn')[1].getAttribute('aria-label') === 'Restore' || document.querySelectorAll('.window-controls .win-btn')[1].dataset.tip === 'Restore' || document.querySelectorAll('.window-controls .win-btn')[1].title === 'Restore'"));
+        await js("document.querySelectorAll('.window-controls .win-btn')[1].click(); true");
+        await wait(700);
+        check('and Restore brings it back', !win.isMaximized());
+      }
 
       // Settings
       await js("[...document.querySelectorAll('.sidebar-bottom button')].find((b) => b.textContent.includes('Settings')).click(); true");

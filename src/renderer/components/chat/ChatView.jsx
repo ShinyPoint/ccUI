@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Icon, Collapse } from '../ui.jsx';
 import { ChatContext } from './context.js';
-import { ToolCard } from './ToolCard.jsx';
+import { ToolCard, toolIcon } from './ToolCard.jsx';
 import { PermissionPrompt } from './Prompts.jsx';
 import { Composer } from './Composer.jsx';
 import { FindBar } from './FindBar.jsx';
@@ -139,30 +139,11 @@ function ProblemCard({ s }) {
 // The intro is centered in the chat area (the space above the message box): the question and the project
 // name alone, or together with the suggested prompts when those are turned on (Settings). On short windows
 // it moves up just enough to fit.
+// A new chat: the question, right above the message box; the two sit together in the middle (.chat.empty).
 function Intro({ s, onPick }) {
-  const ref = useRef(null);
   const starters = Boolean(settings.value.showStarters);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    const scroller = el.closest('.chat-scroll');
-    const place = () => {
-      el.style.marginTop = '0px';
-      const box = scroller.getBoundingClientRect();
-      const toContent = (y) => y - box.top + scroller.scrollTop;
-      const top = toContent(el.querySelector('h2').getBoundingClientRect().top);
-      const last = el.querySelector(starters ? '.starters' : '.intro-project');
-      const bottom = toContent(last.getBoundingClientRect().bottom - parseFloat(getComputedStyle(last).paddingBottom));
-      const want = scroller.clientHeight / 2 - (top + bottom) / 2;
-      const room = scroller.clientHeight - scroller.firstElementChild.offsetHeight; // free space below the content
-      el.style.marginTop = `${Math.max(0, Math.min(want, room))}px`;
-    };
-    place();
-    const ro = new ResizeObserver(place);
-    ro.observe(scroller);
-    return () => ro.disconnect();
-  }, [starters]);
   return (
-    <div class="chat-intro" ref={ref}>
+    <div class="chat-intro">
       <h2>What should we do in</h2>
       <div class="intro-project" title={s.cwd}>{displayName(s)}</div>
       {starters && (
@@ -313,6 +294,21 @@ export function ChatView({ s }) {
   const [prefill, setPrefill] = useState(null);
 
   const items = useMemo(() => topLevel(chat), [chat.items]);
+  const empty = !s.problem.value && items.length === 0;
+  // The first message sends the message box from the middle down to the bottom: it slides there (FLIP).
+  const bottom = useRef(null);
+  const placed = useRef({ top: null, empty });
+  useLayoutEffect(() => {
+    const el = bottom.current;
+    if (!el) return;
+    const top = el.getBoundingClientRect().top;
+    const before = placed.current;
+    if (before.empty && !empty && before.top != null && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const dy = before.top - top;
+      if (Math.abs(dy) > 4) el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 340, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+    }
+    placed.current = { top, empty };
+  });
   const saved = Boolean(chat.sessionId || s.sessionId); // the conversation exists on disk: messages can be rewound or forked
   const groups = useMemo(() => groupTurns(items, chat.busy), [items, chat.busy]);
   const renderItem = (item) => {
@@ -415,7 +411,7 @@ export function ChatView({ s }) {
 
   return (
     <ChatContext.Provider value={context}>
-      <div class="chat">
+      <div class={`chat ${empty ? 'empty' : ''}`}>
         {findBar.value > 0 && <FindBar root={timeline} scroller={scroller} />}
         <div class="chat-scroll" ref={scroller} onScroll={onScroll}
              onClick={(e) => {
@@ -435,20 +431,23 @@ export function ChatView({ s }) {
              }}>
           <div class="timeline" ref={timeline}>
             {s.problem.value && <ProblemCard s={s} />}
-            {!s.problem.value && items.length === 0 && <Intro s={s} onPick={pick} />}
+            {empty && <Intro s={s} onPick={pick} />}
             {groups.map((g) => (g.kind === 'item'
               ? renderItem(g.item)
               : <Turn key={g.key} g={g} s={s} renderItem={renderItem} />))}
             {orphans.map((p) => (
               <div class="tool" data-status="asking" key={p.requestId}>
-                <div class="tool-head static"><span class="tool-glyph" /><span class="tool-verb">{p.displayName || p.toolName}</span></div>
+                <div class="tool-head static">
+                  <span class="tool-glyph" aria-hidden="true"><Icon name={toolIcon({ name: p.toolName })} size={15} /></span>
+                  <span class="tool-target as-verb">{p.displayName || p.toolName}</span>
+                </div>
                 <PermissionPrompt session={s} request={p} />
               </div>
             ))}
             <Activity s={s} chat={chat} />
           </div>
         </div>
-        <div class="chat-bottom">
+        <div class="chat-bottom" ref={bottom}>
           {showJump && (
             <button class="jump-latest" onClick={() => {
               stick.current = true;

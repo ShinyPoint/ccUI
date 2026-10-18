@@ -15,7 +15,6 @@ const { ensureTrusted, askNatively, TRUST_DETAIL } = require('./trust');
 const { Background } = require('./background');
 
 const isMac = process.platform === 'darwin';
-const TITLEBAR_HEIGHT = 40;
 const DEV_URL = process.env.VITE_DEV_SERVER_URL;
 const RENDERER_DIR = path.join(__dirname, '..', '..', 'dist-renderer');
 const APP_URL = DEV_URL || pathToFileURL(path.join(RENDERER_DIR, 'index.html')).href;
@@ -95,10 +94,10 @@ function createWindow() {
     icon: path.join(__dirname, '..', '..', 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
     backgroundColor: glass ? '#00000000' : solidBackground(),
     ...(glass ? (isMac ? { vibrancy: 'sidebar' } : { backgroundMaterial: 'acrylic' }) : {}),
+    // No system title bar. macOS keeps its traffic lights; elsewhere the top bar draws its own minimize, maximize
+    // and close buttons (WindowControls in App.jsx), so they look and explain themselves like the rest of the app.
     titleBarStyle: 'hidden',
-    ...(isMac
-      ? { trafficLightPosition: { x: 14, y: 13 } }
-      : { titleBarOverlay: { color: '#00000000', symbolColor: '#8E8E93', height: TITLEBAR_HEIGHT } }),
+    ...(isMac ? { trafficLightPosition: { x: 14, y: 13 } } : {}),
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload.js'),
       contextIsolation: true,
@@ -178,6 +177,9 @@ function createWindow() {
     ptys.killAll();
     agents.closeAll();
   });
+  for (const event of ['maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen']) {
+    win.on(event, () => send('window:maximized', win.isMaximized() || win.isFullScreen()));
+  }
   win.on('closed', () => { win = null; dropAsks(); });
 }
 
@@ -368,10 +370,16 @@ function registerIpc() {
   });
   ipc.handle('background:clear', () => background.clear());
   ipc.handle('background:read', () => background.read());
-  ipc.on('window:chrome', (_e, { color, symbolColor }) => {
-    if (!win || isMac) return;
-    try { win.setTitleBarOverlay({ color, symbolColor, height: TITLEBAR_HEIGHT }); } catch { /* unsupported WM */ }
+  // The window buttons drawn by the top bar (not on macOS).
+  ipc.on('window:minimize', () => win?.minimize());
+  ipc.on('window:toggle-maximize', () => {
+    if (!win) return;
+    if (win.isFullScreen()) win.setFullScreen(false);
+    else if (win.isMaximized()) win.unmaximize();
+    else win.maximize();
   });
+  ipc.on('window:close', () => win?.close()); // asks first when sessions are running (the close handler)
+  ipc.handle('window:is-maximized', () => Boolean(win && (win.isMaximized() || win.isFullScreen())));
   ipc.on('window:focus', () => {
     if (!win) return;
     if (win.isMinimized()) win.restore();

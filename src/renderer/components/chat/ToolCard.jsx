@@ -4,7 +4,7 @@ import { memo } from 'preact/compat';
 import { useContext, useState } from 'preact/hooks';
 import { ChatContext } from './context.js';
 import { Markdown } from './Items.jsx';
-import { Collapse } from '../ui.jsx';
+import { Collapse, Icon } from '../ui.jsx';
 import { PermissionPrompt, QuestionPrompt, PlanPrompt } from './Prompts.jsx';
 import { highlight, languageForPath } from '../../lib/markdown.js';
 import { relPath, formatDuration, formatBytes, pluralize } from '../../lib/format.js';
@@ -15,6 +15,19 @@ const TASK_TOOLS = new Set(['TodoWrite', 'TaskCreate', 'TaskUpdate', 'TaskList',
 const SUBAGENT_TOOLS = new Set(['Agent', 'Task']);
 const firstLine = (s) => String(s || '').split('\n')[0];
 const lineCount = (s) => (s ? String(s).split('\n').length : 0);
+
+// The glyph a step shows in place of its verb (lib/icons.js, tool*).
+const TOOL_ICONS = {
+  Bash: 'toolRun', BashOutput: 'toolOutput', KillShell: 'toolStop', TaskStop: 'toolStop',
+  Read: 'toolRead', Write: 'toolWrite', Edit: 'toolEdit', MultiEdit: 'toolEdit', NotebookEdit: 'toolEdit',
+  Glob: 'toolFind', Grep: 'toolSearch', WebFetch: 'toolWeb', WebSearch: 'toolWeb', Agent: 'toolAgent', Task: 'toolAgent',
+  TodoWrite: 'toolTasks', TaskCreate: 'toolTasks', TaskUpdate: 'toolTasks', TaskList: 'toolTasks', TaskGet: 'toolTasks',
+  Skill: 'toolSkill', AskUserQuestion: 'toolQuestion', ExitPlanMode: 'toolPlan', EnterPlanMode: 'toolPlan',
+};
+export function toolIcon(item) {
+  if (item.name === 'Read' && item.data?.type === 'image') return 'toolImage';
+  return TOOL_ICONS[item.name] || (/^mcp__/.test(item.name || '') ? 'toolPlug' : 'toolOther');
+}
 
 // Verb, target and a small meta label for the collapsed row.
 export function describe(item, cwd) {
@@ -52,7 +65,7 @@ export function describe(item, cwd) {
       return { verb: 'Search the web', target: input.query };
     case 'Agent':
     case 'Task':
-      return { verb: input.subagent_type && input.subagent_type !== 'general-purpose' ? `Agent · ${input.subagent_type}` : 'Agent', target: input.description || '' };
+      return { verb: 'Agent', target: input.description || '', meta: input.subagent_type && input.subagent_type !== 'general-purpose' ? input.subagent_type : '' };
     case 'TodoWrite':
       return { verb: 'Update tasks', target: '' };
     case 'TaskCreate':
@@ -337,12 +350,13 @@ export const ToolCard = memo(function ToolCard({ item: raw, cwd, session, childI
 
   return (
     <div class={`tool ${nested ? 'nested' : ''} ${SUBAGENT_TOOLS.has(item.name) ? 'agent' : ''}`} data-status={status}>
+      {/* The step's glyph stands for its verb (named in the tooltip and for screen readers): a fading gray circle
+          while it works, the glyph when done, red when it failed. A step with nothing to name shows the verb. */}
       <button class="tool-head" onClick={() => !quiet && setOpen(!open)} aria-expanded={expanded} disabled={quiet}
-              title={info.title || STATUS_LABEL[item.status]}>
-        <span class="tool-glyph" aria-label={STATUS_LABEL[item.status]} />
-        <span class={`tool-verb ${inProgress ? 'in-progress' : ''}`}>
-          {verb}{inProgress && <span class="dots" aria-hidden="true" />}
-        </span>
+              aria-label={`${verb}${target ? `: ${target}` : ''} (${STATUS_LABEL[item.status] || item.status})`}
+              title={[verb, info.title].filter(Boolean).join(' — ')}>
+        <span class="tool-glyph" aria-hidden="true"><Icon name={toolIcon(item)} size={15} /></span>
+        {!target && <span class={`tool-target as-verb ${inProgress ? 'in-progress' : ''}`}>{verb}</span>}
         {target && (EDIT_TOOLS.has(item.name) && item.status === 'done' && session?.side
           ? <span class="tool-target file-link" role="link" tabIndex={0} title="Show in Changes"
                   onClick={(e) => { e.stopPropagation(); openChanges(session, { toolId: item.id, path: item.input?.file_path || item.input?.notebook_path }); }}

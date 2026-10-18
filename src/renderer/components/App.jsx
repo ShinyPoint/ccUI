@@ -1,4 +1,4 @@
-import { useEffect } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { Icon, Toasts, ContextMenu, openContextMenu, ConfirmHost } from './ui.jsx';
 import { Sidebar } from './Sidebar.jsx';
 import { ChatView } from './chat/ChatView.jsx';
@@ -25,6 +25,31 @@ function processInfo(s) {
   s.traceTick.value; // uptime moves every second
   if (!s.pid.value) return '';
   return [`pid ${s.pid.value}`, s.size.value, `up ${formatDuration(Date.now() - s.startedAt.value)}`].filter(Boolean).join(' · ');
+}
+
+// Minimize, maximize and close, drawn by the app (not on macOS, which keeps its traffic lights): they look like the
+// top bar's other buttons and show the app's tooltips. Closing goes through the window's close handler, which asks
+// first when sessions are still running.
+function WindowControls() {
+  const [maximized, setMaximized] = useState(false);
+  useEffect(() => {
+    api.windowControls.isMaximized().then(setMaximized);
+    return api.windowControls.onMaximized(setMaximized);
+  }, []);
+  if (info.value.platform === 'darwin') return null;
+  return (
+    <div class="window-controls no-drag">
+      <button class="win-btn" title="Minimize" onClick={() => api.windowControls.minimize()}>
+        <Icon name="winMinimize" size={15} />
+      </button>
+      <button class="win-btn" title={maximized ? 'Restore' : 'Maximize'} onClick={() => api.windowControls.toggleMaximize()}>
+        <Icon name={maximized ? 'winRestore' : 'winMaximize'} size={15} />
+      </button>
+      <button class="win-btn close" title="Close" onClick={() => api.windowControls.close()}>
+        <Icon name="x" size={15} />
+      </button>
+    </div>
+  );
 }
 
 function Topbar({ s }) {
@@ -93,6 +118,7 @@ ${proc}` : ''}`}
           )}
         </div>
       )}
+      <WindowControls />
     </header>
   );
 }

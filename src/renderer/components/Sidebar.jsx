@@ -106,7 +106,8 @@ function sessionMenu(e, s) {
   ].filter(Boolean));
 }
 
-function SessionRow({ s }) {
+// `index`: its place in the folder, for the rows' staggered slide-in when the folder opens (chat.css).
+function SessionRow({ s, index = 0 }) {
   const canvas = useRef(null);
   const status = s.status.value;
   const tick = s.traceTick.value;
@@ -119,7 +120,7 @@ function SessionRow({ s }) {
   const renaming = renamingUid.value === s.uid;
 
   return (
-    <li class="session" data-status={status} aria-current={String(s.uid === activeUid.value)}
+    <li class="session" style={{ '--i': index }} data-status={status} aria-current={String(s.uid === activeUid.value)}
         onContextMenu={(e) => sessionMenu(e, s)}>
       <button class="session-main" title={s.title.value || s.cwd} onClick={() => selectSession(s)}
               onDblClick={() => { renamingUid.value = s.uid; }}>
@@ -257,7 +258,7 @@ function Folder({ path, open, shown = open, searching }) {
         </button>
       </div>
       <Collapse open={!collapsed && shown.length > 0}>
-        <ul class="session-list">{shown.map((s) => <SessionRow key={s.uid} s={s} />)}</ul>
+        <ul class="session-list">{shown.map((s, i) => <SessionRow key={s.uid} s={s} index={i} />)}</ul>
       </Collapse>
       <Collapse open={!collapsed && showRecents && !searching}><Recents path={path} /></Collapse>
     </li>

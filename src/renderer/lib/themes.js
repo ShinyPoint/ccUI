@@ -51,7 +51,7 @@ const LIGHT = {
 
 // Accent colors to choose from (Settings → Appearance). Each has a shade tuned for the dark and the light
 // theme, and `ink`: the color of text and icons drawn on top of it (the send button, primary buttons).
-// Ember is the default and matches the --accent values in app.css.
+// Black is the default and matches the --accent values in app.css.
 export const ACCENTS = {
   ember: { label: 'Ember', dark: '#E58A5E', darkInk: '#1B120D', light: '#C4653D', lightInk: '#FFFFFF' },
   red: { label: 'Red', dark: '#EE6A64', darkInk: '#220E0D', light: '#CC3F38', lightInk: '#FFFFFF' },
@@ -67,7 +67,7 @@ export const ACCENTS = {
 };
 
 export function accentColors(name, mode) {
-  const a = ACCENTS[name] || ACCENTS.ember;
+  const a = ACCENTS[name] || ACCENTS.black;
   return mode === 'light' ? { accent: a.light, ink: a.lightInk } : { accent: a.dark, ink: a.darkInk };
 }
 
@@ -88,6 +88,3 @@ export function xtermTheme(mode, accentName, seeThrough = false) {
   };
 }
 
-// Colors for the native window-controls overlay on Windows/Linux (sits on the top bar, which is --chrome).
-export const chromeColors = (mode) =>
-  mode === 'light' ? { color: '#F9FAFB', symbolColor: '#424245' } : { color: '#1A1A1C', symbolColor: '#C2C2C6' };

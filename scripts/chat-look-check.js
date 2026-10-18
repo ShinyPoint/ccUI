@@ -85,9 +85,42 @@ app.on('browser-window-created', (_e, win) => {
       check('the model label has no effort in it', !(await js("document.querySelector('.composer-bar').textContent")).includes('·'));
       check('the message box has no border', await js("getComputedStyle(document.querySelector('.chat-composer')).borderTopWidth === '0px'"));
 
+      // A new chat: the question right above the message box, the two together in the middle; no glow on the name.
+      const intro = JSON.parse(await js(`JSON.stringify((() => { const chat = document.querySelector('.chat').getBoundingClientRect();
+        const box = document.querySelector('.chat-composer').getBoundingClientRect(); const name = document.querySelector('.intro-project');
+        const h = document.querySelector('.chat-intro h2').getBoundingClientRect();
+        return { boxMid: Math.round(box.top + box.height / 2 - chat.top), chatH: Math.round(chat.height), gap: Math.round(box.top - name.getBoundingClientRect().bottom),
+          title: Math.round(h.height), shadow: getComputedStyle(name).textShadow }; })())`));
+      check('a new chat has the message box in the middle, the question right above it', Math.abs(intro.boxMid - intro.chatH / 2) < intro.chatH * 0.2 && intro.gap >= 0 && intro.gap < 60, JSON.stringify(intro));
+      check('the question is smaller, the folder name has no glow', intro.title < 45 && intro.shadow === 'none', JSON.stringify(intro));
+      await shot('0-new-chat-dark');
+      // An image attached in the message box stays there while another session is shown.
+      await js(`(async () => { const c = document.createElement('canvas'); c.width = c.height = 8; const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+        const dt = new DataTransfer(); dt.items.add(new File([blob], 'dot.png', { type: 'image/png' }));
+        const input = document.querySelector('.chat-composer input[type=file]'); input.files = dt.files; input.dispatchEvent(new Event('change', { bubbles: true })); })(); true`);
+      await until('the attached image', "document.querySelectorAll('.chat-composer .attachment').length === 1", 5000);
+      await js("document.querySelector('#sidebar .folder-add').click(); true");
+      await until('a second session', "document.querySelectorAll('#sidebar .session').length === 2", 10000);
+      await wait(800);
+      await js("document.querySelectorAll('#sidebar .session .session-main')[0].click(); true");
+      await wait(800);
+      check('an attached image is still there after switching away and back', await js("document.querySelectorAll('.chat-composer .attachment').length === 1"));
+      await js("document.querySelector('.chat-composer .attachment .icon-btn').click(); true");
+      await wait(200);
+      const centered = await js("Math.round(document.querySelector('.chat-bottom').getBoundingClientRect().top)");
+
       await say('What is left in notes.md?');
-      await wait(40);
-      check('your message pops in', await js("document.querySelector('.msg-user-wrap')?.classList.contains('enter')"));
+      // The box slides down to the bottom rather than jumping there.
+      // (and your message pops in meanwhile)
+      const slideRun = await js(`new Promise((done) => { const out = []; let popped = false; const t0 = performance.now();
+        const f = () => { out.push(Math.round(document.querySelector('.chat-bottom').getBoundingClientRect().top));
+          popped = popped || Boolean(document.querySelector('.msg-user-wrap.enter'));
+          if (performance.now() - t0 < 500) requestAnimationFrame(f); else done({ out, popped }); };
+        requestAnimationFrame(f); })`);
+      const slide = slideRun.out;
+      check('after the first message the box slides down to the bottom', slide.some((y) => y > centered + 10 && y < slide.at(-1) - 10) && slide.at(-1) > centered + 100,
+        `${centered} → ${slide.filter((y, i) => y !== slide[i - 1]).slice(0, 8).join(' ')}`);
+      check('your message pops in', slideRun.popped);
       const bubble = await js(`{ const b = document.querySelector('.msg-user').getBoundingClientRect();
         const t = document.querySelector('.timeline').getBoundingClientRect();
         JSON.stringify({ right: Math.round(t.right - b.right), width: Math.round(b.width), timeline: Math.round(t.width) }) }`);

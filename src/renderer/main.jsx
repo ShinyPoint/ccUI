@@ -11,9 +11,10 @@ import '@xterm/xterm/css/xterm.css';
 import './styles/app.css';
 import './styles/chat.css';
 import { api, info, settings, saveSettings, claudeCheck, claudeUpdate, themeMode, sessions, active, backgroundUrl, toast, confirmDialog } from './lib/store.js';
-import { chromeColors, accentColors } from './lib/themes.js';
+import { accentColors } from './lib/themes.js';
 import { applyTerminalOptions, fitTerminal } from './lib/terminal.js';
 import { installShortcuts } from './lib/keyboard.js';
+import { installTooltips } from './lib/tooltip.js';
 import { restoreSessions, runningTasks } from './lib/sessions.js';
 import { App } from './components/App.jsx';
 
@@ -34,14 +35,10 @@ effect(() => { api.setThemeSource(settings.value.theme); });
 // A background image takes its place.
 const glass = computed(() => Boolean(info.value.glassSupported && settings.value.sidebarGlass && !backgroundUrl.value));
 effect(() => {
-  const mode = themeMode.value;
-  document.documentElement.dataset.theme = mode;
-  // Over the glass or a background image the window buttons sit on it too.
-  const colors = chromeColors(mode);
-  api.setChrome(glass.value || backgroundUrl.value ? { ...colors, color: '#00000000' } : colors);
+  document.documentElement.dataset.theme = themeMode.value;
 });
 effect(() => {
-  // Overrides the default (Ember) --accent of the theme; everything accent-tinted derives from these two.
+  // Overrides the default (Black) --accent of the theme; everything accent-tinted derives from these two.
   const { accent, ink } = accentColors(settings.value.accent, themeMode.value);
   document.documentElement.style.setProperty('--accent', accent);
   document.documentElement.style.setProperty('--accent-ink', ink);
@@ -73,6 +70,10 @@ effect(() => {
 effect(() => {
   document.documentElement.classList.toggle('fill-edge', Boolean(settings.value.fillEdge));
 });
+// Frosted pop-ups follow the same switch, whether or not the window itself can be glass.
+effect(() => {
+  document.documentElement.classList.toggle('frost', Boolean(settings.value.sidebarGlass));
+});
 let glassOn = null;
 effect(() => {
   const on = glass.value;
@@ -103,6 +104,7 @@ await Promise.all([
 ]).catch(() => {});
 
 installShortcuts();
+installTooltips();
 render(<App />, document.getElementById('root'));
 
 api.detectClaude(settings.value.claudePath).then((res) => { claudeCheck.value = res; });

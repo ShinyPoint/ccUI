@@ -33,7 +33,9 @@ own **terminal** interface and back, keeping the same conversation. Runs on Wind
   your login shell on macOS and Linux. Each session keeps its shell running while the panel is hidden.
 - Your sessions come back when you relaunch, with their history and titles. Only the one you had open starts
   right away; the others start when you click them (turn this off in Settings).
-- Plain shell sessions, recent folders, renaming, dark and light themes, ten accent colors, adjustable text sizes.
+- Plain shell sessions, recent folders, renaming, dark and light themes, ten accent colors (black by default),
+  adjustable text sizes. Frosted glass (Settings → Appearance) frosts the window frame and every menu and pop-up.
+  The app draws its own window buttons and tooltips.
 - Context at a glance: the ring in the message box opens what fills the context window, what the session has
   cost so far, and a button to compact the conversation.
 - Skills in chat: type `/skills` to see every skill (yours, the project's, plugins', Claude Code's own), what each

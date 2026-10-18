@@ -255,7 +255,7 @@ function General() {
 
 function Appearance() {
   const s = settings.value;
-  const accent = ACCENTS[s.accent] ? s.accent : 'ember';
+  const accent = ACCENTS[s.accent] ? s.accent : 'black';
   const glassSupported = info.value.glassSupported;
   return (
     <>
@@ -273,10 +273,10 @@ function Appearance() {
         <SliderRow setting="chatFontSize" label="Chat text size" min={11} max={22} step={1} format={(v) => `${v}px`} />
       </Group>
       <Group title="Window">
-        <ToggleRow setting="sidebarGlass" label="Frosted glass" disabled={!glassSupported}
-                   value={Boolean(glassSupported && s.sidebarGlass)}
-                   note={!glassSupported ? 'Needs Windows 11 (22H2 or later) or macOS'
-                     : backgroundUrl.value ? 'The background image takes its place' : 'The desktop shows through the sidebar and top bar, blurred'} />
+        <ToggleRow setting="sidebarGlass" label="Frosted glass"
+                   note={!glassSupported ? 'Menus and pop-ups are frosted. The window itself needs Windows 11 (22H2 or later) or macOS'
+                     : backgroundUrl.value ? 'Menus and pop-ups are frosted; the background image takes the window’s place'
+                     : 'The desktop shows through the sidebar and top bar, and menus and pop-ups are frosted'} />
         <ToggleRow setting="fillEdge" label="Work area to the window’s edge" note="No gap to the right of the chat and CLI" />
         <Row label="Background image" note="Drawn blurred behind the whole window">
           <BackgroundImage />

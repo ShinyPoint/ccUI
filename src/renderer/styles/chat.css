@@ -230,7 +230,6 @@
   max-height: 320px;
   overflow: auto;
   white-space: pre-wrap;
-  font-style: italic;
   color: var(--text-2);
   user-select: text;
 }
@@ -240,8 +239,8 @@
 .tool + .tool { margin-top: -8px; }
 .tool + .tool::before {
   content: "";
-  position: absolute; left: 6px; top: -5px;
-  width: 1px; height: 14px;
+  position: absolute; left: 7px; top: -5px;
+  width: 1px; height: 11px;
   background: var(--line);
 }
 .tool-head {
@@ -257,45 +256,39 @@
 .tool-head:not(:disabled):hover { background: color-mix(in srgb, var(--raise) 50%, transparent); }
 .tool-head:disabled { cursor: default; }
 .tool-head.static { cursor: default; }
-/* The step's dot: yellow and breathing while it is being prepared or runs, green when it succeeded, red when it
-   failed, hollow gray when it was not run. Color changes fade. */
+/* The step's glyph (ToolCard.jsx toolIcon) in place of a verb: while the step is prepared or runs, a gray circle of
+   a fixed size that fades darker and lighter; the glyph once it is done; red when it failed; amber while it asks;
+   faint when it was not run. Color changes fade. */
 .tool-glyph {
-  position: absolute; left: 3px; top: 12px;
+  position: absolute; left: 0; top: 7.5px;
+  display: grid; place-items: center;
+  width: 15px; height: 15px;
+  color: var(--muted);
+  transition: color .35s ease;
+}
+.tool-glyph .icon { display: block; }
+.tool[data-status="done"] .tool-glyph { color: var(--text-2); }
+.tool[data-status="error"] .tool-glyph { color: var(--danger); }
+.tool[data-status="asking"] .tool-glyph { color: var(--wait); }
+.tool:is([data-status="cancelled"], [data-status="denied"]) .tool-glyph { color: var(--off); }
+.tool:is([data-status="streaming"], [data-status="pending"], [data-status="running"]) .tool-glyph .icon { display: none; }
+.tool:is([data-status="streaming"], [data-status="pending"], [data-status="running"]) .tool-glyph::before {
+  content: "";
   width: 8px; height: 8px;
   border-radius: 50%;
   background: var(--muted);
-  transition: background-color .35s ease, box-shadow .35s ease;
+  animation: tool-working 1.4s ease-in-out infinite;
 }
-.tool[data-status="done"] .tool-glyph { background: var(--ok); }
-.tool[data-status="streaming"] .tool-glyph,
-.tool[data-status="pending"] .tool-glyph,
-.tool[data-status="running"] .tool-glyph { background: var(--wait); animation: breathe 1.8s ease-in-out infinite; }
-.tool[data-status="error"] .tool-glyph { background: var(--danger); }
-.tool[data-status="asking"] .tool-glyph { background: var(--wait); box-shadow: 0 0 0 3px color-mix(in srgb, var(--wait) 25%, transparent); }
-.tool[data-status="cancelled"] .tool-glyph,
-.tool[data-status="denied"] .tool-glyph { background: transparent; box-shadow: inset 0 0 0 1.5px var(--off); }
-@keyframes breathe {
-  0%, 100% { transform: scale(.8); opacity: .55; box-shadow: 0 0 0 0 color-mix(in srgb, var(--wait) 0%, transparent); }
-  50% { transform: scale(1.08); opacity: 1; box-shadow: 0 0 0 4px color-mix(in srgb, var(--wait) 22%, transparent); }
-}
-.tool-verb { font-weight: 600; white-space: nowrap; }
-.tool-verb.in-progress { color: var(--text-2); }
-.tool-verb .dots::after {
-  content: "…";
-  display: inline-block;
-  width: 1em;
-  overflow: hidden;
-  vertical-align: bottom;
-  animation: dots 1.2s steps(4, end) infinite;
-}
-@keyframes dots { from { width: 0; } to { width: 1em; } }
+@keyframes tool-working { 0%, 100% { opacity: .35; } 50% { opacity: .9; } }
 .tool-target {
   min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: var(--text-2);
 }
 .tool-target.mono { font: .9em var(--mono); }
-.tool[data-status="cancelled"] .tool-verb, .tool[data-status="denied"] .tool-verb { color: var(--muted); }
+/* A step with no target names itself, in the weight the verb had. */
+.tool-target.as-verb { font-weight: 600; color: var(--text); }
+.tool-target.as-verb.in-progress, .tool:is([data-status="cancelled"], [data-status="denied"]) .tool-target { color: var(--muted); }
 .tool-meta {
   display: flex; gap: 10px;
   margin-left: auto;
@@ -316,7 +309,7 @@
 .tool-body { margin: 4px 0 8px; }
 .tool.nested { font-size: .93em; }
 .tool.nested .tool-head { min-height: 26px; padding-top: 3px; padding-bottom: 3px; }
-.tool.nested .tool-glyph { top: 10px; }
+.tool.nested .tool-glyph { top: 5.5px; }
 
 .diff, .code-view, .tool-output, .bash {
   border-radius: var(--r-md);
@@ -517,30 +510,32 @@
 .activity-time { font: 11.5px var(--ui); color: var(--muted); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* Centered, a little above the middle: the question in upright serif, the project below it in a capsule
-   with the same glow as the message box. */
+/* A new chat (.chat.empty): the question and the message box sit together in the middle of the chat, a little
+   above it; the question in upright serif, the project under it in the accent color. */
+.chat.empty { justify-content: center; padding-bottom: 6vh; }
+.chat.empty .chat-scroll { flex: 0 1 auto; }
+.chat.empty .timeline { padding-bottom: 18px; }
+.chat.empty .chat-bottom::before { display: none; }
 .chat-intro {
   --intro-stretch: scaleX(1.3); /* wider than other titles */
   --intro-fit: 76%; /* ≈ 1 / 1.3 */
-  text-align: center; /* margin-top is set by Intro (ChatView.jsx) to center the two lines in the window */
+  text-align: center;
 }
 .chat-intro h2 {
   width: fit-content; max-width: var(--intro-fit);
-  margin: 0 auto 14px;
-  font: 400 54px/1.15 var(--display); letter-spacing: var(--display-tracking);
+  margin: 0 auto 4px;
+  font: 400 30px/1.2 var(--display); letter-spacing: var(--display-tracking);
   transform: var(--intro-stretch); /* centered, so it widens evenly both ways */
 }
 .intro-project {
   width: fit-content; max-width: var(--intro-fit);
-  margin: -26px auto 18px; /* the padding is room for the glow (overflow is clipped for the ellipsis) */
-  padding: 26px 36px;
+  margin: 0 auto;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font: 400 40px/1.25 var(--display); letter-spacing: var(--display-tracking);
+  font: 400 24px/1.3 var(--display); letter-spacing: var(--display-tracking);
   transform: var(--intro-stretch);
   color: var(--accent);
-  /* the letters glow softly in the accent color */
-  text-shadow: 0 0 18px color-mix(in srgb, var(--accent) 55%, transparent), 0 0 42px color-mix(in srgb, var(--accent) 30%, transparent);
 }
+.chat-intro .starters { margin-top: 18px; }
 .chat-intro .starters { text-align: left; }
 .starters { display: flex; flex-direction: column; gap: 8px; }
 .starter {
@@ -585,7 +580,7 @@
 }
 
 /* ---------- task strip ---------- */
-.tasks { margin-bottom: 10px; border-radius: var(--r-md); background: var(--base); box-shadow: var(--glow); }
+.tasks { margin-bottom: 10px; border-radius: var(--r-md); background: var(--chrome); box-shadow: var(--glow); }
 /* Above the message box the strips are inset by its corner radius, so their sides line up with where its rounded
    corners end. The one right above it sits on it: square at the bottom, tucked under its edge. */
 .chat-bottom > .tasks { position: relative; margin: 0 var(--r-xl) 6px; }
@@ -611,7 +606,7 @@
 .task-list li[data-status="completed"] { color: var(--muted); text-decoration: line-through; }
 .task-list li[data-status="completed"] .task-box { background: var(--ok); border-color: var(--ok); }
 .task-list li[data-status="in_progress"] { color: var(--text); font-weight: 500; }
-.task-list li[data-status="in_progress"] .task-box { border-color: var(--accent); background: var(--accent); box-shadow: inset 0 0 0 2.5px var(--base); }
+.task-list li[data-status="in_progress"] .task-box { border-color: var(--accent); background: var(--accent); box-shadow: inset 0 0 0 2.5px var(--chrome); }
 
 /* Background tasks (AgentStrip in ChatView.jsx), in the task strip's card. */
 .agents-head { display: flex; align-items: center; padding-right: 6px; }
@@ -647,7 +642,7 @@
   position: relative;
   padding: 12px 8px 8px 16px;
   border-radius: var(--r-xl);
-  background: var(--base);
+  background: var(--chrome); /* the sidebar's color */
   box-shadow: var(--glow);
   transition: box-shadow .25s;
 }
@@ -849,8 +844,12 @@
   text-align: left;
 }
 .folder-chevron { display: grid; place-items: center; width: 16px; color: var(--muted); transition: transform .26s var(--ease); }
-.folder-icon { display: grid; place-items: center; color: var(--muted); }
+/* Folder icons are faint; the one of the conversation on screen takes the accent color. */
+.folder-icon { display: grid; place-items: center; color: var(--off); transition: color .2s; }
 .folder.has-active .folder-icon { color: var(--accent); }
+/* Opening a folder: its sessions slide in one after another as it grows (Collapse in ui.jsx). */
+.folder .collapse.open:not(.settled) .session { animation: row-in .3s var(--ease) both; animation-delay: calc(min(var(--i, 0), 8) * 28ms); }
+@keyframes row-in { from { opacity: 0; transform: translateY(-6px); } }
 .folder.collapsed .folder-chevron { transform: rotate(-90deg); }
 .folder-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--text-2); }
 .folder.has-active .folder-name { color: var(--text); }
@@ -1007,16 +1006,18 @@ body.resizing-panel { cursor: row-resize; user-select: none; }
 .dialog .field-note { line-height: 1.45; font-family: var(--ui); }
 
 /* ---------- Changes panel (SidePanel.jsx): the right part of a chat's card ---------- */
-#stage:has(> .side-panel) > .chat { right: var(--side-w, 440px); }
+/* It slides in from the right edge while the chat beside it narrows to make room (--side-w, set by SidePanel.jsx
+   to 0 while it is out), and back out the same way. */
+#stage:has(> .side-panel) > .chat { right: var(--side-w, 0px); transition: right .26s var(--ease); }
 .side-panel {
   position: absolute; top: 0; right: 0; bottom: 0;
-  width: var(--side-w, 440px);
   display: flex; flex-direction: column;
   background: var(--base);
   z-index: 3;
-  animation: side-in .22s var(--ease);
+  transform: translateX(100%);
+  transition: transform .26s var(--ease);
 }
-@keyframes side-in { from { opacity: 0; transform: translateX(12px); } }
+.side-panel.in { transform: none; }
 .side-resize { position: absolute; top: 0; bottom: 0; left: -3px; width: 6px; cursor: col-resize; z-index: 2; }
 body.resizing-side { cursor: col-resize; user-select: none; }
 body.resizing-side .side-panel, body.resizing-side .chat { transition: none; }
@@ -1068,3 +1069,22 @@ body.resizing-side .side-panel, body.resizing-side .chat { transition: none; }
 .ws-files .icon { color: var(--muted); }
 .tool-target.file-link { cursor: pointer; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 2px; transition: text-decoration-color .15s; }
 .tool-target.file-link:hover { text-decoration-color: currentColor; }
+
+/* Frosted glass (Settings → Appearance, html.frost): the pop-ups (menus, the context pop-up, the right-click menu,
+   the / list) are see-through and blur what is under them. */
+html.frost :is(.menu-list, .context-menu, .autocomplete) {
+  background: color-mix(in srgb, var(--base) 72%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  backdrop-filter: blur(24px) saturate(1.8);
+}
+
+/* Lists of highlightable rows (menus, the right-click menu, the / list, the Changes panel's files): 2px between
+   rows, so a chosen row and a hovered one next to it stay two shapes instead of merging into one block. */
+.menu-list, .autocomplete, .context-menu, .side-files { display: flex; flex-direction: column; gap: 2px; }
+
+/* The Changes panel is a document viewer: its scrollbars always show when there is more (fainter until hovered),
+   and the diff and the file can be selected and copied (not the line numbers or the +/− signs). */
+:is(.side-file-body, .side-files, .side-turns .menu-list)::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, var(--text) 16%, transparent); }
+:is(.side-file-body, .side-files, .side-turns .menu-list):hover::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, var(--text) 28%, transparent); }
+.side-file-body { user-select: text; }
+.side-file-body :is(.ln, .sign, .hunk-head, .more, .side-note) { user-select: none; }

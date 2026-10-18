@@ -39,9 +39,9 @@
   --text: #F2F2F4;
   --text-2: #C2C2C6;
   --muted: #8E8E93;
-  --accent: #E58A5E; /* default (Ember); the chosen accent overrides --accent and --accent-ink inline */
+  --accent: #FFFFFF; /* default (Black, white on the dark theme); the chosen accent overrides --accent and --accent-ink inline */
   --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
-  --accent-ink: #1B120D;
+  --accent-ink: #000000;
   --ok: #7DC4A5;
   --wait: #E9B860;
   --off: #636366;
@@ -73,7 +73,7 @@
   --text: #1D1D1F;
   --text-2: #424245;
   --muted: #6E6E73;
-  --accent: #C4653D;
+  --accent: #000000;
   --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
   --accent-ink: #FFFFFF;
   --ok: #2F9670;
@@ -465,27 +465,58 @@ body.platform-darwin .sidebar-top { padding-left: 84px; }
   padding: 0 10px 0 16px;
   flex-shrink: 0;
 }
-body:not(.platform-darwin) #topbar { padding-right: 150px; }
+body:not(.platform-darwin) #topbar { padding-right: 6px; }
+/* Window buttons (WindowControls in App.jsx), at the right end of the top bar, shaped like its other buttons;
+   Close turns red under the pointer. */
+.window-controls { display: flex; align-items: center; gap: 2px; margin-left: auto; padding-left: 8px; flex-shrink: 0; }
+.win-btn {
+  display: grid; place-items: center;
+  width: 36px; height: 28px;
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  transition: background .15s, color .15s;
+}
+.win-btn:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+.win-btn.close:hover { background: var(--danger); color: #FFFFFF; }
+.win-btn:active { transform: translateY(.5px); }
+
+/* Tooltips (lib/tooltip.js): a small rounded label like the menus, in place of the system's. */
+.tooltip {
+  position: fixed; inset: auto;
+  margin: 0; padding: 5px 9px;
+  max-width: 320px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--base);
+  color: var(--text);
+  box-shadow: var(--glow-focus);
+  font: 500 12px/1.4 var(--ui);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  animation: tip-in .12s var(--ease);
+}
+@keyframes tip-in { from { opacity: 0; transform: translateY(-2px); } }
 #btn-expand { display: none; }
 body.sidebar-collapsed #btn-expand { display: inline-grid; }
 body.sidebar-collapsed.platform-darwin #topbar { padding-left: 84px; }
 .topbar-title { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
-/* The project: folder icon and name, a button that opens the folder (right-click: copy the path). */
+/* The project: folder icon and name, a button that opens the folder (right-click: copy the path). A plain button
+   in the bar like its neighbours (no fill of its own), so it sits as well on glass and on a background image. */
 .project-btn {
   display: inline-flex; align-items: center; gap: 7px;
   min-width: 0; max-width: 45%;
   height: 28px;
   padding: 0 10px 0 8px;
   border-radius: var(--r-sm);
-  background: var(--btn);
-  box-shadow: var(--glow);
+  background: transparent;
   font-weight: 600;
   white-space: nowrap;
-  transition: background .15s, box-shadow .2s;
+  transition: background .15s;
 }
 .project-btn [data-icon] { color: var(--accent); flex-shrink: 0; }
 .project-btn span { overflow: hidden; text-overflow: ellipsis; }
-.project-btn:hover { background: var(--btn-hover); box-shadow: var(--glow-focus); }
+.project-btn:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
 :is(html.glass, html.has-bg) :is(#topbar, .composer) :is(.icon-btn, .text-btn, .chip):hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
 .project-btn:active { transform: translateY(.5px); }
 .top-task {
@@ -632,7 +663,7 @@ body.no-session .composer { display: none; }
   display: flex; align-items: flex-end; gap: 8px;
   padding: 6px 6px 6px 12px;
   border-radius: 21px; /* concentric: 30px round send button inset 6px */
-  background: var(--surface);
+  background: var(--chrome); /* the sidebar's color, as the chat's message box */
   transition: border-color .15s;
 }
 .composer-row { box-shadow: var(--glow); transition: box-shadow .25s; }

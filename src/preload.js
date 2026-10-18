@@ -62,7 +62,13 @@ contextBridge.exposeInMainWorld('ccui', {
     fork: (sessionId, cwd, uuid) => ipcRenderer.invoke('history:fork', sessionId, cwd, uuid),
   },
 
-  setChrome: (colors) => ipcRenderer.send('window:chrome', colors),
+  windowControls: {
+    minimize: () => ipcRenderer.send('window:minimize'),
+    toggleMaximize: () => ipcRenderer.send('window:toggle-maximize'),
+    close: () => ipcRenderer.send('window:close'),
+    isMaximized: () => ipcRenderer.invoke('window:is-maximized'),
+    onMaximized: channel('window:maximized'),
+  },
   setGlass: (on) => ipcRenderer.send('window:glass', on),
   background: {
     pick: () => ipcRenderer.invoke('background:pick'),

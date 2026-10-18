@@ -64,11 +64,16 @@ export function createTerminal(handlers, container = termStack) {
   host.append(mount);
   container.append(host);
   term.open(mount);
-  try {
-    const webgl = new WebglAddon();
-    webgl.onContextLoss(() => webgl.dispose());
-    term.loadAddon(webgl);
-  } catch { /* falls back to the DOM renderer */ }
+  // WebGL draws faster, but on a transparent background (over a background image) its glyphs lose their sharp
+  // antialiasing and the text looks blurry: see-through terminals use xterm's DOM renderer, real text the browser
+  // draws crisply.
+  if (!term.options.allowTransparency) {
+    try {
+      const webgl = new WebglAddon();
+      webgl.onContextLoss(() => webgl.dispose());
+      term.loadAddon(webgl);
+    } catch { /* falls back to the DOM renderer */ }
+  }
 
   term.onData(handlers.onData);
   term.onResize(({ cols, rows }) => handlers.onResize(cols, rows));

@@ -123,14 +123,16 @@ export function Composer({ s, prefill }) {
   const chat = s.chat.value;
   const meta = s.meta.value;
   const [text, setText] = useState(s.draft || '');
-  const [images, setImages] = useState([]);
+  const [images, setImages] = useState(s.draftImages || []);
   const [ac, setAc] = useState(null); // { kind, query, start, items, index }
   const input = useRef(null);
   const fileInput = useRef(null);
   const files = useRef(null);
   const historyIndex = useRef(-1);
 
+  // What is being written stays with the session while another one is shown (the composer is made anew).
   useEffect(() => { s.draft = text; }, [text]);
+  useEffect(() => { s.draftImages = images; }, [images]);
   useEffect(() => { input.current?.focus(); }, [s.uid]);
   // Queued messages that Stop cancelled come back here, in front of whatever is being typed.
   const restore = s.restore.value;

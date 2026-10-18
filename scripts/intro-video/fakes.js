@@ -124,8 +124,8 @@ class FakeAgentSession {
 
   // One tool call. `ask`: permission request fields (the call waits for the answer); `run`: how long it takes;
   // (or `until`: a promise it runs until); `typing`: how long the input takes to stream in; `effect()`: runs when
-  // allowed and returns { result, data }.
-  async tool(name, input, { ask, run = 350, until, typing = 120, result = '', data = null, effect, progress = false } = {}) {
+  // allowed and returns { result, data }; `fail`: the step ends in an error.
+  async tool(name, input, { ask, run = 350, until, typing = 120, result = '', data = null, effect, progress = false, fail = false } = {}) {
     this.open();
     const index = this.msg.index++;
     const id = `toolu_${randomUUID().slice(0, 16)}`;
@@ -158,7 +158,7 @@ class FakeAgentSession {
       }
     } else await this.pause(run);
     if (effect) ({ result, data } = effect(input));
-    this.toolResult(id, result, data, false);
+    this.toolResult(id, result, data, fail); // `fail`: the step ends in an error
     this.tokens += 900 + Math.round((json.length + String(result).length) / 3);
     return { answer, input, id };
   }

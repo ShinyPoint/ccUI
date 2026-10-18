@@ -99,6 +99,48 @@ export const ICONS = {
   // plus.forwardslash.minus: a file's changes
   diff: '<path d="M12 4.5v7M8.5 8h7M8.5 18.5h7"/>',
 
+  // ---------- window buttons (WindowControls in App.jsx, not on macOS) ----------
+  winMinimize: '<path d="M6.25 12h11.5"/>',
+  winMaximize: '<rect x="6.25" y="6.25" width="11.5" height="11.5" rx="2.4"/>',
+  // two overlapping squares: back to the size it had
+  winRestore: '<rect x="5.75" y="8.25" width="10" height="10" rx="2.2"/><path d="M8.75 5.75h7a2.5 2.5 0 0 1 2.5 2.5v7"/>',
+
+  // ---------- tool steps in the chat (ToolCard.jsx): one glyph per kind of step ----------
+  // a prompt: >_ (run a command)
+  toolRun: '<path d="M5.75 7.25l4.75 4.75-4.75 4.75M12.75 17.25h5.5"/>',
+  // a window with a prompt and output (a background shell's output)
+  toolOutput: '<rect x="3.75" y="5" width="16.5" height="14" rx="2.6"/><path d="M7.4 9.9l2.3 2.1-2.3 2.1M12.4 14.3h4.2"/>',
+  // a rounded square (stop a background task)
+  toolStop: '<rect x="6.25" y="6.25" width="11.5" height="11.5" rx="2.6"/>',
+  // a page with lines (read a file)
+  toolRead: '<path d="M7.35 3.75h6.15l4.75 4.75v10.1a1.65 1.65 0 0 1-1.65 1.65H7.35a1.65 1.65 0 0 1-1.65-1.65V5.4a1.65 1.65 0 0 1 1.65-1.65z"/><path d="M13.3 3.95v3.4a1.2 1.2 0 0 0 1.2 1.2h3.55M9 12.6h6M9 15.9h4"/>',
+  // a page with a plus (write a file)
+  toolWrite: '<path d="M7.35 3.75h6.15l4.75 4.75v10.1a1.65 1.65 0 0 1-1.65 1.65H7.35a1.65 1.65 0 0 1-1.65-1.65V5.4a1.65 1.65 0 0 1 1.65-1.65z"/><path d="M13.3 3.95v3.4a1.2 1.2 0 0 0 1.2 1.2h3.55M12 11.4v5.6M9.2 14.2h5.6"/>',
+  // a pencil (edit a file)
+  toolEdit: '<path d="M15.35 5.2a2.1 2.1 0 0 1 2.95 0l.5.5a2.1 2.1 0 0 1 0 2.95L9.1 18.35l-4.05 1.1 1.1-4.05z"/><path d="M13.6 7l3.4 3.4"/>',
+  // a picture: frame, sun, hills (look at an image)
+  toolImage: '<rect x="3.75" y="5" width="16.5" height="14" rx="2.6"/><circle cx="9" cy="9.9" r="1.55"/><path d="M4.3 16.9l4.4-3.95a1.4 1.4 0 0 1 1.9.03l2.35 2.25 2.05-1.85a1.4 1.4 0 0 1 1.9 0l2.85 2.6"/>',
+  // a folder with a magnifier (find files)
+  toolFind: '<path d="M11.4 18.75H5.75a2 2 0 0 1-2-2V7.25a2 2 0 0 1 2-2h3.5l2 2.1h7a2 2 0 0 1 2 2v1.9"/><circle cx="16.4" cy="15.4" r="2.85"/><path d="M18.5 17.5l1.9 1.9"/>',
+  // a magnifier over lines (search in files)
+  toolSearch: '<circle cx="10.6" cy="10.6" r="6.1"/><path d="M15.1 15.1l4.4 4.4M8.2 9.2h4.8M8.2 12.1h3"/>',
+  // a globe (search the web, fetch a page)
+  toolWeb: '<circle cx="12" cy="12" r="8.25"/><path d="M3.95 12h16.1M12 3.75c2.15 2.3 3.25 5.05 3.25 8.25S14.15 17.95 12 20.25M12 3.75C9.85 6.05 8.75 8.8 8.75 12s1.1 5.95 3.25 8.25"/>',
+  // a four-point sparkle (a subagent)
+  toolAgent: '<path d="M12 3.75l1.6 4.45a2.4 2.4 0 0 0 1.45 1.45L19.5 11.25l-4.45 1.6a2.4 2.4 0 0 0-1.45 1.45L12 18.75l-1.6-4.45a2.4 2.4 0 0 0-1.45-1.45L4.5 11.25l4.45-1.6a2.4 2.4 0 0 0 1.45-1.45z"/>',
+  // a checklist (the task list)
+  toolTasks: '<path d="M4.75 7.1l1.65 1.65L9.3 5.85M4.75 15.1l1.65 1.65 2.9-2.9M12.75 7.25h6.5M12.75 15.25h6.5"/>',
+  // a lightning bolt (a skill)
+  toolSkill: '<path d="M13.4 3.75L6 13.2h5.55l-.95 7.05 7.4-9.45h-5.55z"/>',
+  // a speech bubble with a question mark (a question for you)
+  toolQuestion: '<path d="M12 4.5c4.55 0 8.25 2.95 8.25 6.75S16.55 18 12 18c-.85 0-1.7-.1-2.5-.3L5.6 19.6l1.05-3.2c-1.75-1.2-2.9-3.05-2.9-5.15C3.75 7.45 7.45 4.5 12 4.5z"/><path d="M10.2 9.4a1.9 1.9 0 1 1 2.6 1.75c-.5.2-.8.6-.8 1.15v.3M12 14.75h.01"/>',
+  // a list with marks (a plan)
+  toolPlan: '<path d="M10 6.75h9.25M10 12h9.25M10 17.25h9.25"/><circle cx="5.75" cy="6.75" r="1.15"/><circle cx="5.75" cy="12" r="1.15"/><circle cx="5.75" cy="17.25" r="1.15"/>',
+  // a plug (an MCP tool)
+  toolPlug: '<path d="M9.25 3.75v4M14.75 3.75v4M6.75 7.75h10.5v3a5.25 5.25 0 0 1-10.5 0zM12 16v4.25"/>',
+  // a wrench (any other tool)
+  toolOther: '<path d="M15.6 4.15a4.25 4.25 0 0 0-5.2 5.45l-5.5 5.5a1.95 1.95 0 0 0 2.75 2.75l5.5-5.5a4.25 4.25 0 0 0 5.45-5.2l-2.55 2.55-2.25-.45-.45-2.25z"/>',
+
   // keyboard: rounded body, a row of keys, the space bar
   keyboard: '<rect x="3.25" y="6.25" width="17.5" height="11.5" rx="2.4"/><path d="M7.1 10h.01M10.37 10h.01M13.63 10h.01M16.9 10h.01M8.6 14h6.8"/>',
 

@@ -47,6 +47,7 @@ export function makeSession({ kind, cwd, name = null, sessionId = null }) {
     mode: signal(''), // permission mode the conversation runs in
     problem: signal(null), // { code, text } when the chat cannot run
     draft: '',
+    draftImages: [], // images attached in the message box, not sent yet
     restore: signal(null), // { text, images }: cancelled queued messages on their way back to the message box
     scrollTop: null,
     openTurns: new Set(), // finished turns whose working steps the user expanded

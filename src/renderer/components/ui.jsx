@@ -68,7 +68,24 @@ export function Collapse({ open, children }) {
 export function Popover({ button, title, as: Panel = 'div', role = 'dialog', align = 'left', up = true, className = '',
   panelClass = '', onOpen, children }) {
   const [open, setOpen] = useState(false);
+  const [flipped, setFlipped] = useState(false);
   const ref = useRef(null);
+  const panel = useRef(null);
+  // It opens the way it is asked to (`up`) unless it doesn't fit there and there is more room the other way, inside
+  // whatever clips it (the chat's card, a dialog, the Changes panel), and it is never taller than the room it has.
+  useLayoutEffect(() => {
+    const p = panel.current;
+    if (!open || !p) { setFlipped(false); return; }
+    const clip = ref.current.closest('.side-panel, .dialog, #stage')?.getBoundingClientRect() || { top: 0, bottom: innerHeight };
+    const btn = ref.current.getBoundingClientRect();
+    const above = btn.top - Math.max(clip.top, 0) - 10;
+    const below = Math.min(clip.bottom, innerHeight) - btn.bottom - 10;
+    const height = p.scrollHeight;
+    const goUp = up ? !(height > above && below > above) : height > below && above > below;
+    setFlipped(goUp !== up);
+    const cssMax = parseFloat(getComputedStyle(p).maxHeight) || Infinity;
+    p.style.maxHeight = `${Math.max(120, Math.min(cssMax, goUp ? above : below))}px`;
+  }, [open]);
   useEffect(() => {
     if (!open) return undefined;
     const close = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
@@ -88,7 +105,7 @@ export function Popover({ button, title, as: Panel = 'div', role = 'dialog', ali
         {button}
       </button>
       {open && (
-        <Panel class={`menu-list ${up ? 'up' : 'down'} ${align} ${panelClass}`} role={role}>
+        <Panel ref={panel} class={`menu-list ${up !== flipped ? 'up' : 'down'} ${align} ${panelClass}`} role={role}>
           {typeof children === 'function' ? children(close) : children}
         </Panel>
       )}

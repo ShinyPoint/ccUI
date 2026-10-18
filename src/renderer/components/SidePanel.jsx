@@ -1,6 +1,6 @@
 // The Changes panel at the right of a chat: the files one turn changed, each as that turn's diff or as the
 // whole file (read from disk) with the lines the turn added marked.
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Icon, Menu, Segmented } from './ui.jsx';
 import { DiffView } from './chat/ToolCard.jsx';
 import { api, settings, saveSettings } from '../lib/store.js';
@@ -12,6 +12,7 @@ import { basename, relPath, samePath, pluralize, formatBytes } from '../lib/form
 import { SHORTCUTS } from '../lib/keyboard.js';
 
 const MIN_WIDTH = 300;
+const SLIDE_MS = 260; // = the slide in chat.css (.side-panel)
 const MAX_LINES = 4000; // longer files are cut here: the panel is a preview, not an editor
 
 // Highlighted HTML split into lines, each with the spans that are open at its start reopened, so that every
@@ -85,20 +86,35 @@ export function SidePanel({ s }) {
   const chat = s.chat.value;
   const [width, setWidth] = useState(settings.value.sidePanelWidth || 440);
   const panel = useRef(null);
+  // Opening slides the panel in from the right while the chat makes room, like the sidebar; closing slides it
+  // out, and it leaves once that has played. Switching to a session that has it open shows it at once.
+  const [mounted, setMounted] = useState(side.open);
+  const [slidIn, setSlidIn] = useState(side.open);
+  useLayoutEffect(() => {
+    if (!side.open) {
+      setSlidIn(false);
+      const timer = setTimeout(() => setMounted(false), SLIDE_MS);
+      return () => clearTimeout(timer);
+    }
+    setMounted(true);
+    // Paint it outside first, so the slide has somewhere to start from.
+    let frame = requestAnimationFrame(() => { frame = requestAnimationFrame(() => setSlidIn(true)); });
+    return () => cancelAnimationFrame(frame);
+  }, [side.open]);
   // The chat next to the panel makes room for it (#stage --side-w, chat.css).
   useEffect(() => {
     const stage = panel.current?.parentElement;
     if (!stage) return undefined;
-    stage.style.setProperty('--side-w', `${width}px`);
+    stage.style.setProperty('--side-w', `${slidIn ? width : 0}px`);
     return () => stage.style.removeProperty('--side-w');
-  }, [width, side.open]);
+  }, [width, slidIn, mounted]);
   // Turns that changed files, numbered as in the conversation.
   const turns = useMemo(() => {
     const groups = groupTurns(topLevel(chat), chat.busy).filter((g) => g.kind === 'turn');
     return groups.map((g, i) => ({ g, n: i + 1, changes: turnChanges(chat, g) })).filter((t) => t.changes.length);
   }, [chat.items, chat.busy]);
 
-  if (!side.open) return null;
+  if (!mounted) return null;
   const turn = turns.find((t) => t.g.key === side.turnKey)
     || (side.toolId && turns.find((t) => t.changes.some((c) => c.tools.includes(side.toolId))))
     || turns[turns.length - 1];
@@ -137,7 +153,7 @@ export function SidePanel({ s }) {
   };
 
   return (
-    <aside class="side-panel" ref={panel} aria-label="Changes">
+    <aside class={`side-panel ${slidIn ? 'in' : ''}`} ref={panel} style={{ width: `${width}px` }} aria-label="Changes" inert={!side.open}>
       <div class="side-resize" onMouseDown={startResize} title="Drag to resize" />
       <header class="side-head">
         <span class="side-title"><Icon name="diff" size={15} />Changes</span>

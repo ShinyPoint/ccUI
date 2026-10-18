@@ -137,6 +137,15 @@ app.on('browser-window-created', (_e, win) => {
       // Open the steps: the Agent cards say they run in the background, and their steps are not "Not run".
       await js("document.querySelector('.work-summary')?.click(); true");
       await wait(500);
+      // A step at work: a gray circle of a fixed size that only fades, no glyph.
+      const pulse = [];
+      for (let i = 0; i < 6; i++) {
+        pulse.push(JSON.parse(await js(`JSON.stringify((() => { const g = document.querySelector('.tool.agent[data-status="running"] .tool-glyph');
+          const b = getComputedStyle(g, '::before'); return { w: b.width, h: b.height, o: Number(b.opacity), icon: getComputedStyle(g.querySelector('svg')).display }; })())`)));
+        await wait(230);
+      }
+      check('a working step is a gray circle of fixed size that fades', pulse.every((p) => p.w === '8px' && p.h === '8px' && p.icon === 'none')
+        && Math.max(...pulse.map((p) => p.o)) - Math.min(...pulse.map((p) => p.o)) > 0.15, JSON.stringify(pulse.map((p) => p.o.toFixed(2))));
       check('the Agent cards say they run in the background', await js("[...document.querySelectorAll('.tool.agent .tool-meta')].every((m) => /In the background/.test(m.textContent))"));
 
       // Stop one of them.

@@ -110,6 +110,16 @@ app.on('browser-window-created', (_e, win) => {
       await js("document.querySelector('.panel-toggle').click(); true");
       await wait(3500);
       await shot('2-chat-terminal-dark');
+      // The folder button has no fill of its own, so the image shows through it like the rest of the bar.
+      check('the folder button sits in the bar without a fill', await js("getComputedStyle(document.querySelector('.project-btn')).backgroundColor === 'rgba(0, 0, 0, 0)'"));
+      // Frosted glass is on (the default): menus are see-through and blurred.
+      await js("[...document.querySelectorAll('.composer-bar .menu')].find((m) => !m.classList.contains('mode-menu') && !m.classList.contains('context-menu-wrap')).querySelector('.menu-button').click(); true");
+      await wait(400);
+      const frost = await js("(() => { const m = document.querySelector('.composer-bar .menu-list'); return m ? getComputedStyle(m).backdropFilter + ' | ' + getComputedStyle(m).backgroundColor : 'no menu'; })()");
+      check('menus are frosted', /blur/.test(frost), frost);
+      await shot('2b-frosted-menu-dark');
+      await js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true");
+      await wait(200);
       await js("document.querySelector('.sidebar-bottom .icon-btn').click(); true");
       await wait(1200);
       await shot('3-chat-terminal-light');
@@ -135,6 +145,9 @@ app.on('browser-window-created', (_e, win) => {
       await js("[...document.querySelectorAll('.text-btn')].find((b) => b.textContent.trim() === 'CLI').click(); true");
       await wait(6000);
       await shot('6-cli-light');
+      // Over the image the CLI draws real text (xterm's DOM renderer), which stays sharp; WebGL would blur it.
+      const renderer = await js("(() => { const h = document.querySelector('#stage .term-host.active'); return h ? JSON.stringify({ rows: Boolean(h.querySelector('.xterm-rows')), canvas: h.querySelectorAll('canvas').length }) : 'no terminal'; })()");
+      check('the CLI over the image draws real text, not WebGL', /"rows":true/.test(renderer) && /"canvas":0/.test(renderer), renderer);
     } catch (err) {
       console.error('failed:', err);
       failures++;

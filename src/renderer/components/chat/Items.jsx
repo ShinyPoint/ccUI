@@ -91,7 +91,8 @@ function ThinkingToggle({ label, text }) {
       <button type="button" class="thinking-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
         <span class="thinking-mark">✻</span>{label}
       </button>
-      <Collapse open={open}><div class="thinking-text">{text}</div></Collapse>
+      {/* Claude's thinking often ends with line breaks (and has runs of them): they would show as empty lines. */}
+      <Collapse open={open}><div class="thinking-text">{text.trim().replace(/\n{3,}/g, '\n\n')}</div></Collapse>
     </div>
   );
 }

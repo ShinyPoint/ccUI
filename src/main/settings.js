@@ -10,7 +10,7 @@ const DEFAULTS = {
   lineHeight: 1.2,
   fontFamily: '"JetBrains Mono", Consolas, Menlo, monospace',
   chatFontSize: 14,
-  accent: 'ember', // accent color, a key of ACCENTS in renderer/lib/themes.js
+  accent: 'black', // accent color, a key of ACCENTS in renderer/lib/themes.js
   terminalTheme: 'match', // 'match' (follows the app theme) | 'dark'
   panelHeight: 260, // bottom Terminal panel, px
   sidePanelWidth: 440, // the Changes panel at the right of a chat, px
@@ -40,7 +40,7 @@ const DEFAULTS = {
   bounds: null,
   apiKeyEnc: '',
   trustedFolders: [], // folders the user trusted for chat sessions (main process only, see trust.js)
-  settingsVersion: 6,
+  settingsVersion: 7,
 };
 
 // Kept by the main process; the window can neither read nor change them through settings:set.
@@ -94,8 +94,12 @@ class Settings {
       // picked is kept.
       this.data.fontFamily = DEFAULTS.fontFamily;
     }
-    if (version < 6) {
-      this.data.settingsVersion = 6;
+    if (version < 7 && this.data.accent === 'ember') {
+      // Ember was the default accent until version 7, when Black took its place; it was saved as such.
+      this.data.accent = 'black';
+    }
+    if (version < 7) {
+      this.data.settingsVersion = 7;
       try { this.save(); } catch { /* read-only profile: keep the in-memory upgrade */ }
     }
   }
