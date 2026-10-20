@@ -176,7 +176,7 @@ async function startAgentNow(s, { resume, model, permissionMode } = {}) {
   setStatus(s, 'starting');
   // Explicit choice > what this conversation used last time > this session's current values >
   // the model recorded in the transcript > defaults.
-  const history = resume ? await api.history.messages(resume, s.cwd) : null;
+  const history = resume ? await readHistory(s, resume) : null;
   const remembered = resume ? settings.value.conversations?.[resume] : null;
   const useModel = model ?? remembered?.model
     ?? (s.selectedModel.value || (history?.ok ? lastModelIn(history.messages) : '') || settings.value.defaultModel || '');
@@ -415,6 +415,34 @@ export async function forkFrom(s, item) {
   if (res.ok) res.session.restore.value = messageDraft(item);
 }
 
+// /branch: a copy of the whole conversation, continued in a new chat (the original stays as it is).
+export async function branchConversation(s) {
+  const sessionId = s.chat.value.sessionId || s.sessionId;
+  if (!sessionId) return toast('There is nothing to branch yet: send a message first.');
+  const fork = await api.history.fork(sessionId, s.cwd, null);
+  if (!fork.ok) return toast(fork.error, 'error');
+  await openSession({
+    cwd: s.cwd, kind: 'chat', mode: 'resume', resume: fork.sessionId,
+    title: s.title.value ? `${s.title.value} (branch)` : '', model: s.selectedModel.value, permissionMode: s.mode.value,
+  });
+}
+
+// /btw: a quick side question to Claude about the conversation, answered beside it (above the message box)
+// without becoming part of it, and without waiting for or interrupting what Claude is doing.
+export async function askSideQuestion(s, question) {
+  if (!s.agentId) return toast('The chat isn’t running, so there is no one to ask.', 'error');
+  const id = `side-${Date.now()}`;
+  const update = (patch) => { s.sideNotes.value = s.sideNotes.value.map((n) => (n.id === id ? { ...n, ...patch } : n)); };
+  s.sideNotes.value = [...s.sideNotes.value, { id, question, answer: '', state: 'asking' }];
+  const res = await api.agent.control(s.agentId, 'side-question', question);
+  if (!res.ok) return update({ state: 'error', answer: res.error || 'The question could not be asked.' });
+  update({ state: 'done', answer: res.value?.response || 'No answer came back.' });
+}
+
+export function dismissSideNote(s, id) {
+  s.sideNotes.value = s.sideNotes.value.filter((n) => n.id !== id);
+}
+
 export async function retryChat(s) {
   if (s.starting) await s.starting;
   if (s.agentId) return { ok: true };
@@ -527,6 +555,16 @@ api.pty.onData((id, data) => {
   const s = ptys.get(id);
   if (!s || s.removed || !s.term) return;
   s.term.write(data);
+  if (s.pendingInput) {
+    // Typed in once the CLI has drawn itself and stays quiet for a moment.
+    clearTimeout(s.pendingTimer);
+    s.pendingTimer = setTimeout(() => {
+      if (!s.pendingInput || s.removed) return;
+      writePty(s, s.pendingInput);
+      s.pendingInput = null;
+      s.term?.focus();
+    }, 1200);
+  }
   const now = Date.now();
   if (now - s.lastInputAt < ECHO_WINDOW || now - s.lastResizeAt < ECHO_WINDOW) return;
   s.bucket += data.length;
@@ -571,6 +609,28 @@ setInterval(() => {
     s.traceTick.value++;
   }
 }, 1000);
+
+// A chat you haven't looked at for a while lets its Claude Code go (each one holds a few hundred MB, and with many
+// sessions in the sidebar they add up); it starts again on the same conversation when the chat is next selected.
+// Not while Claude works, asks something, or has background tasks running.
+const SLEEP_AFTER = 20 * 60 * 1000;
+setInterval(() => {
+  const now = Date.now();
+  for (const s of sessions.value) {
+    if (s.uid === activeUid.value) continue;
+    s.leftAt ||= now;
+    if (now - s.leftAt < SLEEP_AFTER || s.kind.value !== 'chat' || !s.agentId || s.starting || s.afterExit) continue;
+    const chat = s.chat.value;
+    const resume = chat.sessionId || s.sessionId;
+    if (!resume || chat.busy || chat.permissions.length || runningTasks(s).length || s.sideNotes.value.some((n) => n.state === 'asking')) continue;
+    const status = s.status.value;
+    s.afterExit = () => {
+      s.dormant = { resume, model: s.selectedModel.value || undefined, permissionMode: s.mode.value || undefined };
+      setStatus(s, status);
+    };
+    api.agent.close(s.agentId);
+  }
+}, 60 * 1000);
 
 export function restartTerminal(s, { fresh = false } = {}) {
   const run = async () => {
@@ -635,8 +695,10 @@ export async function endSession(s) {
   if (await confirmLeaving(s, 'end')) closeSession(s);
 }
 
-export async function openInTerminal(s, { confirmed = false } = {}) {
+// `input`: typed into the CLI once it has started and gone quiet (not run: Enter is left to you).
+export async function openInTerminal(s, { confirmed = false, input = null } = {}) {
   if (!confirmed && !(await confirmLeaving(s, 'switch'))) return;
+  s.pendingInput = input;
   s.dormant = null;
   if (s.starting) await s.starting;
   const resume = s.chat.value.sessionId || s.sessionId || undefined;
@@ -694,14 +756,9 @@ export async function openSession(opts, { activate = true } = {}) {
     s.mode.value = opts.permissionMode ?? remembered?.permissionMode ?? '';
   }
   sessions.value = [...sessions.value, s];
-  // A session you start shows in its folder; restored ones leave the folders folded (they all start folded).
-  if (!opts.lazy) {
-    const folders = settings.value.folders || {};
-    const folderKey = Object.keys(folders).find((p) => samePath(p, opts.cwd)) || opts.cwd;
-    if (folders[folderKey]?.collapsed !== false) {
-      saveSettings({ folders: { ...folders, [folderKey]: { ...folders[folderKey], collapsed: false } } });
-    }
-  }
+  // A session you start shows in its folder; restored ones leave the folders folded (they all start folded),
+  // except the one shown at launch (restoreSessions).
+  if (!opts.lazy) unfoldFolder(opts.cwd);
   if (opts.lazy) {
     // Restored at launch: listed (with its history) right away, started when first selected.
     s.dormant = { resume, model: opts.model, permissionMode: opts.permissionMode, extraArgs: opts.extraArgs };
@@ -735,12 +792,48 @@ export function openConversation(cwd, sessionId, kind = 'chat', title = '') {
   return openSession({ cwd, kind, mode: 'resume', resume: sessionId, title });
 }
 
-async function preloadHistory(s, sessionId) {
-  const history = await api.history.messages(sessionId, s.cwd);
-  if (history.ok && history.messages.length && !s.chat.value.items.length && !s.removed) {
-    dispatch(s, [{ type: 'ui/history', messages: history.messages }]);
+// Restored chats read their history one at a time (all at once, a few hundred MB of transcripts were read and
+// sent together), the one on screen first, then any you pick, then the rest.
+const historyQueue = [];
+let historyRunning = false;
+function preloadHistory(s, sessionId) {
+  historyQueue.push({ s, sessionId });
+  if (!historyRunning) setTimeout(pumpHistory, 0); // after the restore has picked the session to show
+}
+
+// A conversation's history, read once even when the queue and starting the session both want it.
+function readHistory(s, sessionId) {
+  const queued = historyQueue.findIndex((q) => q.s === s);
+  if (queued >= 0) historyQueue.splice(queued, 1);
+  if (s.historyRead?.id !== sessionId) {
+    const read = api.history.messages(sessionId, s.cwd);
+    s.historyRead = { id: sessionId, read };
+    read.finally(() => { if (s.historyRead?.read === read) s.historyRead = null; });
   }
-  loadTitle(s, sessionId);
+  return s.historyRead.read;
+}
+
+async function pumpHistory() {
+  if (historyRunning) return;
+  historyRunning = true;
+  try {
+    while (historyQueue.length) {
+      // The chat on screen first, also when it reads its history itself (starting).
+      const shown = sessions.value.find((x) => x.uid === activeUid.value);
+      if (shown?.historyRead) await shown.historyRead.read.catch(() => {});
+      if (!historyQueue.length) break;
+      const at = Math.max(0, historyQueue.findIndex((q) => q.s.uid === activeUid.value));
+      const [{ s, sessionId }] = historyQueue.splice(at, 1);
+      if (s.removed || s.chat.value.items.length) continue;
+      const history = await readHistory(s, sessionId);
+      if (history.ok && history.messages.length && !s.chat.value.items.length && !s.removed) {
+        dispatch(s, [{ type: 'ui/history', messages: history.messages }]);
+      }
+      loadTitle(s, sessionId);
+    }
+  } finally {
+    historyRunning = false;
+  }
 }
 
 // Start a session restored at launch (see openSession `lazy`).
@@ -762,6 +855,10 @@ function wakeSession(s) {
 
 export function selectSession(s) {
   const changed = activeUid.value !== (s ? s.uid : null);
+  if (changed) {
+    const left = sessions.value.find((x) => x.uid === activeUid.value);
+    if (left) left.leftAt = Date.now(); // see SLEEP_AFTER
+  }
   activeUid.value = s ? s.uid : null;
   for (const x of sessions.value) x.host?.classList.toggle('active', x === s);
   if (changed) persistSessions(); // remembers which session to reopen next launch
@@ -812,6 +909,15 @@ export function persistSessions() {
 
 // Bring back last launch's sessions. All of them are listed immediately; only the one that was
 // active starts now, the others when they are first selected.
+// Opens a project's folder in the sidebar, so its sessions show.
+function unfoldFolder(cwd) {
+  const folders = settings.value.folders || {};
+  const folderKey = Object.keys(folders).find((p) => samePath(p, cwd)) || cwd;
+  if (folders[folderKey]?.collapsed !== false) {
+    saveSettings({ folders: { ...folders, [folderKey]: { ...folders[folderKey], collapsed: false } } });
+  }
+}
+
 export async function restoreSessions() {
   const saved = settings.value.lastSessions || [];
   const restored = [];
@@ -822,7 +928,10 @@ export async function restoreSessions() {
     restoring = false;
   }
   const target = restored.find(Boolean) || sessions.value[0];
-  if (target) selectSession(target);
+  if (target) {
+    unfoldFolder(target.cwd);
+    selectSession(target);
+  }
 }
 
 async function restoreEntries(saved, restored) {

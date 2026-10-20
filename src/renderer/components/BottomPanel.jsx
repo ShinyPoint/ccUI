@@ -74,7 +74,7 @@ export function BottomPanel({ s }) {
       <div class="panel-resize" onMouseDown={startResize} title="Drag to resize" />
       <header class="panel-head">
         <span class="panel-title"><Icon name="terminal" size={14} />Terminal</span>
-        {s && <span class="panel-path" title={s.cwd}>{tildify(s.cwd)}</span>}
+        {s && <><span class="panel-sep">·</span><span class="panel-path" title={s.cwd}><bdi>{tildify(s.cwd)}</bdi></span></>}
         <span class="spacer" />
         <button class="icon-btn" title="Restart the shell" onClick={() => restartPanel(s)}><Icon name="refresh" size={14} /></button>
         <button class="icon-btn" title={`Hide (${SHORTCUTS.panel})`} onClick={() => togglePanel(s, false)}><Icon name="chevron" size={15} /></button>

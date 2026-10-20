@@ -266,6 +266,29 @@ class FakeAgentSession {
       ];
       return { ok: true, value: { totalTokens, maxTokens: 200000, percentage: (totalTokens / 200000) * 100, categories } };
     }
+    // What the chat's own slash commands ask for (lib/commands.js); recorded for the checks.
+    (this.director.controls ||= []).push([action, arg]);
+    if (action === 'side-question') {
+      await sleep(400);
+      return { ok: true, value: { response: `Side answer to: ${arg}\n\n- it **does not** join the conversation`, synthetic: false } };
+    }
+    if (action === 'status') {
+      return { ok: true, value: { sections: [
+        { title: 'Session', rows: [{ label: 'Version', value: '2.1.287' }, { label: 'Session ID', value: this.sessionId }, { label: 'cwd', value: this.cwd }] },
+        { title: 'Account', rows: [{ label: 'Auth token', value: 'sk-ant-fake-0123456789abcdef' }, { label: 'Model', value: 'claude-opus-5-5' }] },
+      ] } };
+    }
+    if (action === 'export') return { ok: true, value: { text: 'Exported conversation\n', default_filename: 'conversation.txt' } };
+    if (action === 'memory') {
+      return { ok: true, value: {
+        files: [
+          { kind: 'user', path: path.join(this.director.home || this.cwd, '.claude', 'CLAUDE.md'), label: 'User memory', description: 'Saved in ~/.claude/CLAUDE.md', exists: false },
+          { kind: 'project', path: path.join(this.cwd, 'CLAUDE.md'), label: 'Project memory', description: 'Checked in at ./CLAUDE.md', exists: fs.existsSync(path.join(this.cwd, 'CLAUDE.md')) },
+        ],
+        folders: [], memories: [], auto_memory: null, auto_dream: null,
+      } };
+    }
+    if (action === 'mcp-status') return { ok: true, value: [{ name: 'github', status: 'connected', scope: 'user' }, { name: 'docs', status: 'failed', scope: 'project' }] };
     return { ok: true };
   }
 
@@ -351,6 +374,7 @@ function fakePtys(director) {
     // A shell just echoes what is typed and prints the scripted output of the command.
     write(id, data) {
       const s = this.sessions.get(id);
+      if (s && s.kind !== 'shell') (director.typed ||= []).push(data); // what reaches the CLI, for the checks
       if (!s || s.kind !== 'shell') return;
       for (const ch of data) {
         if (ch === '\r') {

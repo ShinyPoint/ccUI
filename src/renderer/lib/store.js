@@ -16,6 +16,9 @@ export const active = computed(() => sessions.value.find((s) => s.uid === active
 export const newSessionDialog = signal(null); // null when closed, else prefill object
 export const settingsDialog = signal(false);
 export const skillsDialog = signal(null); // the chat session whose skills are being managed, or null
+// A small read-only dialog for what some commands show (/status, /memory, /mcp; InfoDialog.jsx):
+// { title, note?, sections: [{ title?, rows: [{ label, value?, note?, mono?, action?: { label, run } }] }] }
+export const infoDialog = signal(null);
 // Find in chat (Ctrl+F) and the sidebar's project search (Ctrl+Shift+F): 0 while closed, otherwise a number
 // that goes up each time the shortcut is pressed, so an open box takes the focus again.
 export const findBar = signal(0);
@@ -49,6 +52,8 @@ export function makeSession({ kind, cwd, name = null, sessionId = null }) {
     draft: '',
     draftImages: [], // images attached in the message box, not sent yet
     restore: signal(null), // { text, images }: cancelled queued messages on their way back to the message box
+    sideNotes: signal([]), // /btw side questions: [{ id, question, answer, state: 'asking' | 'done' | 'error' }]
+    pendingInput: null, // text to type into the CLI once it has started (a command it alone can run)
     scrollTop: null,
     openTurns: new Set(), // finished turns whose working steps the user expanded
     // terminal

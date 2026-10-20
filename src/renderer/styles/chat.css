@@ -24,7 +24,7 @@
 /* The scroll area around it too, so a drag that runs past the text (below the last reply, out to the side) keeps
    selecting up to the end instead of dropping the selection. */
 .chat-scroll, .timeline { user-select: text; }
-.timeline :is(button, input, select, textarea, svg, [data-icon]),
+.timeline :is(button, input, select, textarea, svg),
 .chat-intro, .work-summary, .tool-head, .tool-meta, .code-head, .msg-actions, .msg-queued, .turn-end, .activity,
 .thinking-summary, .divider, .q-header, .diff-line .ln, .diff-line .sign, .prompt-sign, .jump-latest, .tasks {
   user-select: none;
@@ -111,7 +111,7 @@
   user-select: none;
 }
 .msg-user-text { white-space: pre-wrap; overflow-wrap: anywhere; }
-.msg-images { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin: 2px -7px 8px; }
+.msg-images { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px -7px 8px; }
 .msg-images:last-child { margin-bottom: 2px; }
 .msg-images img { display: block; max-height: 140px; max-width: 260px; border-radius: 14px; }
 
@@ -236,13 +236,17 @@
 
 /* ---------- tool calls: one row each, joined by a thin rail ---------- */
 .tool { position: relative; padding-left: 22px; }
-.tool + .tool { margin-top: -8px; }
+/* Consecutive steps are joined by a short line in the gap between their glyphs: from just under the glyph above to
+   just over this one, never across either (head 30px, glyph 15px at 7.5px, 6px tucked under the step above). */
+.tool + .tool { margin-top: -6px; }
 .tool + .tool::before {
   content: "";
-  position: absolute; left: 7px; top: -5px;
-  width: 1px; height: 11px;
+  position: absolute; left: 7px; top: 1.5px;
+  width: 1px; height: 4px;
   background: var(--line);
 }
+/* A subagent's steps (head 26px, glyph at 5.5px, 2px apart in .children): the same, shifted for the smaller row. */
+.tool.nested + .tool.nested::before { top: .5px; height: 3.5px; }
 .tool-head {
   position: relative;
   display: flex; align-items: baseline; gap: 8px;
@@ -320,7 +324,9 @@
 .hunk { min-width: max-content; }
 .hunk + .hunk { box-shadow: inset 0 1px 0 var(--hair); }
 .hunk-head { padding: 3px 12px; color: var(--muted); font-size: 11.5px; }
-.diff-line { display: grid; grid-template-columns: 3.4em 3.4em 1.4em max-content; white-space: pre; padding-right: 16px; }
+.diff-line { display: grid; grid-template-columns: var(--ln-old, 3.4em) var(--ln-new, 3.4em) 1.4em max-content; white-space: pre; padding-right: 16px; }
+/* A side with no line numbers (DiffView's gutters) takes no room. */
+.diff.no-old .diff-line .ln:first-child, .diff.no-new .diff-line .ln:nth-child(2) { padding: 0; overflow: hidden; }
 .diff-line .ln { padding-right: 8px; text-align: right; color: var(--off); user-select: none; }
 .diff-line .sign { color: var(--muted); user-select: none; }
 .diff-line.add { background: color-mix(in srgb, var(--ok) 14%, transparent); }
@@ -609,6 +615,18 @@
 .task-list li[data-status="in_progress"] .task-box { border-color: var(--accent); background: var(--accent); box-shadow: inset 0 0 0 2.5px var(--chrome); }
 
 /* Background tasks (AgentStrip in ChatView.jsx), in the task strip's card. */
+/* /btw answers. */
+.side-notes { display: flex; flex-direction: column; max-height: min(320px, 40vh); overflow: auto; }
+.side-note-item + .side-note-item { box-shadow: inset 0 1px 0 var(--hair); }
+.side-note-head { display: flex; align-items: center; gap: 8px; padding: 6px 6px 2px 12px; font-size: 13px; }
+.side-note-head .icon-btn { width: 24px; height: 24px; color: var(--muted); }
+.side-note-tag { flex-shrink: 0; padding: 1px 7px; border-radius: var(--r-full); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font: 600 11px var(--ui); }
+.side-note-q { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
+.side-note-wait { display: flex; align-items: center; gap: 8px; padding: 4px 12px 10px; color: var(--muted); font-size: 12.5px; }
+.side-note-a { padding: 2px 14px 10px 12px; font-size: 13.5px; user-select: text; }
+.side-note-item.error .side-note-a { color: var(--danger); }
+.side-note-a > :first-child { margin-top: 0; }
+.side-note-a > :last-child { margin-bottom: 0; }
 .agents-head { display: flex; align-items: center; padding-right: 6px; }
 .agents-toggle { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; padding: 7px 12px; font-size: 13px; text-align: left; }
 .agents-toggle .icon { color: var(--muted); transition: transform .26s var(--ease); }
@@ -728,7 +746,9 @@
 .autocomplete button { display: flex; align-items: baseline; gap: 12px; width: 100%; padding: 6px 10px; border-radius: var(--r-sm); text-align: left; }
 .autocomplete button.selected { background: var(--raise); }
 .ac-label { font: 12.5px var(--mono); white-space: nowrap; }
-.ac-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+.ac-hint { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+/* A command only Claude Code's CLI shows: the chat offers to continue there. */
+.ac-tag { flex-shrink: 0; align-self: center; padding: 1px 6px; border-radius: var(--r-full); background: var(--fill); color: var(--muted); font: 600 10px var(--ui); letter-spacing: .02em; }
 
 .menu { position: relative; }
 .menu-button {
@@ -941,23 +961,28 @@ html.fill-edge .bottom-panel { margin-right: 0; border-right: 0; border-top-righ
 body.resizing-panel .panel-resize::after { background: var(--accent); }
 body.resizing-panel { cursor: row-resize; user-select: none; }
 .panel-head {
-  display: flex; align-items: center; gap: 10px;
-  height: 32px;
-  padding: 0 6px 0 14px;
-  border-bottom: 1px solid var(--line-soft);
+  display: flex; align-items: center; gap: 8px;
+  height: 38px;
+  padding: 0 8px 0 16px;
   border-radius: var(--r-lg) var(--r-lg) 0 0;
-  background: var(--base);
-  font-size: 12px;
+  font-size: 12.5px;
   flex-shrink: 0;
 }
-.panel-title { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--text-2); }
-.panel-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px var(--ui); color: var(--muted); }
+/* The header and the shell are one surface (the terminal's background = --surface): a quiet label, not a bar. */
+.panel-title { display: inline-flex; align-items: center; gap: 7px; font-weight: 500; color: var(--text-2); }
+.panel-title .icon { color: var(--muted); }
+/* Cut from the left, so the folder's own name stays in sight. */
+.panel-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; color: var(--muted); }
+.panel-sep { color: var(--muted); }
 .panel-head .spacer { flex: 1; }
-.panel-head .icon-btn { width: 24px; height: 24px; }
+.panel-head .icon-btn { width: 28px; height: 28px; color: var(--muted); }
+.panel-head .icon-btn:hover { color: var(--text); }
 .panel-body { position: relative; flex: 1; min-height: 0; overflow: hidden; }
-.bottom-panel.term-dark .panel-body { background: #161618; } /* = DARK.background in lib/themes.js */
+/* A dark terminal in the light theme (Settings → Terminal): the whole panel goes dark, header too. */
+.bottom-panel.term-dark { --text: #F2F2F4; --text-2: #C2C2C6; --muted: #8E8E93; --raise: #2C2C2E; background: #161618; border-color: #2A2A2C; color: var(--text); } /* = DARK in lib/themes.js */
 .panel-stack-host, .panel-stack { position: absolute; inset: 0; }
-.panel-stack .term-host { padding: 6px 6px 2px 14px; }
+/* The shell's text starts under the header's label. */
+.panel-stack .term-host { padding: 0 8px 6px 16px; }
 .panel-exited {
   position: absolute; left: 14px; bottom: 10px; z-index: 2;
   display: flex; align-items: center; gap: 10px;
@@ -1021,33 +1046,64 @@ body.resizing-panel { cursor: row-resize; user-select: none; }
 .side-resize { position: absolute; top: 0; bottom: 0; left: -3px; width: 6px; cursor: col-resize; z-index: 2; }
 body.resizing-side { cursor: col-resize; user-select: none; }
 body.resizing-side .side-panel, body.resizing-side .chat { transition: none; }
-.side-head { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px 0 16px; flex-shrink: 0; }
+/* Header: the file shown (its name switches between the files the turn changed), where it is, its counts, and
+   what can be done with it. */
+.side-head { display: flex; align-items: center; gap: 6px; height: 46px; min-width: 0; padding: 0 8px 0 14px; flex-shrink: 0; }
 .side-title { display: flex; align-items: center; gap: 7px; font-weight: 600; }
-.side-title .icon { color: var(--muted); }
-.side-head .spacer, .side-file-head .spacer { flex: 1; }
+.side-title .icon, .side-file-icon { color: var(--muted); }
+.side-file-icon { display: grid; flex-shrink: 0; }
+.side-head .spacer, .side-bar .spacer { flex: 1; }
+.side-head .icon-btn { flex-shrink: 0; }
+.sf-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.sf-name.single { min-width: 0; font-size: 13.5px; }
+.side-files { min-width: 0; }
+.side-files > .menu-button { max-width: 100%; padding-left: 5px; font-size: 13.5px; color: var(--text); }
+.side-files .menu-list { width: 340px; }
+.sf-option { display: flex; align-items: baseline; gap: 8px; }
+.sf-option .sf-name { font-weight: 500; }
+.sf-option .diffstat { margin-left: auto; font-size: 11.5px; }
+/* Cut from the left, so the folder's last part (the one that tells files apart) stays in sight. */
+.sf-dir { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; font-size: 12px; color: var(--muted); }
+.sf-new { flex-shrink: 0; padding: 0 5px; border-radius: var(--r-xs); background: color-mix(in srgb, var(--ok) 16%, transparent); font: 500 10.5px var(--ui); color: var(--ok); }
+.side-head > .diffstat { flex-shrink: 0; font-size: 12px; }
+/* Under it: the turn, Changes | File, and wrapping long lines. */
+.side-bar { display: flex; align-items: center; gap: 6px; padding: 0 8px 8px 6px; flex-shrink: 0; box-shadow: inset 0 -1px 0 var(--hair); }
 .side-turns .menu-list { width: 320px; }
-.side-files { list-style: none; margin: 0; padding: 0 8px 8px; max-height: 32%; overflow: auto; flex-shrink: 0; }
-.side-files button {
-  display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px;
-  width: 100%; min-height: 30px;
-  padding: 0 10px;
-  border-radius: var(--r-sm);
-  font-size: 13px; text-align: left;
-  transition: background .15s;
+.side-wrap.on { background: var(--fill-2); color: var(--text); }
+/* The panel's one scroller, for both directions: its scrollbars are the panel's bottom and right edges wherever
+   it is scrolled to (the diff and the file inside it don't scroll themselves). */
+.side-file-body { flex: 1; min-height: 0; overflow: auto; background: var(--surface); }
+.side-file-body :is(.diff, .file-view) {
+  width: max-content; min-width: 100%; max-height: none;
+  overflow: visible; border-radius: 0; background: none;
+  padding: 6px 0 14px;
+  font: 12.5px/1.6 var(--mono);
 }
-.side-files button:hover { background: var(--fill); }
-.side-files button.on { background: var(--fill-2); }
-.sf-name { font-weight: 500; white-space: nowrap; }
-.sf-dir { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--muted); }
-.sf-new { padding: 0 5px; border-radius: var(--r-xs); background: color-mix(in srgb, var(--ok) 16%, transparent); font: 500 10.5px var(--ui); color: var(--ok); }
-.side-file { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-.side-file-head { display: flex; align-items: center; gap: 8px; padding: 4px 8px 8px 16px; }
-.side-file-body { flex: 1; min-height: 0; overflow: auto; padding: 0 8px 12px; }
-.side-file-body .diff { max-height: none; background: var(--surface); }
-.side-note { margin: 6px 16px 12px; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
-.side-note.small { margin: 0 6px 8px; font-size: 11.5px; }
+/* Line numbers (and the diff's +/−) stay put when it is scrolled sideways: solid, with the row's tint over them. */
+.side-file-body .diff-line.add { --tint: color-mix(in srgb, var(--ok) 14%, transparent); }
+.side-file-body .diff-line.del { --tint: color-mix(in srgb, var(--danger) 13%, transparent); }
+.side-file-body .fv-line.added { --tint: color-mix(in srgb, var(--ok) 12%, transparent); box-shadow: none; }
+.side-file-body :is(.diff-line .ln, .diff-line .sign, .fv-line .ln) {
+  position: sticky; z-index: 1;
+  background: linear-gradient(var(--tint, transparent), var(--tint, transparent)), var(--surface);
+}
+.side-file-body .diff-line .ln:first-child, .side-file-body .fv-line .ln { left: 0; }
+.side-file-body .diff-line .ln:nth-child(2) { left: var(--ln-old, 3.4em); }
+.side-file-body .diff-line .sign { left: calc(var(--ln-old, 3.4em) + var(--ln-new, 3.4em)); }
+.side-file-body .fv-line.added .ln { box-shadow: inset 2px 0 0 var(--ok); }
+.side-file-body .hunk-head { position: sticky; left: 0; width: fit-content; }
+/* Notes stay in sight too, at the panel's width. */
+.side-file-body .side-note { position: sticky; left: 0; }
+/* Wrapping: the lines fold at the panel's width, nothing scrolls sideways. */
+.side-file-body.wrap :is(.diff, .file-view) { width: auto; }
+.side-file-body.wrap :is(.hunk, .diff-line, .fv-line) { min-width: 0; }
+.side-file-body.wrap .diff-line { grid-template-columns: var(--ln-old, 3.4em) var(--ln-new, 3.4em) 1.4em minmax(0, 1fr); white-space: pre-wrap; }
+.side-file-body.wrap .fv-line { grid-template-columns: var(--ln, 3.6em) minmax(0, 1fr); white-space: pre-wrap; }
+.side-file-body.wrap :is(.diff-line, .fv-line) code { overflow-wrap: anywhere; }
+.side-note { margin: 12px 16px; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.side-note.small { margin: 8px 14px 0; font-size: 11.5px; }
 .file-view { padding: 4px 0; border-radius: var(--r-md); background: var(--surface); overflow-x: auto; font: 12.5px/1.5 var(--mono); }
-.fv-line { display: grid; grid-template-columns: 3.6em max-content; min-width: max-content; padding-right: 16px; white-space: pre; }
+.fv-line { display: grid; grid-template-columns: var(--ln, 3.6em) max-content; min-width: max-content; padding-right: 16px; white-space: pre; }
 .fv-line .ln { padding-right: 10px; text-align: right; color: var(--off); user-select: none; }
 .fv-line.added { background: color-mix(in srgb, var(--ok) 12%, transparent); box-shadow: inset 2px 0 0 var(--ok); }
 .file-view .more { margin-top: 4px; }
@@ -1071,20 +1127,24 @@ body.resizing-side .side-panel, body.resizing-side .chat { transition: none; }
 .tool-target.file-link:hover { text-decoration-color: currentColor; }
 
 /* Frosted glass (Settings → Appearance, html.frost): the pop-ups (menus, the context pop-up, the right-click menu,
-   the / list) are see-through and blur what is under them. */
+   the / list) are see-through and blur what is under them. A light blur, so text under them still shows as soft
+   shapes (a stronger one erases it, and over a white chat the glass then just looks white), and a faint light
+   edge. */
 html.frost :is(.menu-list, .context-menu, .autocomplete) {
-  background: color-mix(in srgb, var(--base) 72%, transparent);
-  -webkit-backdrop-filter: blur(24px) saturate(1.8);
-  backdrop-filter: blur(24px) saturate(1.8);
+  background: color-mix(in srgb, var(--base) 50%, transparent);
+  -webkit-backdrop-filter: blur(8px) saturate(1.8);
+  backdrop-filter: blur(8px) saturate(1.8);
+  box-shadow: var(--shadow), inset 0 0 0 .5px color-mix(in srgb, #fff 70%, transparent);
 }
+html.frost[data-theme="dark"] :is(.menu-list, .context-menu, .autocomplete) { box-shadow: var(--shadow), inset 0 0 0 .5px color-mix(in srgb, #fff 12%, transparent); }
 
-/* Lists of highlightable rows (menus, the right-click menu, the / list, the Changes panel's files): 2px between
+/* Lists of highlightable rows (menus, the right-click menu, the / list): 2px between
    rows, so a chosen row and a hovered one next to it stay two shapes instead of merging into one block. */
-.menu-list, .autocomplete, .context-menu, .side-files { display: flex; flex-direction: column; gap: 2px; }
+.menu-list, .autocomplete, .context-menu { display: flex; flex-direction: column; gap: 2px; }
 
 /* The Changes panel is a document viewer: its scrollbars always show when there is more (fainter until hovered),
    and the diff and the file can be selected and copied (not the line numbers or the +/− signs). */
-:is(.side-file-body, .side-files, .side-turns .menu-list)::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, var(--text) 16%, transparent); }
-:is(.side-file-body, .side-files, .side-turns .menu-list):hover::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, var(--text) 28%, transparent); }
+:is(.side-file-body, .side-panel .menu-list)::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, var(--text) 16%, transparent); }
+:is(.side-file-body, .side-panel .menu-list):hover::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, var(--text) 28%, transparent); }
 .side-file-body { user-select: text; }
 .side-file-body :is(.ln, .sign, .hunk-head, .more, .side-note) { user-select: none; }

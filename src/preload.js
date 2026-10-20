@@ -24,6 +24,8 @@ contextBridge.exposeInMainWorld('ccui', {
 
   pickFolder: (defaultPath) => ipcRenderer.invoke('dialog:pick-folder', defaultPath),
   pickFile: (title) => ipcRenderer.invoke('dialog:pick-file', title),
+  saveText: (name, text, cwd) => ipcRenderer.invoke('dialog:save-text', { name, text, cwd }),
+  openMemoryFile: (file) => ipcRenderer.invoke('files:open-memory', file),
   pathForFile: (file) => webUtils.getPathForFile(file),
   openPath: (p) => ipcRenderer.send('shell:open-path', p),
   openExternal: (url) => ipcRenderer.send('shell:open-external', url),

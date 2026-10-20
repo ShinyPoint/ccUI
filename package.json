@@ -26,6 +26,8 @@
     "check:agents": "vite build && electron scripts/agents-check.js",
     "check:changes": "vite build && electron scripts/changes-check.js",
     "check:dialogs": "vite build && electron scripts/dialogs-check.js",
+    "check:commands": "vite build && electron scripts/commands-check.js",
+    "check:sessions": "vite build && electron scripts/sessions-check.js",
     "video": "vite build && electron scripts/intro-video/record.js && electron scripts/intro-video/compose.js"
   },
   "author": "ccUI",

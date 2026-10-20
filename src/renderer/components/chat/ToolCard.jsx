@@ -88,10 +88,28 @@ export function describe(item, cwd) {
   }
 }
 
+// Line-number columns as wide as their largest number; one with no numbers at all (the old side of a new file,
+// the new side of a deleted one) takes no room.
+function gutters(patches) {
+  let maxOld = 0;
+  let maxNew = 0;
+  for (const h of patches) {
+    const lines = h.lines.filter((l) => !l.startsWith('\\'));
+    const old = lines.filter((l) => l[0] !== '+').length;
+    const now = lines.filter((l) => l[0] !== '-').length;
+    if (old) maxOld = Math.max(maxOld, h.oldStart + old - 1);
+    if (now) maxNew = Math.max(maxNew, h.newStart + now - 1);
+  }
+  // The first column shown also keeps the numbers off the left edge.
+  const width = (n, first) => (n ? `calc(${String(n).length}ch + ${first ? 20 : 14}px)` : '0px');
+  return { '--ln-old': width(maxOld, true), '--ln-new': width(maxNew, !maxOld) };
+}
+
 export function DiffView({ patches, path }) {
   const lang = languageForPath(path);
+  const style = gutters(patches);
   return (
-    <div class="diff">
+    <div class={`diff ${style['--ln-old'] === '0px' ? 'no-old' : ''} ${style['--ln-new'] === '0px' ? 'no-new' : ''}`} style={style}>
       {patches.map((h, hi) => {
         let oldNo = h.oldStart;
         let newNo = h.newStart;

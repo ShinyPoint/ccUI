@@ -45,7 +45,7 @@ function Form({ prefill }) {
   const s = settings.value;
   const [cwd, setCwd] = useState(prefill.cwd || active.value?.cwd || s.recent?.[0]?.path || '');
   const [kind, setKind] = useState(prefill.kind || s.defaultKind || 'chat');
-  const [mode, setMode] = useState('new');
+  const [mode, setMode] = useState(prefill.mode || 'new');
   const [resumeId, setResumeId] = useState('');
   const [model, setModel] = useState(s.defaultModel || '');
   const [permissionMode, setPermissionMode] = useState(s.defaultPermissionMode || 'default');

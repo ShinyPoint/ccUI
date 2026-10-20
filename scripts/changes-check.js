@@ -4,7 +4,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { app } = require('electron');
+const { app, clipboard } = require('electron');
 const { install, applyEdit, applyWrite } = require('./intro-video/fakes');
 
 const outDir = path.join(__dirname, '..', 'dist', 'changes-check');
@@ -15,6 +15,8 @@ fs.mkdirSync(outDir, { recursive: true });
 fs.mkdirSync(path.join(project, 'src'));
 const LIMITER = Array.from({ length: 60 }, (_, i) => `// line ${i + 1}`);
 LIMITER[29] = 'export const LIMIT = 10;';
+// A line much wider than the panel, so the file scrolls sideways.
+LIMITER[4] = `// ${'a long comment that runs on and on '.repeat(8)}`;
 fs.writeFileSync(path.join(project, 'src', 'limiter.js'), `${LIMITER.join('\n')}\n`);
 fs.writeFileSync(path.join(elsewhere, 'notes.txt'), 'old note\n');
 
@@ -66,7 +68,24 @@ app.on('browser-window-created', (_e, win) => {
     check(`waiting for ${label}`, false, 'timeout');
     return false;
   };
-  const files = "[...document.querySelectorAll('.side-files button')].map((b) => b.querySelector('.sf-name').textContent + ' ' + b.querySelector('.diffstat').textContent.replace(/\\s+/g, ' '))";
+  // The turn's files are in the menu under the file name in the panel's header.
+  const openFiles = async () => {
+    if (!(await js("Boolean(document.querySelector('.side-files .menu-list'))"))) await js("document.querySelector('.side-files .menu-button').click(); true");
+    await until('the file menu', "Boolean(document.querySelector('.side-files .menu-list'))", 3000);
+  };
+  const files = async () => {
+    await openFiles();
+    const list = JSON.parse(await js(`JSON.stringify([...document.querySelectorAll('.side-files .menu-list button')].map((b) => b.querySelector('.sf-option').textContent.replace(/\\s+/g, ' ')))`));
+    await js("document.querySelector('.side-files .menu-button').click(); true");
+    await wait(150);
+    return list;
+  };
+  const pickFile = async (i) => {
+    await openFiles();
+    await js(`document.querySelectorAll('.side-files .menu-list button')[${i}].click(); true`);
+    await wait(400);
+  };
+  const shownFile = "document.querySelector('.side-head .sf-name').textContent";
   win.webContents.on('console-message', (ev) => { if (ev.level === 'error') console.log('[renderer]', ev.message); });
 
   win.webContents.once('did-finish-load', async () => {
@@ -96,29 +115,70 @@ app.on('browser-window-created', (_e, win) => {
         && steps.some(([, r]) => r > 20 && r < steps.at(-1)[1] - 20), slide.filter((v, i) => v !== slide[i - 1]).slice(0, 12).join(' '));
       await until('the panel', "Boolean(document.querySelector('.side-panel .side-files'))");
       await wait(400);
-      const listed = JSON.parse(await js(`JSON.stringify(${files})`));
-      check('the panel lists the files of that turn', listed.length === 3 && /^limiter\.js \+2 −1/.test(listed[0]) && /^limiter\.test\.js \+3 −0/.test(listed[1]), JSON.stringify(listed));
-      check('a new file is marked new', await js("[...document.querySelectorAll('.side-files button')][1].textContent.includes('new')"));
+      check('the panel shows the first file, named in its header', (await js(shownFile)) === 'limiter.js', await js(shownFile));
+      const listed = await files();
+      check('the file name opens a menu of the turn’s files with their counts', listed.length === 3 && /^limiter\.js ?\+2 −1/.test(listed[0]) && /^limiter\.test\.js ?new ?\+3 −0/.test(listed[1]), JSON.stringify(listed));
+      check('a new file is marked new', /new/.test(listed[1]));
       check('the chat makes room for it', await js(`{ const c = document.querySelector('.chat').getBoundingClientRect(); const p = document.querySelector('.side-panel').getBoundingClientRect();
         Math.abs(c.right - p.left) < 2 }`));
       check('Changes shows the diff', await js("document.querySelectorAll('.side-file-body .diff-line.add').length === 2 && document.querySelectorAll('.side-file-body .diff-line.del').length === 1"));
+      check('the diff doesn’t scroll by itself: the panel does', await js("getComputedStyle(document.querySelector('.side-file-body .diff')).overflowX === 'visible'"));
       await shot('1-changes');
+      await openFiles();
+      await wait(200);
+      await shot('1b-file-menu');
+      await js("document.querySelector('.side-files .menu-button').click(); true");
+      await wait(150);
+      // A new file's diff has no old line numbers: that column takes no room, so the code starts near the edge.
+      await pickFile(1);
+      const gutter = JSON.parse(await js(`JSON.stringify((() => { const b = document.querySelector('.side-file-body').getBoundingClientRect();
+        const line = document.querySelector('.side-file-body .diff-line'); return { noOld: Boolean(document.querySelector('.side-file-body .diff.no-old')),
+          code: Math.round(line.querySelector('code').getBoundingClientRect().left - b.left), num: Math.round(line.querySelectorAll('.ln')[1].getBoundingClientRect().left - b.left) }; })())`));
+      check('a new file’s diff has no empty old-number column', gutter.noOld && gutter.code < 50 && gutter.num < 8, JSON.stringify(gutter));
+      await shot('1c-new-file');
+      await pickFile(0);
 
-      await js("[...document.querySelectorAll('.side-file-head .segmented label')].find((l) => l.textContent === 'File').click(); true");
+      await js("[...document.querySelectorAll('.side-bar .segmented label')].find((l) => l.textContent === 'File').click(); true");
       await until('the file', "Boolean(document.querySelector('.file-view'))", 5000);
       const marked = await js("JSON.stringify([...document.querySelectorAll('.fv-line.added .ln')].map((n) => n.textContent))");
       check('File shows the file now, with the lines the turn added marked', marked === '["30","31"]', marked);
       check('with its syntax colored', await js("Boolean(document.querySelector('.file-view .hljs-keyword'))"));
       await shot('2-file');
 
-      await js("[...document.querySelectorAll('.side-files button')][2].click(); true");
-      await wait(500);
+      // One scroller for both directions: the sideways scrollbar is at the panel's bottom, wherever it is scrolled to.
+      const body = "document.querySelector('.side-file-body')";
+      const box = JSON.parse(await js(`JSON.stringify((() => { const b = ${body}; const p = document.querySelector('.side-panel').getBoundingClientRect(); const r = b.getBoundingClientRect();
+        return { wide: b.scrollWidth > b.clientWidth + 50, tall: b.scrollHeight > b.clientHeight, own: getComputedStyle(document.querySelector('.file-view')).overflowX, bottom: Math.round(p.bottom - r.bottom) }; })())`));
+      check('the file scrolls sideways in the panel itself, its scrollbar at the panel’s bottom edge', box.wide && box.tall && box.own === 'visible' && box.bottom <= 1, JSON.stringify(box));
+      const before = JSON.parse(await js(`JSON.stringify((() => { const l = document.querySelectorAll('.fv-line')[10]; return { ln: l.querySelector('.ln').getBoundingClientRect().left, code: l.querySelector('code').getBoundingClientRect().left }; })())`));
+      await js(`{ const b = ${body}; b.scrollTop = 300; b.scrollLeft = 200; } true`);
+      await wait(150);
+      const after = JSON.parse(await js(`JSON.stringify((() => { const l = document.querySelectorAll('.fv-line')[10]; return { ln: l.querySelector('.ln').getBoundingClientRect().left, code: l.querySelector('code').getBoundingClientRect().left }; })())`));
+      check('scrolled sideways, the line numbers stay and the code moves', Math.abs(after.ln - before.ln) < 1 && Math.abs(before.code - after.code - 200) < 2, `${JSON.stringify(before)} → ${JSON.stringify(after)}`);
+      await shot('2b-scrolled');
+      // Wrap lines: nothing scrolls sideways; remembered.
+      await js("document.querySelector('.side-wrap').click(); true");
+      await wait(300);
+      check('Wrap lines folds long lines: no sideways scroll', await js(`{ const b = ${body}; b.scrollWidth <= b.clientWidth + 1 }`));
+      check('and it is remembered', JSON.parse(fs.readFileSync(path.join(profile, 'settings.json'), 'utf8')).sidePanelWrap === true);
+      await shot('2c-wrap');
+      await js("document.querySelector('.side-wrap').click(); true");
+      await wait(300);
+      // Copy: the whole file.
+      clipboard.writeText('');
+      await js("document.querySelector('.side-head .icon-btn[title=\"Copy the file\"], .side-head .icon-btn[data-tip=\"Copy the file\"]').click(); true");
+      await wait(200);
+      const copied = await clipboard.readText();
+      check('Copy puts the file on the clipboard', copied === fs.readFileSync(path.join(project, 'src', 'limiter.js'), 'utf8'), `${copied.length} chars`);
+      await js(`{ const b = ${body}; b.scrollTop = 0; b.scrollLeft = 0; } true`);
+
+      await pickFile(2);
       const note = await js("document.querySelector('.side-file-body').textContent");
       check('a file outside the project is not read', /outside the project/.test(note), note.slice(0, 80));
 
       // The diff and the file can be copied: a drag over the File view takes code, not line numbers.
-      await js("[...document.querySelectorAll('.side-files button')][0].click(); true");
-      await wait(400);
+      await pickFile(0);
+      await until('the file again', "document.querySelectorAll('.fv-line code').length > 30", 5000);
       const fileBox = JSON.parse(await js("JSON.stringify((() => { const l = [...document.querySelectorAll('.fv-line code')]; const a = l[28].getBoundingClientRect(); const b = l[30].getBoundingClientRect(); return { x1: a.left + 2, y1: a.top + a.height / 2, x2: b.right - 2, y2: b.top + b.height / 2 }; })())"));
       await js('getSelection().removeAllRanges(); true');
       win.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(fileBox.x1), y: Math.round(fileBox.y1) });
@@ -134,7 +194,6 @@ app.on('browser-window-created', (_e, win) => {
       check('the file can be selected for copying, without its line numbers', /export const LIMIT = 50/.test(picked) && !/^\s*30/m.test(picked), JSON.stringify(picked));
       check('its scrollbar shows without hovering', await js("getComputedStyle(document.querySelector('.side-file-body'), '::-webkit-scrollbar-thumb').backgroundColor !== 'rgba(0, 0, 0, 0)'"),
         await js("getComputedStyle(document.querySelector('.side-file-body'), '::-webkit-scrollbar-thumb').backgroundColor"));
-      check('rows in the file list keep a gap between highlights', await js("getComputedStyle(document.querySelector('.side-files')).rowGap === '2px'"));
 
       // Resize: drag the left edge 120px to the left; the width is kept.
       const edge = JSON.parse(await js("JSON.stringify((() => { const r = document.querySelector('.side-resize').getBoundingClientRect(); return { x: r.left + 3, y: r.top + 300, w: document.querySelector('.side-panel').getBoundingClientRect().width }; })())"));
@@ -159,8 +218,9 @@ app.on('browser-window-created', (_e, win) => {
       await js("document.querySelector('.work-summary').click(); true");
       await wait(500);
       await js("[...document.querySelectorAll('.tool-target.file-link')].find((t) => t.textContent.includes('limiter.test.js')).click(); true");
-      await until('the panel again', "Boolean(document.querySelector('.side-files button.on'))", 5000);
-      check('a file name in a card opens that file', /limiter\.test\.js/.test(await js("document.querySelector('.side-files button.on').textContent")));
+      await until('the panel again', "Boolean(document.querySelector('.side-panel .side-head .sf-name'))", 5000);
+      await wait(300);
+      check('a file name in a card opens that file', /limiter\.test\.js/.test(await js(shownFile)), await js(shownFile));
       // The top bar button and the shortcut toggle it.
       await js("document.querySelector('.changes-toggle').click(); true");
       await wait(450);

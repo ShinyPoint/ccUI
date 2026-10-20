@@ -68,6 +68,10 @@ export const ICONS = {
 
   // doc.on.doc: two stacked rounded sheets
   copy: '<rect x="4.5" y="8.25" width="11.25" height="11.25" rx="2.5"/><path d="M8.25 8.25V6.9a2.4 2.4 0 0 1 2.4-2.4h6.45a2.4 2.4 0 0 1 2.4 2.4v6.45a2.4 2.4 0 0 1-2.4 2.4h-1.35"/>',
+  // arrow.up.right.square: opens in another app
+  external: '<path d="M13.5 4.5h6v6M19.5 4.5l-8.25 8.25"/><path d="M17.25 13.5v3.6a2.4 2.4 0 0 1-2.4 2.4H6.9a2.4 2.4 0 0 1-2.4-2.4V9.15a2.4 2.4 0 0 1 2.4-2.4h3.6"/>',
+  // text.word.wrap: long lines folded
+  wrap: '<path d="M4.5 6.5h15M4.5 12h12a3 3 0 0 1 0 6h-3.5M4.5 17.5h4.5"/><path d="M14.75 15.75 12.5 18l2.25 2.25"/>',
 
   // pencil
   edit: '<path d="M15.6 5.4l3 3M5.5 18.5l.8-3.6L15.1 6.1a2.1 2.1 0 0 1 3 3l-8.8 8.8z"/>',

@@ -161,6 +161,27 @@ app.on('browser-window-created', (_e, win) => {
       const wake = await js("document.querySelector('.wake')?.textContent || ''");
       check('a marker says why Claude continued', /Map the modules.*finished/.test(wake), wake);
       await shot('2-returned');
+      // Opened, the agent's card lists its steps. Consecutive steps (its own, and the turn's) are joined by a short
+      // line in the gap between their icons that never runs over either icon.
+      await js("[...document.querySelectorAll('.tool.agent')].find((t) => /Map the modules/.test(t.textContent)).querySelector('.tool-head').click(); true");
+      await until('its steps', "document.querySelectorAll('.tool.nested').length > 3", 4000);
+      await wait(500);
+      const rails = JSON.parse(await js(`JSON.stringify([...document.querySelectorAll('.tool + .tool')].filter((el) => el.offsetParent).map((el) => {
+        const prev = el.previousElementSibling.querySelector('.tool-glyph').getBoundingClientRect();
+        const glyph = el.querySelector('.tool-glyph').getBoundingClientRect();
+        const b = getComputedStyle(el, '::before'); const top = el.getBoundingClientRect().top + parseFloat(b.top);
+        return { nested: el.classList.contains('nested'), gapTop: +(top - prev.bottom).toFixed(1), gapBottom: +(glyph.top - (top + parseFloat(b.height))).toFixed(1) };
+      }))`));
+      check('step connectors sit between the icons, touching neither', rails.length > 3 && rails.every((r) => r.gapTop >= 0.5 && r.gapBottom >= 0.5),
+        JSON.stringify(rails.slice(0, 4)));
+      await shot('2b-agent-steps');
+      {
+        const head = JSON.parse(await js("JSON.stringify((() => { const r = document.querySelector('.tool.agent').getBoundingClientRect(); return { x: r.left, y: r.top - 120 }; })())"));
+        const img = await win.webContents.capturePage({ x: Math.max(0, Math.round(head.x) - 20), y: Math.max(0, Math.round(head.y)), width: 360, height: 340 });
+        fs.writeFileSync(path.join(outDir, `crop-agent-steps-${THEME}.png`), img.resize({ width: 1080 }).toPNG());
+      }
+      await js("[...document.querySelectorAll('.tool.agent')].find((t) => /Map the modules/.test(t.textContent)).querySelector('.tool-head').click(); true");
+      await wait(300);
       await until('the strip to fold away', "!document.querySelector('.agents')", 9000);
       check('the session is not left working', await js("!document.querySelector('.session-row.working, .status-badge.working')"));
 

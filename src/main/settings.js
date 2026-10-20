@@ -14,6 +14,7 @@ const DEFAULTS = {
   terminalTheme: 'match', // 'match' (follows the app theme) | 'dark'
   panelHeight: 260, // bottom Terminal panel, px
   sidePanelWidth: 440, // the Changes panel at the right of a chat, px
+  sidePanelWrap: false, // and whether it wraps long lines
   cursorBlink: true,
   copyOnSelect: false,
   scrollback: 10000,

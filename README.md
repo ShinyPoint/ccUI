@@ -32,18 +32,30 @@ own **terminal** interface and back, keeping the same conversation. Runs on Wind
   session and resizable. It uses PowerShell 7 (`pwsh`) on Windows when installed, otherwise Windows PowerShell;
   your login shell on macOS and Linux. Each session keeps its shell running while the panel is hidden.
 - Your sessions come back when you relaunch, with their history and titles. Only the one you had open starts
-  right away; the others start when you click them (turn this off in Settings).
+  right away; the others start when you click them (turn this off in Settings). Their histories are read one at a
+  time, the one on screen first. A chat you haven't looked at for 20 minutes lets its Claude Code go (it holds a
+  few hundred MB) unless Claude is working or has background tasks; it starts again on the same conversation when
+  you select it.
+- If the window's process crashes, the window loads again with your sessions; what happened is noted in
+  `crash.log` in the app's data folder.
 - Plain shell sessions, recent folders, renaming, dark and light themes, ten accent colors (black by default),
   adjustable text sizes. Frosted glass (Settings → Appearance) frosts the window frame and every menu and pop-up.
   The app draws its own window buttons and tooltips.
 - Context at a glance: the ring in the message box opens what fills the context window, what the session has
   cost so far, and a button to compact the conversation.
 - Skills in chat: type `/skills` to see every skill (yours, the project's, plugins', Claude Code's own), what each
-  costs in context, and turn them on, name-only, /name-only or off, for this project or all projects. Commands that
-  only work in Claude Code's CLI aren't sent to Claude as a message.
+  costs in context, and turn them on, name-only, /name-only or off, for this project or all projects.
+- Slash commands in chat: the `/` list has every command. Those that draw a screen in Claude Code's CLI are shown the
+  chat's way: `/btw` answers a side question above the message box without adding it to the conversation;
+  `/status`, `/memory` (open or create CLAUDE.md) and `/mcp` (reconnect a server) open a dialog; `/model`, `/effort`,
+  `/context`, `/usage`, `/theme` and `/config` open the matching menu or Settings; `/export`, `/copy`, `/rename`,
+  `/branch`, `/resume`, `/plan` and `/exit` do what they say. The rest (`/hooks`, `/permissions`, `/agents`…) are
+  marked *CLI*: they offer to continue the conversation in the CLI with the command typed in.
 - **Changes** panel at the right of a chat (the button at the top right, Ctrl+Shift+D, the *N files* chip next to a
-  turn's "Worked for…", or a file name in an edit): the files one turn changed, each as that turn's diff or as the
-  whole file with the lines it added marked. Files outside the project folder aren't read.
+  turn's "Worked for…", or a file name in an edit), a file preview window: one file the turn changed fills it, as
+  that turn's diff or as the whole file with the lines it added marked; its name in the header switches between the
+  turn's files. It scrolls both ways with the line numbers kept in place, can wrap long lines, and copies the file
+  or opens it in its default app. Files outside the project folder aren't read.
 - Background subagents: a strip above the message box lists the agents Claude sent off, what each is doing, and
   stops one (or all). The turn that sent them ends normally, and Claude's answer when one returns is marked.
 - A background image of your own (Settings → Appearance): drawn blurred behind the whole window, with the
@@ -101,6 +113,8 @@ npm run check:update      # Claude Code updates: check, download, verify and use
 npm run check:agents      # background subagents: the strip above the message box, stopping one, Stop, nothing left "working" (scripted, no API)
 npm run check:changes     # the Changes panel: a turn's files, their diffs, the file with added lines marked (scripted, no API)
 npm run check:dialogs     # New session, folder trust, Bypass and quit confirmations as in-app dialogs (scripted, no API)
+npm run check:commands    # slash commands in a chat: /btw, /status, /memory, /mcp, /export, /copy, CLI-only ones (scripted, no API)
+npm run check:sessions    # launch folder, histories read one at a time, idle chats let go and woken, crash reload (scripted, no API)
 npm run video      # records the intro video in dist/intro-video/ccui-intro.mp4 (scripted session, no API usage; needs ffmpeg)
 npm run sdk-check  # checks the Agent SDK features the app relies on (costs a few tens of cents)
 ```

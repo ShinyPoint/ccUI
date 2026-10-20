@@ -1,9 +1,10 @@
-// The Changes panel at the right of a chat: the files one turn changed, each as that turn's diff or as the
-// whole file (read from disk) with the lines the turn added marked.
+// The Changes panel at the right of a chat, a file preview window: one of the files a turn changed fills it (its
+// name in the header switches between them), as that turn's diff or as the whole file (read from disk) with the
+// lines the turn added marked.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Icon, Menu, Segmented } from './ui.jsx';
 import { DiffView } from './chat/ToolCard.jsx';
-import { api, settings, saveSettings } from '../lib/store.js';
+import { api, settings, saveSettings, toast } from '../lib/store.js';
 import { topLevel, groupTurns } from '../lib/chat-reducer.js';
 import { turnChanges, addedLines } from '../lib/diff.js';
 import { closeChanges } from '../lib/side.js';
@@ -42,13 +43,18 @@ const UNREADABLE = {
   binary: 'This file is not text.',
 };
 
-function FileView({ s, file, turnKey }) {
+function FileView({ s, file, turnKey, shown }) {
   const [state, setState] = useState({ loading: true });
   const body = useRef(null);
   useEffect(() => {
     let live = true;
     setState({ loading: true });
-    api.readFile(s.cwd, file.path).then((res) => { if (live) setState(res); });
+    shown.current = null;
+    api.readFile(s.cwd, file.path).then((res) => {
+      if (!live) return;
+      setState(res);
+      shown.current = res.ok ? res.text : null;
+    });
     return () => { live = false; };
   }, [s.cwd, file.path, turnKey]);
   const added = useMemo(() => addedLines(file.patches), [file]);
@@ -57,9 +63,9 @@ function FileView({ s, file, turnKey }) {
     const text = state.text.split('\n').slice(0, MAX_LINES).join('\n');
     return htmlLines(highlight(text, languageForPath(file.path)) || '');
   }, [state, file.path]);
-  // The first line the turn added comes into view.
+  // The first line the turn added comes into view (only up and down: the line numbers stay in sight).
   useEffect(() => {
-    body.current?.querySelector('.fv-line.added')?.scrollIntoView({ block: 'center' });
+    body.current?.querySelector('.fv-line.added')?.scrollIntoView({ block: 'center', inline: 'nearest' });
   }, [lines]);
 
   if (state.loading) return <p class="side-note">Loading…</p>;
@@ -68,7 +74,7 @@ function FileView({ s, file, turnKey }) {
   return (
     <>
       <p class="side-note small">The file as it is now. Lines this turn added are marked; later changes may have moved them.</p>
-      <div class="file-view" ref={body}>
+      <div class="file-view code-sheet" ref={body} style={{ '--ln': `calc(${String(lines.length).length}ch + 18px)` }}>
         {lines.map((html, i) => (
           <div class={`fv-line ${added.has(i + 1) ? 'added' : ''}`} key={i}>
             <span class="ln">{i + 1}</span>
@@ -86,6 +92,7 @@ export function SidePanel({ s }) {
   const chat = s.chat.value;
   const [width, setWidth] = useState(settings.value.sidePanelWidth || 440);
   const panel = useRef(null);
+  const shown = useRef(null); // the text the File view shows, for Copy
   // Opening slides the panel in from the right while the chat makes room, like the sidebar; closing slides it
   // out, and it leaves once that has played. Switching to a session that has it open shows it at once.
   const [mounted, setMounted] = useState(side.open);
@@ -151,61 +158,81 @@ export function SidePanel({ s }) {
     const said = (t.g.user.text || '').replace(/\s+/g, ' ').trim();
     return `${said ? `${said.slice(0, 48)}${said.length > 48 ? '…' : ''} · ` : ''}${pluralize(t.changes.length, 'file')} · +${add} −${del}`;
   };
+  const folder = (f) => relPath(f.path, s.cwd).replace(/[\\/]?[^\\/]*$/, '');
+  const stat = (f) => <span class="diffstat"><span class="add">+{f.add}</span> <span class="del">−{f.del}</span></span>;
+  const wrap = Boolean(settings.value.sidePanelWrap);
+  // Copy: the file as shown in File; in Changes, the file's lines as this turn left them (the new side of the diff).
+  const copy = () => {
+    const text = tab === 'file'
+      ? shown.current
+      : file.patches.map((h) => h.lines.filter((l) => l[0] === '+' || l[0] === ' ').map((l) => l.slice(1)).join('\n')).join('\n…\n');
+    if (text == null) return;
+    api.writeClipboard(text);
+    toast(tab === 'file' ? `Copied ${basename(file.path)}.` : 'Copied the changed lines.');
+  };
 
   return (
     <aside class={`side-panel ${slidIn ? 'in' : ''}`} ref={panel} style={{ width: `${width}px` }} aria-label="Changes" inert={!side.open}>
       <div class="side-resize" onMouseDown={startResize} title="Drag to resize" />
       <header class="side-head">
-        <span class="side-title"><Icon name="diff" size={15} />Changes</span>
-        {turns.length > 0 && (
-          <Menu className="side-turns" title="Choose a turn" align="right" up={false}
-                label={turnLabel(turn)} value={turn.g.key}
-                options={[...turns].reverse().map((t) => ({ value: t.g.key, label: turnLabel(t), hint: turnHint(t) }))}
-                onSelect={(key) => update({ turnKey: key, toolId: null, path: null })} />
-        )}
+        {file ? (
+          <>
+            <span class="side-file-icon"><Icon name="toolRead" size={15} /></span>
+            {files.length > 1 ? (
+              <Menu className="side-files" title="Files this turn changed" up={false}
+                    label={<span class="sf-name">{basename(file.path)}</span>} value={file.path}
+                    options={files.map((f) => ({
+                      value: f.path,
+                      label: <span class="sf-option"><span class="sf-name">{basename(f.path)}</span>{f.created && <span class="sf-new">new</span>}{stat(f)}</span>,
+                      hint: folder(f) || undefined,
+                    }))}
+                    onSelect={(path) => update({ path })} />
+            ) : <span class="sf-name single" title={file.path}>{basename(file.path)}</span>}
+            <span class="sf-dir" title={file.path}><bdi>{folder(file)}</bdi></span>
+            {file.created && <span class="sf-new">new</span>}
+            {stat(file)}
+          </>
+        ) : <span class="side-title"><Icon name="diff" size={15} />Changes</span>}
         <span class="spacer" />
+        {file && (
+          <>
+            <button class="icon-btn" title={tab === 'file' ? 'Copy the file' : 'Copy the changed lines'} onClick={copy}><Icon name="copy" size={15} /></button>
+            <button class="icon-btn" title="Open in the default app" onClick={() => api.openPath(file.path)}><Icon name="external" size={15} /></button>
+          </>
+        )}
         <button class="icon-btn" title={`Close (${SHORTCUTS.changes})`} aria-label="Close" onClick={() => closeChanges(s)}>
           <Icon name="x" size={15} />
         </button>
       </header>
-      {!turn ? (
-        <p class="side-note">No file changes in this conversation yet. When Claude edits files, each turn’s changes show here.</p>
-      ) : (
-        <>
-          <ul class="side-files" role="listbox" aria-label="Files changed">
-            {files.map((f) => (
-              <li key={f.path}>
-                <button role="option" aria-selected={f === file} class={f === file ? 'on' : ''} title={f.path}
-                        onClick={() => update({ path: f.path })}>
-                  <span class="sf-name">{basename(f.path)}</span>
-                  <span class="sf-dir">{relPath(f.path, s.cwd).replace(/[\\/]?[^\\/]*$/, '')}</span>
-                  {f.created && <span class="sf-new">new</span>}
-                  <span class="diffstat"><span class="add">+{f.add}</span> <span class="del">−{f.del}</span></span>
-                </button>
-              </li>
-            ))}
-          </ul>
+      {turns.length > 0 && (
+        <div class="side-bar">
+          <Menu className="side-turns" title="Choose a turn" up={false}
+                label={turnLabel(turn)} value={turn.g.key}
+                options={[...turns].reverse().map((t) => ({ value: t.g.key, label: turnLabel(t), hint: turnHint(t) }))}
+                onSelect={(key) => update({ turnKey: key, toolId: null, path: null })} />
+          <span class="spacer" />
           {file && (
-            <section class="side-file">
-              <div class="side-file-head">
-                <Segmented name="side-tab" value={tab} onChange={(v) => update({ tab: v })} options={[
-                  { value: 'diff', label: 'Changes' },
-                  { value: 'file', label: 'File' },
-                ]} />
-                <span class="spacer" />
-                <button class="icon-btn" title="Open in the default app" onClick={() => api.openPath(file.path)}>
-                  <Icon name="folder" size={14} />
-                </button>
-              </div>
-              <div class="side-file-body">
-                {tab === 'diff'
-                  ? (file.patches.length ? <DiffView patches={file.patches} path={file.path} /> : <p class="side-note">No line changes to show for this file.</p>)
-                  : <FileView s={s} file={file} turnKey={turn.g.key} />}
-              </div>
-            </section>
+            <>
+              <Segmented name="side-tab" value={tab} onChange={(v) => update({ tab: v })} options={[
+                { value: 'diff', label: 'Changes' },
+                { value: 'file', label: 'File' },
+              ]} />
+              <button class={`icon-btn side-wrap ${wrap ? 'on' : ''}`} aria-pressed={wrap} title={wrap ? 'Don’t wrap long lines' : 'Wrap long lines'}
+                      onClick={() => saveSettings({ sidePanelWrap: !wrap })}>
+                <Icon name="wrap" size={15} />
+              </button>
+            </>
           )}
-        </>
+        </div>
       )}
+      {/* The one scroller: its scrollbars are the panel's bottom and right edges, wherever it is scrolled to. */}
+      <div class={`side-file-body ${wrap ? 'wrap' : ''}`}>
+        {!turn ? (
+          <p class="side-note">No file changes in this conversation yet. When Claude edits files, each turn’s changes show here.</p>
+        ) : !file ? null : tab === 'diff' ? (
+          file.patches.length ? <DiffView patches={file.patches} path={file.path} /> : <p class="side-note">No line changes to show for this file.</p>
+        ) : <FileView s={s} file={file} turnKey={turn.g.key} shown={shown} />}
+      </div>
     </aside>
   );
 }

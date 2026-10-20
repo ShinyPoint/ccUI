@@ -3,22 +3,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Icon, Menu, Popover } from '../ui.jsx';
 import { MODE_LABELS } from './Prompts.jsx';
-import { api, toast, skillsDialog, confirmDialog } from '../../lib/store.js';
+import { api, toast, confirmDialog } from '../../lib/store.js';
 import { sendMessage, interrupt, setMode, setModel, setEffort, refreshContext } from '../../lib/sessions.js';
+import { commandList, runCommand } from '../../lib/commands.js';
 import { EffortSlider } from './EffortSlider.jsx';
 import { formatTokens, formatCost } from '../../lib/format.js';
 import { SHORTCUTS } from '../../lib/keyboard.js';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-// Commands the app answers itself in a chat, in place of Claude Code's interactive CLI screens.
-const APP_COMMANDS = [
-  { name: 'skills', description: 'Manage skills: turn them on or off, see what they cost in context', run: (s) => { skillsDialog.value = s; } },
-];
-// Claude Code's commands that only work in its CLI. The session names them in its first reply
-// (terminal_slash_commands); these are the ones it names today, for before that.
-const CLI_ONLY = ['doctor', 'color', 'focus', 'reload-plugins'];
-// `/name` at the start of a message (not a path like /usr/bin).
-const commandName = (text) => /^\/([\w:.-]+)(?:\s|$)/.exec(text)?.[1] || null;
 const BASE_MODES = ['default', 'acceptEdits', 'plan'];
 // The mark in front of the permission mode (lib/icons.js), colored per mode in chat.css.
 const MODE_ICONS = {
@@ -126,6 +118,8 @@ export function Composer({ s, prefill }) {
   const [images, setImages] = useState(s.draftImages || []);
   const [ac, setAc] = useState(null); // { kind, query, start, items, index }
   const input = useRef(null);
+  const root = useRef(null);
+  const acList = useRef(null);
   const fileInput = useRef(null);
   const files = useRef(null);
   const historyIndex = useRef(-1);
@@ -171,13 +165,23 @@ export function Composer({ s, prefill }) {
     if (!trigger) return setAc(null);
     let items;
     if (trigger.kind === 'slash') {
-      const hidden = new Set(chat.init?.terminalCommands || CLI_ONLY);
-      items = [...APP_COMMANDS, ...(meta.commands || []).filter((c) => !APP_COMMANDS.some((a) => a.name === c.name))]
-        .filter((c) => !hidden.has(c.name))
-        .filter((c) => c.name.replace(/^\//, '').toLowerCase().includes(trigger.query.toLowerCase()))
-        .sort((a, b) => a.name.replace(/^\//, '').indexOf(trigger.query) - b.name.replace(/^\//, '').indexOf(trigger.query))
-        .slice(0, 8)
-        .map((c) => ({ value: `/${c.name.replace(/^\//, '')}`, label: `/${c.name.replace(/^\//, '')}`, hint: c.argumentHint ? `${c.argumentHint} · ${c.description}` : c.description }));
+      // Every command, those whose name starts with what is typed first, then those with it elsewhere (or in
+      // another name for it). The ones only the CLI can show are marked.
+      const q = trigger.query.toLowerCase();
+      const rank = (c) => {
+        const names = [c.name, ...(c.aliases || [])].map((n) => n.replace(/^\//, '').toLowerCase());
+        if (names[0].startsWith(q)) return 0;
+        if (names.some((n) => n.startsWith(q))) return 1;
+        return names.some((n) => n.includes(q)) ? 2 : -1;
+      };
+      items = commandList(s)
+        .map((c) => [c, rank(c)])
+        .filter(([, r]) => r >= 0)
+        .sort((a, b) => a[1] - b[1])
+        .map(([c]) => {
+          const name = `/${c.name.replace(/^\//, '')}`;
+          return { value: name, label: name, hint: c.argumentHint ? `${c.argumentHint} · ${c.description}` : c.description, cli: c.cli };
+        });
     } else {
       if (!files.current) {
         files.current = await api.listFiles(s.cwd);
@@ -206,30 +210,33 @@ export function Composer({ s, prefill }) {
     });
   }
 
-  // A slash command the chat can't run: the app's own (/skills) runs here; one only Claude Code's CLI has would
-  // otherwise reach Claude as an ordinary message. Returns 'ran' or 'blocked' (the text stays to be fixed), or
-  // false to send it.
-  function handleCommand(value) {
-    const name = commandName(value);
-    if (!name) return false;
-    const own = APP_COMMANDS.find((c) => c.name === name);
-    if (own) {
-      own.run(s);
-      return 'ran';
-    }
-    const commands = meta.commands || [];
-    if (!commands.length) return false; // not loaded yet: let Claude Code decide
-    const known = commands.some((c) => c.name === name || c.aliases?.includes(name));
-    const cliOnly = (chat.init?.terminalCommands || CLI_ONLY).includes(name);
-    if (known && !cliOnly) return false;
-    toast(`/${name} ${known ? 'only works' : 'isn’t a command here. If it is one of Claude Code’s, it works'} in the CLI: switch with the CLI button at the top.`, 'error');
-    return 'blocked';
-  }
+  // What a command (lib/commands.js) may ask of the message box.
+  const ui = {
+    openModelMenu: () => {
+      const button = root.current?.querySelector('.model-menu .menu-button');
+      if (button) button.click();
+      else toast('The models aren’t loaded yet: send a message first.');
+    },
+    openContext: () => {
+      const button = root.current?.querySelector('.context-menu-wrap .menu-button');
+      if (button) button.click();
+      else toast('Context usage shows after Claude’s first reply.');
+    },
+    // After the message box empties for the command that asked.
+    showAll: () => {
+      requestAnimationFrame(() => {
+        setText('/');
+        input.current?.focus();
+        if (input.current) input.current.selectionStart = input.current.selectionEnd = 1;
+        updateAutocomplete('/', 1);
+      });
+    },
+  };
 
   function send() {
     const value = text.trim();
     if (!value && !images.length) return;
-    const handled = !images.length && handleCommand(value);
+    const handled = !images.length && runCommand(s, value, ui);
     if (handled) {
       if (handled === 'ran') setText('');
       setAc(null);
@@ -269,7 +276,9 @@ export function Composer({ s, prefill }) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
         const step = e.key === 'ArrowDown' ? 1 : -1;
-        setAc({ ...ac, index: (ac.index + step + ac.items.length) % ac.items.length });
+        const index = (ac.index + step + ac.items.length) % ac.items.length;
+        setAc({ ...ac, index });
+        requestAnimationFrame(() => acList.current?.children[index]?.scrollIntoView({ block: 'nearest' }));
         return;
       }
       if (e.key === 'Enter' || e.key === 'Tab') {
@@ -311,16 +320,17 @@ export function Composer({ s, prefill }) {
 
   const canSend = text.trim() || images.length;
   return (
-    <div class="chat-composer" onDragOver={(e) => e.preventDefault()}
+    <div class="chat-composer" ref={root} onDragOver={(e) => e.preventDefault()}
          onDrop={(e) => { e.preventDefault(); addFiles([...e.dataTransfer.files]); }}>
       {ac && (
-        <ul class="autocomplete" role="listbox">
+        <ul class="autocomplete" role="listbox" ref={acList}>
           {ac.items.map((item, i) => (
             <li key={item.value}>
               <button type="button" role="option" aria-selected={i === ac.index} class={i === ac.index ? 'selected' : ''}
                       onMouseDown={(e) => { e.preventDefault(); accept(item); }}>
                 <span class="ac-label">{item.label}</span>
                 {item.hint && <span class="ac-hint">{item.hint}</span>}
+                {item.cli && <span class="ac-tag" title="Shown in Claude Code’s CLI: the chat offers to continue there">CLI</span>}
               </button>
             </li>
           ))}
@@ -381,6 +391,7 @@ export function Composer({ s, prefill }) {
         <span class="spacer" />
         {models.length > 0 && (
           <Menu
+            className="model-menu"
             title="Model and effort"
             align="right"
             label={modelLabel}

@@ -5,10 +5,10 @@ import { ToolCard, toolIcon } from './ToolCard.jsx';
 import { PermissionPrompt } from './Prompts.jsx';
 import { Composer } from './Composer.jsx';
 import { FindBar } from './FindBar.jsx';
-import { UserItem, TextItem, ThinkingItem, NoticeItem, CommandOutputItem, TurnItem, DividerItem, WakeItem } from './Items.jsx';
+import { UserItem, TextItem, ThinkingItem, NoticeItem, CommandOutputItem, TurnItem, DividerItem, WakeItem, Markdown } from './Items.jsx';
 import { topLevel, childrenOf, currentActivity, groupTurns, backgroundTasks } from '../../lib/chat-reducer.js';
-import { settings, settingsDialog, findBar } from '../../lib/store.js';
-import { openInTerminal, retryChat, displayName, stopTask, stopAllTasks } from '../../lib/sessions.js';
+import { api, settings, settingsDialog, findBar, toast } from '../../lib/store.js';
+import { openInTerminal, retryChat, displayName, stopTask, stopAllTasks, dismissSideNote } from '../../lib/sessions.js';
 import { formatCost, formatDuration, pluralize } from '../../lib/format.js';
 import { turnChanges } from '../../lib/diff.js';
 import { openChanges } from '../../lib/side.js';
@@ -103,6 +103,34 @@ function AgentStrip({ s, chat }) {
           ))}
         </ul>
       </Collapse>
+    </div>
+  );
+}
+
+// /btw: side questions and their answers, above the message box. They aren't part of the conversation, so they
+// stay here (one at a time is the usual case) until closed.
+function SideNotes({ s }) {
+  const notes = s.sideNotes.value;
+  if (!notes.length) return null;
+  return (
+    <div class="tasks side-notes">
+      {notes.map((n) => (
+        <div class={`side-note-item ${n.state}`} key={n.id}>
+          <div class="side-note-head">
+            <span class="side-note-tag">btw</span>
+            <span class="side-note-q" title={n.question}>{n.question}</span>
+            {n.state === 'done' && (
+              <button class="icon-btn" title="Copy the answer" onClick={() => { api.writeClipboard(n.answer); toast('Copied.'); }}>
+                <Icon name="copy" size={13} />
+              </button>
+            )}
+            <button class="icon-btn" title="Close" onClick={() => dismissSideNote(s, n.id)}><Icon name="x" size={13} /></button>
+          </div>
+          {n.state === 'asking'
+            ? <div class="side-note-wait"><span class="agents-dot busy" />Claude is answering beside the conversation…</div>
+            : <Markdown className="side-note-a" text={n.answer} />}
+        </div>
+      ))}
     </div>
   );
 }
@@ -458,6 +486,7 @@ export function ChatView({ s }) {
               <Icon name="arrowDown" size={14} />Latest
             </button>
           )}
+          <SideNotes s={s} />
           <AgentStrip s={s} chat={chat} />
           <TaskStrip tasks={chat.tasks} busy={chat.busy} />
           <Composer key={s.uid} s={s} prefill={prefill} />

@@ -81,6 +81,16 @@ function applyGlass(on) {
   else win.setBackgroundMaterial(on ? 'acrylic' : 'none');
 }
 
+// One line per problem in <user data>/crash.log, with the memory in use then (kept under 200 KB).
+function logProblem(what) {
+  try {
+    const file = path.join(app.getPath('userData'), 'crash.log');
+    if (fs.existsSync(file) && fs.statSync(file).size > 200 * 1024) fs.renameSync(file, `${file}.old`);
+    const mem = app.getAppMetrics().map((m) => `${m.type} ${Math.round(m.memory.workingSetSize / 1024)}MB`).join(', ');
+    fs.appendFileSync(file, `${new Date().toISOString()} ${what} | ${mem}\n`);
+  } catch { /* nowhere to write */ }
+}
+
 function createWindow() {
   const saved = settings.get().bounds;
   const glass = GLASS_SUPPORTED && settings.get().sidebarGlass;
@@ -134,10 +144,21 @@ function createWindow() {
     ptys.killAll();
     agents.closeAll();
   });
-  win.webContents.on('render-process-gone', () => {
+  // The window's process gone (a crash, or out of memory): noted in crash.log, and the window loads again, which
+  // brings the sessions back from the saved list. Not more than three times in ten minutes.
+  const crashes = [];
+  win.webContents.on('render-process-gone', (_e, details) => {
     ptys.killAll();
     agents.closeAll();
+    logProblem(`window process gone: ${details.reason} (exit code ${details.exitCode})`);
+    if (details.reason === 'clean-exit' || win.isDestroyed()) return;
+    const now = Date.now();
+    crashes.push(now);
+    while (crashes.length && now - crashes[0] > 10 * 60 * 1000) crashes.shift();
+    if (crashes.length <= 3) setTimeout(() => { if (!win.isDestroyed()) win.webContents.reload(); }, 500);
   });
+  win.on('unresponsive', () => logProblem('window not responding'));
+  win.on('responsive', () => logProblem('window responding again'));
 
   // Never navigate away from the app shell; links open in the system browser.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -343,6 +364,34 @@ function registerIpc() {
     }
   });
   ipc.handle('files:list', (_e, cwd) => listFiles(cwd).catch(() => []));
+  // /export: the conversation as text, saved where the user picks (the system's Save dialog).
+  ipc.handle('dialog:save-text', async (_e, { name, text, cwd }) => {
+    if (typeof text !== 'string') return { ok: false, error: 'Nothing to save.' };
+    const result = await dialog.showSaveDialog(win, {
+      title: 'Export the conversation',
+      defaultPath: path.join(cwd && fs.existsSync(cwd) ? cwd : app.getPath('documents'), path.basename(String(name || 'conversation.txt'))),
+    });
+    if (result.canceled || !result.filePath) return { ok: false, canceled: true };
+    try {
+      fs.writeFileSync(result.filePath, text);
+      return { ok: true, path: result.filePath };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+  // /memory: opens an instructions file Claude Code reads in the system's editor, created empty if it isn't there
+  // yet. Only CLAUDE.md / CLAUDE.local.md, in a folder that exists.
+  ipc.handle('files:open-memory', async (_e, file) => {
+    const full = path.resolve(String(file || ''));
+    if (!/^CLAUDE(\.local)?\.md$/i.test(path.basename(full)) || !fs.existsSync(path.dirname(full))) return { ok: false, error: 'Not an instructions file.' };
+    try {
+      if (!fs.existsSync(full)) fs.writeFileSync(full, '', { flag: 'wx' });
+      const error = await shell.openPath(full);
+      return error ? { ok: false, error } : { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
   ipc.handle('files:read', (_e, cwd, file) => readProjectFile(cwd, file).catch(() => ({ ok: false, reason: 'missing' })));
 
   ipc.handle('clipboard:read', () => clipboard.readText());

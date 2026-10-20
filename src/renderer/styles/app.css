@@ -121,7 +121,8 @@ kbd {
 }
 .drag { -webkit-app-region: drag; }
 .no-drag, .drag button, .drag input { -webkit-app-region: no-drag; }
-[data-icon] svg { width: 16px; height: 16px; display: block; }
+/* An icon keeps its size when its row runs out of room (the text next to it is what gives way). */
+svg.icon { flex-shrink: 0; }
 
 /* Scrollbars, everywhere: a thin rounded thumb that shows while you hover (or type in) the area,
    no track, no arrows, kept clear of rounded corners. The transparent border makes the visible thumb
@@ -254,7 +255,7 @@ html.has-bg #stage,
 html.has-bg .bottom-panel { background: color-mix(in srgb, var(--surface) 45%, transparent); }
 html.has-bg #stage.term-dark,
 html.has-bg .bottom-panel.term-dark .panel-body { background: rgba(22, 22, 24, .6); } /* = DARK.background */
-html.has-bg .panel-head { background: color-mix(in srgb, var(--base) 40%, transparent); }
+html.has-bg .panel-head { background: transparent; }
 html.has-bg .chat, html.has-bg .composer { background: transparent; }
 html.has-bg .chip { background: color-mix(in srgb, var(--surface) 60%, transparent); }
 html.has-bg .chat-bottom::before { display: none; }
@@ -420,8 +421,7 @@ body.platform-darwin .sidebar-top { padding-left: 84px; }
   color: var(--text-2);
 }
 .recent-open span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.recent-open [data-icon] { color: var(--muted); flex-shrink: 0; }
-.recent-open [data-icon] svg { width: 14px; height: 14px; }
+.recent-open .icon { color: var(--muted); }
 .recent .icon-btn { width: 24px; height: 24px; opacity: 0; }
 .recent:hover .icon-btn, .recent .icon-btn:focus-visible { opacity: 1; }
 .recent .icon-btn svg { width: 14px; height: 14px; }
@@ -514,7 +514,7 @@ body.sidebar-collapsed.platform-darwin #topbar { padding-left: 84px; }
   white-space: nowrap;
   transition: background .15s;
 }
-.project-btn [data-icon] { color: var(--accent); flex-shrink: 0; }
+.project-btn .icon { color: var(--accent); }
 .project-btn span { overflow: hidden; text-overflow: ellipsis; }
 .project-btn:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
 :is(html.glass, html.has-bg) :is(#topbar, .composer) :is(.icon-btn, .text-btn, .chip):hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
@@ -866,10 +866,10 @@ body.no-session .composer { display: none; }
   text-align: left;
   transition: background .15s, color .15s;
 }
-.settings-nav button [data-icon] { color: var(--muted); transition: color .15s; }
+.settings-nav button .icon { color: var(--muted); transition: color .15s; }
 .settings-nav button:hover { background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text); }
 .settings-nav button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
-.settings-nav button.on [data-icon] { color: var(--accent); }
+.settings-nav button.on .icon { color: var(--accent); }
 .settings-nav .spacer { flex: 1; }
 .settings-saved { margin: 0 8px; font-size: 11.5px; line-height: 1.4; color: var(--muted); }
 
@@ -923,7 +923,7 @@ body.no-session .composer { display: none; }
 
 .key-saved { align-items: center; }
 .key-state { display: inline-flex; align-items: center; gap: 7px; flex: 1; color: var(--text-2); }
-.key-state [data-icon] { color: var(--ok); }
+.key-state .icon { color: var(--ok); }
 .set-control .input-row .secondary-btn { flex-shrink: 0; }
 
 .set-row.shortcut { min-height: 40px; padding: 7px 16px; color: var(--text-2); }
@@ -932,6 +932,13 @@ body.no-session .composer { display: none; }
 /* ---------- Skills (SkillsDialog.jsx, /skills in a chat) ---------- */
 .dialog-skills { width: min(820px, calc(100vw - 48px)); }
 .dialog-skills .dialog-body { display: flex; flex-direction: column; max-height: calc(100vh - 64px); }
+/* /status, /memory, /mcp in a chat. */
+.dialog-info { width: min(620px, calc(100vw - 48px)); }
+.dialog-info .dialog-body { display: flex; flex-direction: column; max-height: calc(100vh - 64px); }
+.info-note { margin: -4px 0 14px; color: var(--muted); font-size: 13px; }
+.info-body { min-height: 0; overflow: auto; margin: 0 -4px; padding: 2px 4px; }
+.info-value { display: block; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); font-size: 13px; user-select: text; }
+.info-value.mono { font: 12px var(--mono); }
 .skills { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .skills-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .skills-search {

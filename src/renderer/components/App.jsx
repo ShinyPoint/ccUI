@@ -6,6 +6,7 @@ import { TerminalStack, TerminalOverlay, TerminalComposer } from './TerminalPane
 import { NewSessionDialog } from './dialogs/NewSessionDialog.jsx';
 import { SettingsDialog } from './dialogs/SettingsDialog.jsx';
 import { SkillsDialog } from './dialogs/SkillsDialog.jsx';
+import { InfoDialog } from './dialogs/InfoDialog.jsx';
 import { SidePanel } from './SidePanel.jsx';
 import { toggleChanges } from '../lib/side.js';
 import {
@@ -194,6 +195,7 @@ export function App() {
       <NewSessionDialog />
       <SettingsDialog />
       <SkillsDialog />
+      <InfoDialog />
       <Toasts />
       <ContextMenu />
       <ConfirmHost />

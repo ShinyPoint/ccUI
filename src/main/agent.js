@@ -348,6 +348,26 @@ class AgentSession {
           await this.q.reloadSkills();
           await this.refreshCommands();
           return { ok: true, value: await this.listSkills() };
+        // Commands whose CLI screen the chat shows its own way (lib/commands.js). Some of these calls are in the
+        // SDK's runtime but not (yet) in its typings.
+        // /btw: a quick side question, answered without touching the conversation. { response } or null.
+        case 'side-question':
+          if (typeof arg !== 'string' || !arg.trim()) return { ok: false, error: 'No question given.' };
+          return { ok: true, value: await this.q.askSideQuestion(arg.trim()) };
+        // /status: { sections: [{ title, rows: [{ label, value }] }] }
+        case 'status': return { ok: true, value: await this.q.getStatus() };
+        // /export: { text, default_filename }
+        case 'export': return { ok: true, value: await this.q.exportConversation() };
+        // /memory: { files: [{ kind, path, label, description, exists }], folders: [...] }
+        case 'memory': return { ok: true, value: await this.q.getMemoryDialog() };
+        // /mcp: [{ name, status, ... }]
+        case 'mcp-status': return { ok: true, value: await this.q.mcpServerStatus() };
+        case 'mcp-reconnect': await this.q.reconnectMcpServer(arg); return { ok: true };
+        // /rename: the title stored with the conversation (what Claude Code's own lists show).
+        case 'rename':
+          if (typeof arg !== 'string' || !arg.trim()) return { ok: false, error: 'No name given.' };
+          await this.q.renameSession(arg.trim());
+          return { ok: true };
         default: return { ok: false, error: `Unknown action ${action}` };
       }
     } catch (err) {
@@ -416,10 +436,12 @@ async function loadHistory(sessionId, cwd) {
   return messages.map((m) => slim({ ...m, message: m.message }));
 }
 
-// A copy of the conversation that ends just before the user's message `uuid` (the original is kept).
-// Returns { sessionId } to resume, with sessionId null when that message was the first one.
+// A copy of the conversation that ends just before the user's message `uuid` (the original is kept), or a
+// copy of all of it without `uuid` (/branch). Returns { sessionId } to resume, with sessionId null when that
+// message was the first one.
 async function forkBefore(sessionId, cwd, uuid) {
   const sdk = await loadSdk();
+  if (!uuid) return sdk.forkSession(sessionId, { dir: cwd });
   const messages = await sdk.getSessionMessages(sessionId, { dir: cwd });
   const at = messages.findIndex((m) => m.uuid === uuid);
   if (at < 0) throw new Error('This message is not in the saved conversation, so it cannot be used as a starting point.');

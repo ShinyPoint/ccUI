@@ -353,7 +353,7 @@ function Shortcuts() {
 // ---------- the dialog ----------
 
 function SettingsPanel({ start }) {
-  const [section, setSection] = useState(start === 'account' ? 'claude' : lastSection);
+  const [section, setSection] = useState(start === 'account' ? 'claude' : SECTIONS.some((x) => x.id === start) ? start : lastSection);
   const body = useRef(null);
   // Opening the dialog focuses its first button, with a focus ring; the page (or the key field, when Settings
   // opened for it) is marked autofocus instead. showModal runs after this renders, so a focus() here would lose.

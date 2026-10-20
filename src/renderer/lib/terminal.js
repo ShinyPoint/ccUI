@@ -32,6 +32,10 @@ function options() {
     fontSize: s.fontSize,
     lineHeight: s.lineHeight,
     cursorBlink: s.cursorBlink,
+    // A thin bar, like a text field's, rather than a solid block; unfocused, a dimmer outline of it.
+    cursorStyle: 'bar',
+    cursorWidth: 2,
+    cursorInactiveStyle: 'bar',
     scrollback: s.scrollback,
     theme: xtermTheme(terminalMode(), s.accent, seeThrough()),
     // Claude Code paints with its own 24-bit colors, picked for its own theme. On a background they weren't
