@@ -152,7 +152,8 @@ app.on('browser-window-created', (_e, win) => {
       // Color themes tint the surfaces, not the buttons: Clay is Claude's desktop palette, the accent stays.
       const colors = () => js(`JSON.stringify((() => { const cs = getComputedStyle(document.documentElement); const btn = getComputedStyle(document.querySelector('.new-session'));
         return { surface: cs.getPropertyValue('--surface').trim(), chrome: cs.getPropertyValue('--chrome').trim(), accent: cs.getPropertyValue('--accent').trim(),
-          button: btn.backgroundColor + ' ' + btn.color, body: getComputedStyle(document.body).backgroundColor }; })())`).then(JSON.parse);
+          button: btn.backgroundColor + ' ' + btn.color, body: getComputedStyle(document.body).backgroundColor,
+          card: getComputedStyle(document.querySelector('.dialog .set-card')).backgroundColor }; })())`).then(JSON.parse);
       const plain = await colors();
       await js("document.querySelector('.swatch input[value=\"ember\"]').click(); true");
       await wait(300);
@@ -160,6 +161,8 @@ app.on('browser-window-created', (_e, win) => {
       const CLAY = THEME === 'light' ? { surface: '#FAF9F5', chrome: '#F5F4ED' } : { surface: '#262624', chrome: '#1F1E1D' };
       check('Clay turns the surfaces to Claude’s palette', clay.surface === CLAY.surface && clay.chrome === CLAY.chrome && clay.body !== plain.body, `${JSON.stringify(plain)} → ${JSON.stringify(clay)}`);
       check('and leaves the buttons and the accent as they were', clay.accent === plain.accent && clay.button === plain.button, `${plain.button} → ${clay.button}`);
+      // Settings' cards too: on light, Clay's paper rather than a cold white on its warm dialog.
+      check('and tints the Settings cards with them', clay.card !== plain.card && (THEME !== 'light' || clay.card === 'rgb(250, 249, 245)'), `${plain.card} → ${clay.card}`);
       await shot('4-clay');
       await js("document.querySelector('.swatch input[value=\"black\"]').click(); true");
       await wait(300);

@@ -97,7 +97,8 @@
   --glow: 0 0 0 .5px rgba(0, 0, 0, .07), 0 1px 2px rgba(0, 0, 0, .04), 0 6px 18px -6px rgba(0, 0, 0, .08);
   --btn: #FFFFFF;
   --btn-hover: #FFFFFF;
-  --card: #FFFFFF;
+  /* The page's lightest surface, so a color theme tints the cards too (Clay's paper, not a cold white on it). */
+  --card: var(--surface);
   --fill: color-mix(in srgb, var(--text) 5%, transparent);
   --fill-2: color-mix(in srgb, var(--text) 8%, transparent);
   --hair: color-mix(in srgb, var(--text) 8%, transparent);
