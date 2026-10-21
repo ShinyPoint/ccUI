@@ -11,7 +11,7 @@ import '@xterm/xterm/css/xterm.css';
 import './styles/app.css';
 import './styles/chat.css';
 import { api, info, settings, saveSettings, claudeCheck, claudeUpdate, themeMode, sessions, active, backgroundUrl, toast, confirmDialog } from './lib/store.js';
-import { accentColors } from './lib/themes.js';
+import { paletteTokens } from './lib/themes.js';
 import { applyTerminalOptions, fitTerminal } from './lib/terminal.js';
 import { installShortcuts } from './lib/keyboard.js';
 import { installTooltips } from './lib/tooltip.js';
@@ -42,10 +42,11 @@ effect(() => {
   document.documentElement.dataset.theme = themeMode.value;
 });
 effect(() => {
-  // Overrides the default (Black) --accent of the theme; everything accent-tinted derives from these two.
-  const { accent, ink } = accentColors(settings.value.accent, themeMode.value);
-  document.documentElement.style.setProperty('--accent', accent);
-  document.documentElement.style.setProperty('--accent-ink', ink);
+  // The color theme tints the surfaces and greys (Default leaves app.css's own); everything else derives from them.
+  for (const [name, value] of Object.entries(paletteTokens(settings.value.accent, themeMode.value))) {
+    if (value) document.documentElement.style.setProperty(name, value);
+    else document.documentElement.style.removeProperty(name);
+  }
 });
 effect(() => {
   document.documentElement.style.setProperty('--chat-size', `${settings.value.chatFontSize || 14}px`);

@@ -105,7 +105,7 @@ app.on('browser-window-created', (_e, win) => {
       // Black is the default accent; the folder of the conversation on screen shows it, the others are faint.
       await wait(400);
       const accent = await js("getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()");
-      check('the default accent is black (white on dark)', /^#(000000|ffffff)$/i.test(accent), accent);
+      check('the default accent is black (white on dark)', /^#(000(000)?|fff(fff)?)$/i.test(accent), accent);
       const icons = JSON.parse(await js("JSON.stringify([...document.querySelectorAll('#sidebar .folder')].map((f) => ({ active: f.classList.contains('has-active'), color: getComputedStyle(f.querySelector('.folder-icon')).color })))"));
       const mine = icons.find((i) => i.active);
       check('the current conversation’s folder icon is in the accent color, the others are not', Boolean(mine) && /rgb\((0, 0, 0|255, 255, 255)\)/.test(mine.color)

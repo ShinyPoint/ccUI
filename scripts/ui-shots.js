@@ -87,14 +87,14 @@ app.on('browser-window-created', (_e, win) => {
       await js(`document.querySelector('.sidebar-bottom .icon-btn').click()`);
       await wait(1200);
       await shot('4-terminal-panel-light');
-      // Accent color: pick Blue in Settings, then save and see it applied.
+      // Color theme: pick Clay in Settings, then save and see it applied.
       await js(`[...document.querySelectorAll('.sidebar-bottom button')].find((b) => b.textContent.includes('Settings')).click()`);
       for (let i = 0; i < 40 && !(await js(`Boolean(document.querySelector('.settings-nav'))`)); i++) await wait(100);
       await js(`[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent.includes('Appearance')).click()`);
       await wait(200);
-      await js(`document.querySelector('.swatch input[value="blue"]').click()`);
+      await js(`document.querySelector('.swatch input[value="ember"]').click()`);
       await wait(300);
-      await shot('5-accent-picker');
+      await shot('5-color-theme-picker');
       // Also turn on suggested prompts, then empty the message box to see the intro with them.
       await js(`[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent.includes('General')).click()`);
       await wait(200);
@@ -114,7 +114,7 @@ app.on('browser-window-created', (_e, win) => {
         el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); }`);
       await wait(800);
       console.log('centering with suggestions:', await js(MEASURE));
-      await shot('6-accent-blue-light');
+      await shot('6-clay-light');
       // Claude Code's own CLI in the same session (nothing is sent), with the Terminal panel still open.
       await js(`[...document.querySelectorAll('.text-btn')].find((b) => b.textContent.trim() === 'CLI').click()`);
       await wait(7000);

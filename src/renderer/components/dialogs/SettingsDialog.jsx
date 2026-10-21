@@ -7,7 +7,7 @@ import { MODE_LABELS } from '../chat/Prompts.jsx';
 import { MODEL_CHOICES } from './NewSessionDialog.jsx';
 import { api, info, settings, saveSettings, settingsDialog, claudeCheck, claudeUpdate, toast, themeMode, backgroundUrl } from '../../lib/store.js';
 import { SHORTCUT_LIST } from '../../lib/keyboard.js';
-import { ACCENTS, accentColors } from '../../lib/themes.js';
+import { PALETTES } from '../../lib/themes.js';
 import { t, phrase, LANGUAGES, systemLocale } from '../../lib/i18n.js';
 
 const PERMISSION_MODES = ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'];
@@ -70,12 +70,12 @@ function TextField({ value, onSave, placeholder, mono = true, label }) {
   );
 }
 
-// A row of round color swatches, like macOS's accent color setting.
-function AccentPicker({ value, onChange }) {
+// A row of round color swatches, one per color theme (lib/themes.js), like macOS's accent color setting.
+function PalettePicker({ value, onChange }) {
   return (
-    <div class="swatches" role="radiogroup" aria-label={t('Accent color')}>
-      {Object.entries(ACCENTS).map(([name, a]) => (
-        <label key={name} class="swatch" title={t(a.label)} style={{ '--swatch': accentColors(name, themeMode.value).accent }}>
+    <div class="swatches" role="radiogroup" aria-label={t('Color theme')}>
+      {Object.entries(PALETTES).map(([name, p]) => (
+        <label key={name} class="swatch" title={t(p.label)} style={{ '--swatch': p.swatch[themeMode.value] }}>
           <input type="radio" name="accent" value={name} checked={value === name} onChange={() => onChange(name)} />
           <span />
         </label>
@@ -272,7 +272,7 @@ function General() {
 
 function Appearance() {
   const s = settings.value;
-  const accent = ACCENTS[s.accent] ? s.accent : 'black';
+  const palette = PALETTES[s.accent] ? s.accent : 'black';
   const glassSupported = info.value.glassSupported;
   return (
     <>
@@ -284,8 +284,8 @@ function Appearance() {
             { value: 'light', label: t('Light') },
           ]} />
         </Row>
-        <Row label={t('Accent color')} note={t(ACCENTS[accent].label)}>
-          <AccentPicker value={accent} onChange={(v) => saveSettings({ accent: v })} />
+        <Row label={t('Color theme')} note={t(PALETTES[palette].label)}>
+          <PalettePicker value={palette} onChange={(v) => saveSettings({ accent: v })} />
         </Row>
         <SliderRow setting="chatFontSize" label={t('Chat text size')} min={11} max={22} step={1} format={(v) => `${v}px`} />
       </Group>

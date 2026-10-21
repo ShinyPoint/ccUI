@@ -62,8 +62,9 @@ Runs on Windows, macOS and Linux, in English or Simplified Chinese.
 - Sessions come back when you relaunch, with their history and titles; resume any earlier conversation in a folder.
   A chat you haven't looked at for 20 minutes lets its Claude Code process go (it holds a few hundred MB) and starts
   it again on the same conversation when you select it.
-- Dark and light themes, three accent colors, adjustable text sizes, frosted glass, and a background image of your
-  own. The app draws its own window buttons, menus, dialogs and tooltips.
+- Dark and light themes in three color themes (neutral Default, Pink, and Clay: Claude's warm desktop palette),
+  adjustable text sizes, frosted glass, and a background image of your own. The app draws its own window buttons,
+  menus, dialogs and tooltips.
 - English or Simplified Chinese (简体中文), following the system until you pick one in Settings → General.
 - Claude Code stays current without an app update: Settings → Claude Code → Updates fetches the newest build from
   npm, checks it against its published sha512 and uses it for new sessions.

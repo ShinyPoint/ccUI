@@ -107,7 +107,7 @@ export default {
   System: '跟随系统',
   Dark: '深色',
   Light: '浅色',
-  'Accent color': '强调色',
+  'Color theme': '配色',
   Default: '默认',
   Pink: '粉色',
   Clay: '陶土色',

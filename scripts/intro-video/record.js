@@ -291,7 +291,7 @@ app.on('browser-window-created', (_e, win) => {
     await sleep(500);
 
     // 9. Appearance
-    caption('Light or dark, an accent color, your own background.');
+    caption('Light or dark, a color theme, your own background.');
     await click(['.sidebar-bottom .icon-btn']);
     await sleep(2000);
     await click(['.sidebar-bottom .ghost-btn']);

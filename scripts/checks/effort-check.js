@@ -147,6 +147,22 @@ app.on('browser-window-created', (_e, win) => {
         return { h: Math.round(i.getBoundingClientRect().height), appearance: cs.appearance, f: i.style.getPropertyValue('--f') }; })())`));
       check('Settings sliders are drawn as the same pill', slider && slider.h === 22 && slider.appearance === 'none' && slider.f !== '', JSON.stringify(slider));
       await shot('3-settings');
+
+      // Color themes tint the surfaces, not the buttons: Clay is Claude's desktop palette, the accent stays.
+      const colors = () => js(`JSON.stringify((() => { const cs = getComputedStyle(document.documentElement); const btn = getComputedStyle(document.querySelector('.new-session'));
+        return { surface: cs.getPropertyValue('--surface').trim(), chrome: cs.getPropertyValue('--chrome').trim(), accent: cs.getPropertyValue('--accent').trim(),
+          button: btn.backgroundColor + ' ' + btn.color, body: getComputedStyle(document.body).backgroundColor }; })())`).then(JSON.parse);
+      const plain = await colors();
+      await js("document.querySelector('.swatch input[value=\"ember\"]').click(); true");
+      await wait(300);
+      const clay = await colors();
+      const CLAY = THEME === 'light' ? { surface: '#FAF9F5', chrome: '#F5F4ED' } : { surface: '#262624', chrome: '#1F1E1D' };
+      check('Clay turns the surfaces to Claude’s palette', clay.surface === CLAY.surface && clay.chrome === CLAY.chrome && clay.body !== plain.body, `${JSON.stringify(plain)} → ${JSON.stringify(clay)}`);
+      check('and leaves the buttons and the accent as they were', clay.accent === plain.accent && clay.button === plain.button, `${plain.button} → ${clay.button}`);
+      await shot('4-clay');
+      await js("document.querySelector('.swatch input[value=\"black\"]').click(); true");
+      await wait(300);
+      check('Default brings the neutral greys back', (await colors()).surface === plain.surface);
     } catch (err) {
       console.error('failed:', err);
       failures++;
