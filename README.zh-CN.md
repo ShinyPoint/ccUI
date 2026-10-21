@@ -1,19 +1,55 @@
-# ccUI
+<div align="center">
 
-[English](README.md) | 简体中文
+<img src="assets/icon.png" width="128" alt="ccUI">
 
-一个用来使用 [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) 的桌面应用。每个会话都以**对话**形式打开：
-Claude 的回复、每一处文件编辑的 diff、每条命令及其输出，权限请求则变成按钮。任何会话都可以切换到 Claude Code
-自带的**终端**界面再切回来，对话保持不变。支持 Windows、macOS 和 Linux，界面可选英文或简体中文。
+<h1>ccUI</h1>
 
-![ccUI：一段对话，包含 Claude 的处理步骤、以 diff 显示的编辑和一条被拒绝的命令，侧边栏按项目分组列出会话](docs/screenshot.jpg)
+<p><b>把 Claude Code 变成桌面应用。</b></p>
 
+<p>每处编辑都是 diff，每个权限请求都是按钮，多个会话并排运行，<br>
+Claude Code 自带的 CLI 一键可达，对话始终是同一个。</p>
+
+<p>
+<a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-D97757?style=flat-square"></a>
+<img alt="Windows, macOS, Linux" src="https://img.shields.io/badge/platform-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-1D1D1F?style=flat-square">
+<img alt="Electron" src="https://img.shields.io/badge/Electron-44-47848F?style=flat-square&logo=electron&logoColor=white">
+<img alt="Claude Agent SDK" src="https://img.shields.io/badge/Claude%20Agent%20SDK-0.3-D97757?style=flat-square&logo=anthropic&logoColor=white">
+<img alt="English and Simplified Chinese" src="https://img.shields.io/badge/UI-English%20%7C%20%E7%AE%80%E4%BD%93%E4%B8%AD%E6%96%87-1D1D1F?style=flat-square">
+</p>
+
+<p><a href="README.md">English</a> · <b>简体中文</b></p>
+
+<img src="docs/screenshot.jpg" width="100%" alt="ccUI：一段对话，包含 Claude 的处理步骤、以 diff 显示的编辑和一条被拒绝的命令，侧边栏按项目分组列出会话">
+
+</div>
+
+> [!NOTE]
 > ccUI 是独立项目，并非由 Anthropic 开发、认可或提供支持。
+
+## 亮点
+
+<table>
+<tr>
+<td width="50%" valign="top"><img src="docs/permissions.jpg" alt="权限请求：允许、允许并不再询问、拒绝，下方是任务清单"><br>
+<b>权限请求就是按钮。</b>允许一次、允许并以后不再询问（会显示具体添加的规则），或者拒绝并附一句话，告诉 Claude
+应该改做什么。Claude 的任务清单实时显示在输入框上方。</td>
+<td width="50%" valign="top"><img src="docs/question.jpg" alt="Claude 的选择题显示为表单"><br>
+<b>问题变成表单。</b>Claude 的选择题、待批准的计划，以及它的每一步都清楚地占一行：读了什么、搜了什么、改了什么、
+运行了什么。</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/cli.jpg" alt="同一段对话在 Claude Code 自带的 CLI 中继续"><br>
+<b>真正的 CLI，一键切换。</b>在 Claude Code 自带的终端界面中继续同一段对话，再切回对话视图。每个会话下方还停靠着
+一个项目文件夹中的 shell。</td>
+<td width="50%" valign="top"><img src="docs/theme.jpg" alt="陶土色配色叠加背景图片"><br>
+<b>随心定制。</b>深色或浅色、Claude 桌面版的暖色调陶土色、毛玻璃效果、自己的背景图片，界面可选英文或简体中文。</td>
+</tr>
+</table>
 
 ## 目录
 
-- [功能](#功能)
 - [快速开始](#快速开始)
+- [功能](#功能)
 - [账户与登录](#账户与登录)
 - [安全](#安全)
 - [快捷键](#快捷键)
@@ -21,6 +57,20 @@ Claude 的回复、每一处文件编辑的 diff、每条命令及其输出，�
 - [打包](#打包)
 - [项目结构](#项目结构)
 - [许可证](#许可证)
+
+## 快速开始
+
+目前还没有预编译的发行版，请从源码构建。
+
+```bash
+git clone https://github.com/ShinyPoint/ccUI.git
+cd ccUI
+npm install
+npm start          # 构建窗口，然后打开应用
+```
+
+要求：Node.js 20 或更高版本。不需要 C++ 工具链：终端模块（`@lydell/node-pty`）和 Claude Code 都是预编译的二进制文件。
+Claude Code 可执行文件随 Agent SDK 一起提供；也可以在 设置 → Claude Code → 可执行文件 中指定其他 `claude` 版本。
 
 ## 功能
 
@@ -31,8 +81,10 @@ Claude 的回复、每一处文件编辑的 diff、每条命令及其输出，�
 - 权限请求出现在需要它的那一步上：**允许**、**允许，以后不再询问**（会明确显示将添加哪条规则），或**拒绝**并附一句话，
   告诉 Claude 应该改做什么。
 - Claude 的选择题会变成表单；计划模式下的计划会显示为带**批准计划**按钮的卡片。
-- 输入框支持 `/` 命令和 `@` 文件自动补全、粘贴和拖入图片、**Esc** 停止、**Shift+Tab** 切换权限模式；模型菜单里可以调
-  推理强度；上下文圆环在 Claude 工作时实时更新（点击可查看上下文窗口的占用、本次会话的费用，以及压缩对话）。
+- 输入框支持 `/` 命令和 `@` 文件自动补全、粘贴和拖入图片、**Esc** 停止、**Shift+Tab** 切换权限模式；上下文圆环在
+  Claude 工作时实时更新（点击可查看上下文窗口的占用、本次会话的费用，以及压缩对话）。
+- 顶栏：点击项目名称展开项目文件夹列表（选择一个即在该文件夹中开始新对话），旁边是带推理强度滑块的模型菜单；文件夹按钮
+  会在文件资源管理器或访达中打开项目。
 - Claude 工作时发送的消息会标记为*排队中*，Claude 会在下一步读取。**停止**会结束本轮处理，并把排队的消息放回输入框。
 - 对你发出的任意消息（悬停或右键）：**复制**、**编辑并重新发送**（回到这条消息之前重新发送，可选择同时撤销 Claude 此后的
   文件改动）、**撤销此后的文件改动**，以及**从这里分支到新对话**。
@@ -59,20 +111,6 @@ Claude 的回复、每一处文件编辑的 diff、每条命令及其输出，�
 - 英文或简体中文界面，默认跟随系统，可在 设置 → 通用 中切换。
 - Claude Code 无需更新应用即可保持最新：设置 → Claude Code → 更新 会从 npm 获取最新版本，用其公布的 sha512 校验后
   用于新会话。
-
-## 快速开始
-
-目前还没有预编译的发行版，请从源码构建。
-
-```bash
-git clone https://github.com/ShinyPoint/ccUI.git
-cd ccUI
-npm install
-npm start          # 构建窗口，然后打开应用
-```
-
-要求：Node.js 20 或更高版本。不需要 C++ 工具链：终端模块（`@lydell/node-pty`）和 Claude Code 都是预编译的二进制文件。
-Claude Code 可执行文件随 Agent SDK 一起提供；也可以在 设置 → Claude Code → 可执行文件 中指定其他 `claude` 版本。
 
 ## 账户与登录
 
@@ -144,6 +182,9 @@ Claude Code，但不发送提示词；`check:update` 会从 npm 下载。以下�
 `check:actions`、`check:find`、`npm run sdk-check`。
 
 调试：`CCUI_RECORD=stream.jsonl npm start` 会保存每一条原始 SDK 消息，方便编写 reducer 测试。
+
+在 Windows 上，`npm start` 和 `npm run dev` 会以 `ccUI.exe` 运行应用：它是本地 `electron.exe` 的副本，带有 ccUI 的名称和图标
+（`scripts/launch.mjs`，每次安装 Electron 后生成一次），这样任务栏显示的是 ccUI 而不是 Electron。
 
 ### 翻译
 

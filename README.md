@@ -1,20 +1,56 @@
-# ccUI
+<div align="center">
 
-English | [简体中文](README.zh-CN.md)
+<img src="assets/icon.png" width="128" alt="ccUI">
 
-A desktop app for working with [Claude Code](https://docs.claude.com/en/docs/claude-code/overview). Sessions open as
-a **chat**: Claude's replies, every file edit as a diff, every command with its output, and permission requests as
-buttons. Any session can switch to Claude Code's own **terminal** interface and back, keeping the same conversation.
-Runs on Windows, macOS and Linux, in English or Simplified Chinese.
+<h1>ccUI</h1>
 
-![ccUI: a chat with Claude’s steps, an edit as a diff and a denied command, sessions grouped by project in the sidebar](docs/screenshot.jpg)
+<p><b>Claude Code, as a desktop app.</b></p>
 
+<p>Every edit as a diff, every permission as a button, many sessions side by side,<br>
+and Claude Code's own CLI one click away, on the same conversation.</p>
+
+<p>
+<a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-D97757?style=flat-square"></a>
+<img alt="Windows, macOS, Linux" src="https://img.shields.io/badge/platform-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-1D1D1F?style=flat-square">
+<img alt="Electron" src="https://img.shields.io/badge/Electron-44-47848F?style=flat-square&logo=electron&logoColor=white">
+<img alt="Claude Agent SDK" src="https://img.shields.io/badge/Claude%20Agent%20SDK-0.3-D97757?style=flat-square&logo=anthropic&logoColor=white">
+<img alt="English and Simplified Chinese" src="https://img.shields.io/badge/UI-English%20%7C%20%E7%AE%80%E4%BD%93%E4%B8%AD%E6%96%87-1D1D1F?style=flat-square">
+</p>
+
+<p><b>English</b> · <a href="README.zh-CN.md">简体中文</a></p>
+
+<img src="docs/screenshot.jpg" width="100%" alt="ccUI: a chat with Claude's steps, an edit as a diff and a denied command, sessions grouped by project in the sidebar">
+
+</div>
+
+> [!NOTE]
 > ccUI is an independent project. It is not made, endorsed or supported by Anthropic.
+
+## Highlights
+
+<table>
+<tr>
+<td width="50%" valign="top"><img src="docs/permissions.jpg" alt="A permission prompt with Allow, Allow and don't ask again, and Deny, and the task list below it"><br>
+<b>Permissions are buttons.</b> Allow once, allow and don't ask again (it shows the exact rule), or deny with a note
+that tells Claude what to do instead. Claude's task list follows along above the message box.</td>
+<td width="50%" valign="top"><img src="docs/question.jpg" alt="Claude's multiple-choice question shown as a form"><br>
+<b>Questions become forms.</b> Claude's multiple-choice questions, plans to approve, and every step it takes as one
+readable row: what it read, searched, changed and ran.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/cli.jpg" alt="The same conversation in Claude Code's own CLI"><br>
+<b>The real CLI, one click away.</b> Continue the same conversation in Claude Code's own terminal interface, then
+come back to the chat. A shell in the project folder is docked under every session too.</td>
+<td width="50%" valign="top"><img src="docs/theme.jpg" alt="The Clay color theme over a background image"><br>
+<b>Make it yours.</b> Dark or light, the warm Clay palette of Claude's desktop app, frosted glass, your own
+background image, and an interface in English or Simplified Chinese.</td>
+</tr>
+</table>
 
 ## Contents
 
-- [Features](#features)
 - [Getting started](#getting-started)
+- [Features](#features)
 - [Accounts and sign-in](#accounts-and-sign-in)
 - [Safety](#safety)
 - [Keyboard](#keyboard)
@@ -22,6 +58,21 @@ Runs on Windows, macOS and Linux, in English or Simplified Chinese.
 - [Packaging](#packaging)
 - [Project layout](#project-layout)
 - [License](#license)
+
+## Getting started
+
+There are no prebuilt releases yet: build it from source.
+
+```bash
+git clone https://github.com/ShinyPoint/ccUI.git
+cd ccUI
+npm install
+npm start          # builds the window, then opens the app
+```
+
+Requirements: Node.js 20 or newer. No C++ toolchain is needed: the terminal module (`@lydell/node-pty`) and Claude
+Code come as prebuilt binaries. The Claude Code executable ships with the Agent SDK; Settings → Claude Code →
+Executable can point at another `claude` build instead.
 
 ## Features
 
@@ -35,8 +86,10 @@ Runs on Windows, macOS and Linux, in English or Simplified Chinese.
   which rule gets added), or **Deny** with a note telling Claude what to do instead.
 - Claude's multiple-choice questions become a form; plans (plan mode) get an **Approve plan** card.
 - Message box with `/` command and `@` file autocomplete, image paste and drag-and-drop, **Esc** to stop,
-  **Shift+Tab** to cycle permission modes, a model menu with an effort slider, and a context ring that follows the
-  conversation while Claude works (click it for what fills the context window, the session's cost, and Compact).
+  **Shift+Tab** to cycle permission modes, and a context ring that follows the conversation while Claude works
+  (click it for what fills the context window, the session's cost, and Compact).
+- The top bar: the project's name opens the list of project folders (choosing one starts a new chat there), then
+  the model menu with its effort slider; the folder button opens the project in File Explorer or Finder.
 - Messages sent while Claude works are marked *Queued*: Claude reads them at its next step. **Stop** ends the turn
   and puts queued messages back into the message box.
 - Actions on any of your messages (hover, or right-click): **Copy**, **Edit and resend** (go back to before the
@@ -70,21 +123,6 @@ Runs on Windows, macOS and Linux, in English or Simplified Chinese.
 - English or Simplified Chinese (简体中文), following the system until you pick one in Settings → General.
 - Claude Code stays current without an app update: Settings → Claude Code → Updates fetches the newest build from
   npm, checks it against its published sha512 and uses it for new sessions.
-
-## Getting started
-
-There are no prebuilt releases yet: build it from source.
-
-```bash
-git clone https://github.com/ShinyPoint/ccUI.git
-cd ccUI
-npm install
-npm start          # builds the window, then opens the app
-```
-
-Requirements: Node.js 20 or newer. No C++ toolchain is needed: the terminal module (`@lydell/node-pty`) and Claude
-Code come as prebuilt binaries. The Claude Code executable ships with the Agent SDK; Settings → Claude Code →
-Executable can point at another `claude` build instead.
 
 ## Accounts and sign-in
 
@@ -161,6 +199,10 @@ Others use the real thing. `check:background` (the background image in chat, CLI
 **send prompts and cost a few cents**: `npm run smoke`, `check:actions`, `check:find`, `npm run sdk-check`.
 
 Debugging: `CCUI_RECORD=stream.jsonl npm start` saves every raw SDK message, which is handy for writing reducer tests.
+
+On Windows, `npm start` and `npm run dev` run the app as `ccUI.exe`, a copy of the local `electron.exe` with the
+ccUI name and icon (`scripts/launch.mjs`, made once per Electron install), so the taskbar shows ccUI rather than
+Electron.
 
 ### Translations
 
