@@ -1,5 +1,7 @@
 # ccUI
 
+English | [简体中文](README.zh-CN.md)
+
 A desktop app for working with [Claude Code](https://docs.claude.com/en/docs/claude-code/overview). Sessions open as
 a **chat**: Claude's replies, every file edit as a diff, every command with its output, and permission requests as
 buttons. Any session can switch to Claude Code's own **terminal** interface and back, keeping the same conversation.
@@ -149,7 +151,7 @@ Claude Code does, so they cost nothing and need no network:
 | `check:look` | chat look and motion, the context ring, Copy under an answer |
 | `check:commands` | slash commands: /btw, /status, /memory, /mcp, /export, /copy, CLI-only ones |
 | `check:dialogs` | New session, folder trust, Bypass and quit confirmations |
-| `check:effort` | the model menu's effort slider, Settings switches and sliders |
+| `check:effort` | the model menu's effort slider, Settings switches and sliders, color themes |
 | `check:i18n` | the app in Simplified Chinese: nothing left in English, no bold, switching live |
 | `check:select` | drag-selecting text: only conversation text, not buttons or labels |
 | `check:sessions` | relaunch, histories read one at a time, idle chats let go and woken, crash reload |
