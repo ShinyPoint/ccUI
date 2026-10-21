@@ -3,19 +3,22 @@
 // keys settle on the nearest stop with a short spring, and only then is the level sent. The thumb and the
 // fill move with transforms written straight to a CSS variable, so a drag never re-renders the menu.
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { t, phrase } from '../../lib/i18n.js';
 
+// English, as phrases: shown with t().
 const LEVELS = {
-  '': { label: 'Auto', hint: 'The model’s default effort' },
-  low: { label: 'Low', hint: 'Fastest, least thinking' },
-  medium: { label: 'Medium', hint: 'Balanced speed and depth' },
-  high: { label: 'High', hint: 'Thinks harder on complex work' },
-  xhigh: { label: 'Extra high', hint: 'More thinking for hard problems' },
-  max: { label: 'Max', hint: 'Most thinking, slowest' },
+  '': { label: phrase('Auto'), hint: phrase('The model’s default effort') },
+  low: { label: phrase('Low'), hint: phrase('Fastest, least thinking') },
+  medium: { label: phrase('Medium'), hint: phrase('Balanced speed and depth') },
+  high: { label: phrase('High'), hint: phrase('Thinks harder on complex work') },
+  xhigh: { label: phrase('Extra high'), hint: phrase('More thinking for hard problems') },
+  max: { label: phrase('Max'), hint: phrase('Most thinking, slowest') },
 };
 const ORDER = Object.keys(LEVELS);
-const THUMB = 14; // px, = .effort-thumb width
+const THUMB = 16; // px, = .effort-thumb width
+const INSET = 3; // px between the thumb and the track's edge (chat.css .effort-travel)
 
-export const effortLabel = (level) => LEVELS[level]?.label || level;
+export const effortLabel = (level) => (LEVELS[level] ? t(LEVELS[level].label) : level);
 
 export function EffortSlider({ levels, value, onChange }) {
   const stops = ['', ...levels.filter((l) => l in LEVELS && l).sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b))];
@@ -41,7 +44,7 @@ export function EffortSlider({ levels, value, onChange }) {
 
   const fractionAt = (x) => {
     const r = track.current.getBoundingClientRect();
-    return Math.min(1, Math.max(0, (x - r.left - THUMB / 2) / (r.width - THUMB)));
+    return Math.min(1, Math.max(0, (x - r.left - INSET - THUMB / 2) / (r.width - 2 * INSET - THUMB)));
   };
 
   const commit = (i) => {
@@ -57,9 +60,9 @@ export function EffortSlider({ levels, value, onChange }) {
 
   const onPointerDown = (e) => {
     if (disabled || e.button !== 0) return;
-    e.preventDefault();
-    track.current.focus();
+    e.preventDefault(); // (and no focus ring: the keyboard reaches it with Tab)
     track.current.setPointerCapture(e.pointerId);
+    root.current.classList.add('pressed');
     drag.current = { id: e.pointerId, x: e.clientX, moved: false };
   };
   const onPointerMove = (e) => {
@@ -82,11 +85,13 @@ export function EffortSlider({ levels, value, onChange }) {
     const d = drag.current;
     if (!d || e.pointerId !== d.id) return;
     drag.current = null;
+    root.current.classList.remove('pressed');
     setDragging(false);
     commit(Math.round(fractionAt(e.clientX) * last));
   };
   const onPointerCancel = () => {
     drag.current = null;
+    root.current.classList.remove('pressed');
     setDragging(false);
   };
   const onKeyDown = (e) => {
@@ -103,12 +108,12 @@ export function EffortSlider({ levels, value, onChange }) {
   return (
     <div ref={root} class={`effort ${dragging ? 'dragging' : ''} ${disabled ? 'disabled' : ''}`}>
       <div class="effort-head">
-        <span class="effort-title">Effort</span>
-        <span class="effort-value">{disabled ? '—' : level.label}</span>
+        <span class="effort-title">{t('Effort')}</span>
+        <span class="effort-value">{disabled ? '—' : t(level.label)}</span>
       </div>
       <div ref={track} class="effort-track" role="slider" tabIndex={disabled ? -1 : 0}
-           aria-label="Reasoning effort" aria-disabled={disabled}
-           aria-valuemin={0} aria-valuemax={last} aria-valuenow={shown} aria-valuetext={level.label}
+           aria-label={t('Reasoning effort')} aria-disabled={disabled}
+           aria-valuemin={0} aria-valuemax={last} aria-valuenow={shown} aria-valuetext={t(level.label)}
            onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
            onPointerCancel={onPointerCancel} onKeyDown={onKeyDown}>
         <span class="effort-rail" />
@@ -118,7 +123,7 @@ export function EffortSlider({ levels, value, onChange }) {
         ))}
         <span class="effort-travel"><span class="effort-thumb" /></span>
       </div>
-      <div class="effort-hint">{disabled ? 'This model has no effort levels' : level.hint}</div>
+      <div class="effort-hint">{disabled ? t('This model has no effort levels') : t(level.hint)}</div>
     </div>
   );
 }

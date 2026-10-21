@@ -9,6 +9,7 @@ import { PermissionPrompt, QuestionPrompt, PlanPrompt } from './Prompts.jsx';
 import { highlight, languageForPath } from '../../lib/markdown.js';
 import { relPath, formatDuration, formatBytes, pluralize } from '../../lib/format.js';
 import { countDiff, patchesFor, EDIT_TOOLS } from '../../lib/diff.js';
+import { t, phrase } from '../../lib/i18n.js';
 import { openChanges } from '../../lib/side.js';
 
 const TASK_TOOLS = new Set(['TodoWrite', 'TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet']);
@@ -29,61 +30,64 @@ export function toolIcon(item) {
   return TOOL_ICONS[item.name] || (/^mcp__/.test(item.name || '') ? 'toolPlug' : 'toolOther');
 }
 
+// A task's status as Claude Code writes it (TaskUpdate), in the app's words.
+const TASK_STATUS = { pending: phrase('pending'), in_progress: phrase('in progress'), completed: phrase('completed') };
+
 // Verb, target and a small meta label for the collapsed row.
 export function describe(item, cwd) {
   const { name, input = {}, data } = item;
   const file = input.file_path || input.notebook_path || input.path;
   switch (name) {
     case 'Read': {
-      if (data?.type === 'image') return { verb: 'View image', target: relPath(file, cwd), meta: imageInfo(item) };
-      const range = input.offset ? ` · lines ${input.offset}–${input.offset + (input.limit || 0)}` : '';
-      return { verb: 'Read', target: relPath(file, cwd), meta: range.slice(3) };
+      if (data?.type === 'image') return { verb: t('View image'), target: relPath(file, cwd), meta: imageInfo(item) };
+      const range = input.offset ? t('lines {from}–{to}', { from: input.offset, to: input.offset + (input.limit || 0) }) : '';
+      return { verb: t('Read'), target: relPath(file, cwd), meta: range };
     }
     case 'Write':
-      return { verb: data?.type === 'update' ? 'Overwrite' : 'Write', target: relPath(file, cwd), meta: input.content ? pluralize(lineCount(input.content), 'line') : '' };
+      return { verb: data?.type === 'update' ? t('Overwrite') : t('Write'), target: relPath(file, cwd), meta: input.content ? pluralize(lineCount(input.content), 'line') : '' };
     case 'Edit':
     case 'MultiEdit': {
       const { add, del } = countDiff(patchesFor(item));
-      return { verb: 'Edit', target: relPath(file, cwd), diff: { add, del } };
+      return { verb: t('Edit'), target: relPath(file, cwd), diff: { add, del } };
     }
     case 'NotebookEdit':
-      return { verb: 'Edit notebook', target: relPath(file, cwd) };
+      return { verb: t('Edit notebook'), target: relPath(file, cwd) };
     case 'Bash':
-      return { verb: 'Run', target: firstLine(input.command), mono: true, title: input.description };
+      return { verb: t('Run'), target: firstLine(input.command), mono: true, title: input.description };
     case 'BashOutput':
-      return { verb: 'Check output', target: input.bash_id || '' };
+      return { verb: t('Check output'), target: input.bash_id || '' };
     case 'KillShell':
     case 'TaskStop':
-      return { verb: 'Stop', target: input.shell_id || input.task_id || '' };
+      return { verb: t('Stop'), target: input.shell_id || input.task_id || '' };
     case 'Glob':
-      return { verb: 'Find files', target: input.pattern, mono: true, meta: data?.numFiles != null ? pluralize(data.numFiles, 'file') : '' };
+      return { verb: t('Find files'), target: input.pattern, mono: true, meta: data?.numFiles != null ? pluralize(data.numFiles, 'file') : '' };
     case 'Grep':
-      return { verb: 'Search', target: input.pattern, mono: true, meta: input.path ? `in ${relPath(input.path, cwd)}` : '' };
+      return { verb: t('Search'), target: input.pattern, mono: true, meta: input.path ? t('in {path}', { path: relPath(input.path, cwd) }) : '' };
     case 'WebFetch':
-      return { verb: 'Fetch', target: input.url };
+      return { verb: t('Fetch'), target: input.url };
     case 'WebSearch':
-      return { verb: 'Search the web', target: input.query };
+      return { verb: t('Search the web'), target: input.query };
     case 'Agent':
     case 'Task':
-      return { verb: 'Agent', target: input.description || '', meta: input.subagent_type && input.subagent_type !== 'general-purpose' ? input.subagent_type : '' };
+      return { verb: t('Agent'), target: input.description || '', meta: input.subagent_type && input.subagent_type !== 'general-purpose' ? input.subagent_type : '' };
     case 'TodoWrite':
-      return { verb: 'Update tasks', target: '' };
+      return { verb: t('Update tasks'), target: '' };
     case 'TaskCreate':
-      return { verb: 'Add task', target: input.subject };
+      return { verb: t('Add task'), target: input.subject };
     case 'TaskUpdate':
-      return { verb: 'Update task', target: `#${input.taskId}${input.status ? ` → ${input.status.replace('_', ' ')}` : ''}` };
+      return { verb: t('Update task'), target: `#${input.taskId}${input.status ? ` → ${TASK_STATUS[input.status] ? t(TASK_STATUS[input.status]) : input.status.replace('_', ' ')}` : ''}` };
     case 'Skill':
-      return { verb: 'Use skill', target: input.skill || input.name || '' };
+      return { verb: t('Use skill'), target: input.skill || input.name || '' };
     case 'AskUserQuestion':
-      return { verb: 'Question', target: input.questions?.[0]?.question || '' };
+      return { verb: t('Question'), target: input.questions?.[0]?.question || '' };
     case 'ExitPlanMode':
-      return { verb: 'Plan ready', target: '' };
+      return { verb: t('Plan ready'), target: '' };
     case 'EnterPlanMode':
-      return { verb: 'Plan first', target: '' };
+      return { verb: t('Plan first'), target: '' };
     default: {
       const mcp = /^mcp__(.+?)__(.+)$/.exec(name);
       if (mcp) return { verb: mcp[2].replace(/_/g, ' '), target: '', meta: mcp[1] };
-      return { verb: name || 'Tool', target: '' };
+      return { verb: name || t('Tool'), target: '' };
     }
   }
 }
@@ -143,7 +147,7 @@ function CodeView({ code, path, limit = 400 }) {
   return (
     <div class="code-view">
       <pre><code class="hljs" dangerouslySetInnerHTML={{ __html: highlight(shown, languageForPath(path)) }} /></pre>
-      {lines.length > limit && <div class="more">{pluralize(lines.length - limit, 'more line')} not shown</div>}
+      {lines.length > limit && <div class="more">{t('{lines} not shown', { lines: pluralize(lines.length - limit, 'more line') })}</div>}
     </div>
   );
 }
@@ -154,7 +158,7 @@ function Output({ text, error, limit = 300 }) {
   return (
     <div class={`tool-output ${error ? 'error' : ''}`}>
       <pre>{lines.slice(0, limit).join('\n')}</pre>
-      {lines.length > limit && <div class="more">{pluralize(lines.length - limit, 'more line')} not shown</div>}
+      {lines.length > limit && <div class="more">{t('{lines} not shown', { lines: pluralize(lines.length - limit, 'more line') })}</div>}
     </div>
   );
 }
@@ -175,16 +179,15 @@ function ImagePreview({ img, caption }) {
   if (img.omitted) {
     return (
       <p class="tool-note">
-        No preview: the image is {formatBytes(img.bytes)}, larger than the {formatBytes(PREVIEW_LIMIT)} preview limit.
-        Claude still received it.
+        {t('No preview: the image is {size}, larger than the {limit} preview limit. Claude still received it.', { size: formatBytes(img.bytes), limit: formatBytes(PREVIEW_LIMIT) })}
       </p>
     );
   }
-  if (!img.data) return <p class="tool-note">No preview: Claude Code did not return the image data.</p>;
+  if (!img.data) return <p class="tool-note">{t('No preview: Claude Code did not return the image data.')}</p>;
   return (
     <figure class={`image-preview ${actual ? 'actual' : ''}`}>
-      <button type="button" onClick={() => setActual(!actual)} title={actual ? 'Fit to width' : 'Show actual size'}>
-        <img src={`data:${img.mediaType || 'image/png'};base64,${img.data}`} alt={caption || 'Image read by Claude'} />
+      <button type="button" onClick={() => setActual(!actual)} title={actual ? t('Fit to width') : t('Show actual size')}>
+        <img src={`data:${img.mediaType || 'image/png'};base64,${img.data}`} alt={caption || t('Image read by Claude')} />
       </button>
       {caption && <figcaption>{caption}</figcaption>}
     </figure>
@@ -201,11 +204,11 @@ function ReadDetails({ item }) {
     const caption = imageInfo(item);
     return <div class="image-list">{item.images.map((img, i) => <ImagePreview key={i} img={img} caption={caption} />)}</div>;
   }
-  if (data?.type === 'image') return <p class="tool-note">No preview: Claude Code did not return the image data.</p>;
-  if (data?.type === 'pdf') return <p class="tool-note">PDF read by Claude. PDFs are not previewed here; open the file to view it.</p>;
-  if (data?.type === 'notebook') return <p class="tool-note">Notebook with {pluralize(data.file?.cells?.length || 0, 'cell')} read by Claude.</p>;
+  if (data?.type === 'image') return <p class="tool-note">{t('No preview: Claude Code did not return the image data.')}</p>;
+  if (data?.type === 'pdf') return <p class="tool-note">{t('PDF read by Claude. PDFs are not previewed here; open the file to view it.')}</p>;
+  if (data?.type === 'notebook') return <p class="tool-note">{t('Notebook with {cells} read by Claude.', { cells: pluralize(data.file?.cells?.length || 0, 'cell') })}</p>;
   const text = stripLineNumbers(data?.file?.content ?? result);
-  if (!text.trim()) return <p class="tool-note">The file is empty.</p>;
+  if (!text.trim()) return <p class="tool-note">{t('The file is empty.')}</p>;
   return <CodeView code={text} path={file} limit={200} />;
 }
 
@@ -235,7 +238,7 @@ function Details({ item, cwd, childItems, session }) {
       return (
         <div class="bash">
           <div class="bash-cmd"><span class="prompt-sign">$</span><pre>{input.command}</pre></div>
-          {item.status === 'running' && <div class="bash-running">Running{item.elapsed ? ` · ${Math.round(item.elapsed)}s` : '…'}</div>}
+          {item.status === 'running' && <div class="bash-running">{item.elapsed ? t('Running · {s}s', { s: Math.round(item.elapsed) }) : t('Running…')}</div>}
           <Output text={out} error={isError} />
         </div>
       );
@@ -244,7 +247,7 @@ function Details({ item, cwd, childItems, session }) {
     case 'Task':
       return (
         <div class="subagent">
-          {input.prompt && <details class="subagent-brief"><summary>Instructions</summary><div class="brief-text">{input.prompt}</div></details>}
+          {input.prompt && <details class="subagent-brief"><summary>{t('Instructions')}</summary><div class="brief-text">{input.prompt}</div></details>}
           {childItems?.length > 0 && <Children items={childItems} cwd={cwd} session={session} />}
           {result && <Markdown text={result} className="subagent-result" />}
         </div>
@@ -282,26 +285,28 @@ function Children({ items, cwd, session }) {
   return (
     <div class="children">
       {!all && tools.length > shown.length && (
-        <button class="link-btn" onClick={() => setAll(true)}>Show all {tools.length} steps</button>
+        <button class="link-btn" onClick={() => setAll(true)}>{t('Show all {n} steps', { n: tools.length })}</button>
       )}
       {shown.map((child) => <ToolCard key={child.key} item={child} cwd={cwd} session={session} nested />)}
     </div>
   );
 }
 
-const STATUS_LABEL = { streaming: 'Preparing', pending: 'Waiting', running: 'Running', done: 'Done', error: 'Failed', cancelled: 'Not run' };
+const STATUS_LABEL = {
+  streaming: phrase('Preparing'), pending: phrase('Waiting'), running: phrase('Running'), done: phrase('Done'), error: phrase('Failed'), cancelled: phrase('Not run'),
+};
 const IN_PROGRESS = new Set(['streaming', 'pending', 'running']);
 const PROGRESS_VERBS = {
-  Edit: 'Editing',
-  MultiEdit: 'Editing',
-  Write: 'Writing',
-  NotebookEdit: 'Editing notebook',
-  Read: 'Reading',
-  Bash: 'Running',
-  Grep: 'Searching',
-  Glob: 'Finding files',
-  WebFetch: 'Fetching',
-  WebSearch: 'Searching the web',
+  Edit: phrase('Editing'),
+  MultiEdit: phrase('Editing'),
+  Write: phrase('Writing'),
+  NotebookEdit: phrase('Editing notebook'),
+  Read: phrase('Reading'),
+  Bash: phrase('Running'),
+  Grep: phrase('Searching'),
+  Glob: phrase('Finding files'),
+  WebFetch: phrase('Fetching'),
+  WebSearch: phrase('Searching the web'),
 };
 
 // While the input is still streaming, pick the file path out of the partial JSON so the row can name it.
@@ -352,12 +357,14 @@ export const ToolCard = memo(function ToolCard({ item: raw, cwd, session, childI
   // Until the step finishes (or asks for permission) show only a present-tense header, no empty panel.
   const inProgress = IN_PROGRESS.has(item.status) && !permission;
   const showBody = expanded && !(editLike && inProgress) && hasBody(item);
-  const verb = inProgress && PROGRESS_VERBS[item.name] ? PROGRESS_VERBS[item.name] : info.verb;
+  const verb = inProgress && PROGRESS_VERBS[item.name] ? t(PROGRESS_VERBS[item.name]) : info.verb;
+  const statusLabel = STATUS_LABEL[item.status] ? t(STATUS_LABEL[item.status]) : item.status;
   const target = info.target || (inProgress ? relPath(partialPath(item.inputJson), cwd) : '');
   const status = permission ? 'asking' : item.decision === 'denied' && item.status !== 'done' ? 'denied' : item.status;
   const duration = item.endedAt && item.startedAt && item.status === 'done' && item.endedAt - item.startedAt > 1500
     ? formatDuration(item.endedAt - item.startedAt) : '';
   const errorLine = item.isError && !expanded ? firstLine(item.result).slice(0, 160) : '';
+  const childSteps = childItems ? childItems.filter((c) => c.type === 'tool').length : 0;
 
   let prompt = null;
   if (permission) {
@@ -371,12 +378,12 @@ export const ToolCard = memo(function ToolCard({ item: raw, cwd, session, childI
       {/* The step's glyph stands for its verb (named in the tooltip and for screen readers): a fading gray circle
           while it works, the glyph when done, red when it failed. A step with nothing to name shows the verb. */}
       <button class="tool-head" onClick={() => !quiet && setOpen(!open)} aria-expanded={expanded} disabled={quiet}
-              aria-label={`${verb}${target ? `: ${target}` : ''} (${STATUS_LABEL[item.status] || item.status})`}
+              aria-label={target ? t('{verb}: {target} ({status})', { verb, target, status: statusLabel }) : t('{verb} ({status})', { verb, status: statusLabel })}
               title={[verb, info.title].filter(Boolean).join(' — ')}>
         <span class="tool-glyph" aria-hidden="true"><Icon name={toolIcon(item)} size={15} /></span>
         {!target && <span class={`tool-target as-verb ${inProgress ? 'in-progress' : ''}`}>{verb}</span>}
         {target && (EDIT_TOOLS.has(item.name) && item.status === 'done' && session?.side
-          ? <span class="tool-target file-link" role="link" tabIndex={0} title="Show in Changes"
+          ? <span class="tool-target file-link" role="link" tabIndex={0} title={t('Show in Changes')}
                   onClick={(e) => { e.stopPropagation(); openChanges(session, { toolId: item.id, path: item.input?.file_path || item.input?.notebook_path }); }}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); openChanges(session, { toolId: item.id, path: item.input?.file_path || item.input?.notebook_path }); } }}>
               {target}
@@ -387,10 +394,10 @@ export const ToolCard = memo(function ToolCard({ item: raw, cwd, session, childI
             <span class="diffstat"><span class="add">+{info.diff.add}</span> <span class="del">−{info.diff.del}</span></span>
           )}
           {info.meta && <span>{info.meta}</span>}
-          {SUBAGENT_TOOLS.has(item.name) && childItems?.length > 0 && <span>{pluralize(childItems.filter((c) => c.type === 'tool').length, 'step')}</span>}
-          {item.background && item.status === 'running' && <span>In the background</span>}
-          {item.background && item.bgStatus === 'stopped' && <span>Stopped</span>}
-          {status === 'denied' && <span class="denied">Denied</span>}
+          {SUBAGENT_TOOLS.has(item.name) && childSteps > 0 && <span>{pluralize(childSteps, 'step')}</span>}
+          {item.background && item.status === 'running' && <span>{t('In the background')}</span>}
+          {item.background && item.bgStatus === 'stopped' && <span>{t('Stopped')}</span>}
+          {status === 'denied' && <span class="denied">{t('Denied')}</span>}
           {duration && <span>{duration}</span>}
         </span>
       </button>

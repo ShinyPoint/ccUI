@@ -12,15 +12,17 @@ import {
 } from '../lib/sessions.js';
 import { basename, tildify, samePath, relativeTime } from '../lib/format.js';
 import { SHORTCUTS, searchProjects, focusComposer } from '../lib/keyboard.js';
+import { t, phrase } from '../lib/i18n.js';
 
+// In English; t() where shown.
 export const STATE_WORDS = {
-  starting: 'Starting',
-  working: 'Working',
-  'needs-you': 'Needs your answer',
-  idle: 'Ready',
-  attention: 'Waiting for you',
-  exited: 'Ended',
-  error: 'Needs setup',
+  starting: phrase('Starting'),
+  working: phrase('Working'),
+  'needs-you': phrase('Needs your answer'),
+  idle: phrase('Ready'),
+  attention: phrase('Waiting for you'),
+  exited: phrase('Ended'),
+  error: phrase('Needs setup'),
 };
 
 const renamingUid = signal(null);
@@ -91,18 +93,18 @@ function RenameInput({ value, onDone }) {
   );
 }
 
-const KIND_LABEL = { chat: 'New chat', terminal: 'CLI session', shell: 'Shell' };
+const KIND_LABEL = { chat: phrase('New chat'), terminal: phrase('CLI session'), shell: phrase('Shell') };
 const KIND_ICON = { chat: 'chat', terminal: 'terminal', shell: 'dollar' };
-const sessionLabel = (s) => s.name.value || s.title.value || KIND_LABEL[s.kind.value];
+const sessionLabel = (s) => s.name.value || s.title.value || t(KIND_LABEL[s.kind.value]);
 
 function sessionMenu(e, s) {
   const kind = s.kind.value;
   openContextMenu(e, [
-    { label: 'Rename', run: () => { renamingUid.value = s.uid; } },
-    kind === 'chat' && { label: 'Open in CLI', run: () => openInTerminal(s) },
-    kind === 'terminal' && { label: 'Open in chat', run: () => openInChat(s) },
+    { label: t('Rename'), run: () => { renamingUid.value = s.uid; } },
+    kind === 'chat' && { label: t('Open in CLI'), run: () => openInTerminal(s) },
+    kind === 'terminal' && { label: t('Open in chat'), run: () => openInChat(s) },
     '-',
-    { label: 'End session', run: () => endSession(s) },
+    { label: t('End session'), run: () => endSession(s) },
   ].filter(Boolean));
 }
 
@@ -116,7 +118,7 @@ function SessionRow({ s, index = 0 }) {
 
   const kind = s.kind.value;
   const exitCode = s.exitCode.value;
-  const word = status === 'exited' && exitCode ? `${STATE_WORDS.exited} (${exitCode})` : STATE_WORDS[status];
+  const word = status === 'exited' && exitCode ? t('Ended ({code})', { code: exitCode }) : t(STATE_WORDS[status]);
   const renaming = renamingUid.value === s.uid;
 
   return (
@@ -124,7 +126,7 @@ function SessionRow({ s, index = 0 }) {
         onContextMenu={(e) => sessionMenu(e, s)}>
       <button class="session-main" title={s.title.value || s.cwd} onClick={() => selectSession(s)}
               onDblClick={() => { renamingUid.value = s.uid; }}>
-        <span class="session-icon" title={KIND_LABEL[kind]}>
+        <span class="session-icon" title={t(KIND_LABEL[kind])}>
           <Icon name={KIND_ICON[kind]} size={22} />
           <span class="status-badge" />
         </span>
@@ -141,14 +143,14 @@ function SessionRow({ s, index = 0 }) {
         </span>
         <canvas class="trace" ref={canvas} aria-hidden="true" />
       </button>
-      <button class="icon-btn session-close" title="End session" onClick={(e) => { e.stopPropagation(); endSession(s); }}>
+      <button class="icon-btn session-close" title={t('End session')} onClick={(e) => { e.stopPropagation(); endSession(s); }}>
         <Icon name="x" size={13} />
       </button>
     </li>
   );
 }
 
-const conversationTitle = (h) => h.customTitle || h.summary || h.firstPrompt || 'Untitled conversation';
+const conversationTitle = (h) => h.customTitle || h.summary || h.firstPrompt || t('Untitled conversation');
 
 function Recents({ path }) {
   const [state, setState] = useState({ loading: true, list: [] });
@@ -169,21 +171,21 @@ function Recents({ path }) {
   return (
     <div class="recents">
       <div class="recents-head">
-        <span>Recent conversations</span>
-        <button class="icon-btn" title="Hide recent conversations" onClick={close}><Icon name="x" size={12} /></button>
+        <span>{t('Recent conversations')}</span>
+        <button class="icon-btn" title={t('Hide recent conversations')} onClick={close}><Icon name="x" size={12} /></button>
       </div>
-      {state.loading && <p class="recents-note">Loading…</p>}
-      {!state.loading && !state.list.length && <p class="recents-note">{state.error || 'No conversations in this folder yet.'}</p>}
+      {state.loading && <p class="recents-note">{t('Loading…')}</p>}
+      {!state.loading && !state.list.length && <p class="recents-note">{state.error || t('No conversations in this folder yet.')}</p>}
       <ul>
         {state.list.map((h) => (
           <li key={h.sessionId}>
             <button class={openIds.has(h.sessionId) ? 'is-open' : ''} title={conversationTitle(h)}
                     onClick={() => openConversation(path, h.sessionId, 'chat', conversationTitle(h))}
                     onContextMenu={(e) => openContextMenu(e, [
-                      { label: 'Open in chat', run: () => openConversation(path, h.sessionId, 'chat', conversationTitle(h)) },
-                      { label: 'Open in CLI', run: () => openConversation(path, h.sessionId, 'terminal', conversationTitle(h)) },
+                      { label: t('Open in chat'), run: () => openConversation(path, h.sessionId, 'chat', conversationTitle(h)) },
+                      { label: t('Open in CLI'), run: () => openConversation(path, h.sessionId, 'terminal', conversationTitle(h)) },
                       '-',
-                      { label: 'Copy conversation ID', run: () => api.writeClipboard(h.sessionId) },
+                      { label: t('Copy conversation ID'), run: () => api.writeClipboard(h.sessionId) },
                     ])}>
               <span class="r-title">{conversationTitle(h)}</span>
               <span class="r-meta">{relativeTime(h.lastModified)}{h.gitBranch ? ` · ${h.gitBranch}` : ''}</span>
@@ -211,18 +213,18 @@ function toggleRecents(path, show) {
 
 function folderMenu(e, path, open) {
   openContextMenu(e, [
-    { label: 'New chat', run: () => openSession({ cwd: path, kind: 'chat' }) },
-    { label: 'New CLI session', run: () => openSession({ cwd: path, kind: 'terminal' }) },
-    { label: 'New shell', run: () => openSession({ cwd: path, kind: 'shell' }) },
+    { label: t('New chat'), run: () => openSession({ cwd: path, kind: 'chat' }) },
+    { label: t('New CLI session'), run: () => openSession({ cwd: path, kind: 'terminal' }) },
+    { label: t('New shell'), run: () => openSession({ cwd: path, kind: 'shell' }) },
     '-',
-    { label: 'Continue latest conversation', run: () => openSession({ cwd: path, mode: 'continue' }) },
-    { label: 'Recents', hint: 'past conversations', checked: recentsOpen.value.has(path), run: () => toggleRecents(path) },
+    { label: t('Continue latest conversation'), run: () => openSession({ cwd: path, mode: 'continue' }) },
+    { label: t('Recents'), hint: t('past conversations'), checked: recentsOpen.value.has(path), run: () => toggleRecents(path) },
     '-',
-    { label: 'Open in file manager', run: () => api.openPath(path) },
-    { label: 'Copy path', run: () => { api.writeClipboard(path); toast('Path copied.'); } },
+    { label: t('Open in file manager'), run: () => api.openPath(path) },
+    { label: t('Copy path'), run: () => { api.writeClipboard(path); toast(t('Path copied.')); } },
     {
-      label: 'Remove from list',
-      hint: open.length ? 'end its sessions first' : '',
+      label: t('Remove from list'),
+      hint: open.length ? t('end its sessions first') : '',
       disabled: open.length > 0,
       run: () => forgetRecent(path),
     },
@@ -246,16 +248,17 @@ function Folder({ path, open, shown = open, searching }) {
           <span class="folder-chevron"><Icon name="chevron" size={13} /></span>
           <span class="folder-icon"><Icon name="folder" size={15} /></span>
           <span class="folder-name">{basename(path)}</span>
-          {collapsed && waiting && <span class="folder-flag wait" title="A session here is waiting for you" />}
-          {collapsed && !waiting && busy && <span class="folder-flag busy" title="A session here is working" />}
-          {open.length > 0 && <span class="count">{open.length}</span>}
+          {collapsed && waiting && <span class="folder-flag wait" title={t('A session here is waiting for you')} />}
+          {collapsed && !waiting && busy && <span class="folder-flag busy" title={t('A session here is working')} />}
         </button>
-        <button class="icon-btn folder-more" title="More options (or right-click)" onClick={(e) => folderMenu(e, path, open)}>
+        <button class="icon-btn folder-more" title={t('More options (or right-click)')} onClick={(e) => folderMenu(e, path, open)}>
           <Icon name="more" size={14} />
         </button>
-        <button class="icon-btn folder-add" title="New session here" onClick={() => openSession({ cwd: path })}>
+        <button class="icon-btn folder-add" title={t('New session here')} onClick={() => openSession({ cwd: path })}>
           <Icon name="plus" size={14} />
         </button>
+        {/* At the row's right end, with ⋯ and + showing to its left on hover. */}
+        <span class="count">{open.length || ''}</span>
       </div>
       <Collapse open={!collapsed && shown.length > 0}>
         <ul class="session-list">{shown.map((s, i) => <SessionRow key={s.uid} s={s} index={i} />)}</ul>
@@ -282,8 +285,8 @@ function ProjectSearch({ first }) {
   return (
     <div class="project-search" role="search">
       <Icon name="search" size={14} />
-      <input ref={input} type="text" value={query.value} spellcheck={false} placeholder="Search projects and sessions"
-             aria-label={`Search projects and sessions (${SHORTCUTS.searchProjects})`}
+      <input ref={input} type="text" value={query.value} spellcheck={false} placeholder={t('Search projects and sessions')}
+             aria-label={t('Search projects and sessions ({key})', { key: SHORTCUTS.searchProjects })}
              onInput={(e) => { query.value = e.currentTarget.value; }}
              onBlur={() => { if (!query.value.trim()) close(false); }}
              onKeyDown={(e) => {
@@ -292,7 +295,7 @@ function ProjectSearch({ first }) {
                if (e.key === 'Enter' && first) { e.preventDefault(); selectSession(first); close(false); }
              }} />
       {query.value && (
-        <button class="icon-btn" title="Clear (Esc)" onMouseDown={(e) => e.preventDefault()} onClick={() => close(true)}>
+        <button class="icon-btn" title={t('Clear (Esc)')} onMouseDown={(e) => e.preventDefault()} onClick={() => close(true)}>
           <Icon name="x" size={12} />
         </button>
       )}
@@ -327,20 +330,20 @@ export function Sidebar() {
     <aside id="sidebar">
       <div class="sidebar-top drag">
         <div class="wordmark"><span class="wm-cc">cc</span><span class="wm-ui">UI</span></div>
-        <button class="icon-btn no-drag" title="Hide sidebar" onClick={collapse}><Icon name="sidebar" /></button>
+        <button class="icon-btn no-drag" title={t('Hide sidebar')} onClick={collapse}><Icon name="sidebar" /></button>
       </div>
 
       <button class="new-session" onClick={() => { newSessionDialog.value = {}; }}>
         <Icon name="plus" />
-        <span>New session</span>
+        <span>{t('New session')}</span>
         <kbd>{SHORTCUTS.newSession}</kbd>
       </button>
 
       <div class="sidebar-scroll">
         <h2 class="section-label">
-          Projects
+          {t('Projects')}
           {!searching && folders.length > 0 && (
-            <button class="icon-btn section-action" title={`Search projects and sessions (${SHORTCUTS.searchProjects})`}
+            <button class="icon-btn section-action" title={t('Search projects and sessions ({key})', { key: SHORTCUTS.searchProjects })}
                     onClick={searchProjects}><Icon name="search" size={13} /></button>
           )}
         </h2>
@@ -351,16 +354,16 @@ export function Sidebar() {
           </ul>
         ) : (
           <p class="sidebar-hint">
-            {q ? 'No projects or sessions match.' : 'Open a folder to start. Right-click a project for more options.'}
+            {q ? t('No projects or sessions match.') : t('Open a folder to start. Right-click a project for more options.')}
           </p>
         )}
       </div>
 
       <div class="sidebar-bottom">
         <button class="ghost-btn footer-row" onClick={() => { settingsDialog.value = true; }}>
-          <span class="footer-icon"><Icon name="settings" /></span>Settings
+          <span class="footer-icon"><Icon name="settings" /></span>{t('Settings')}
         </button>
-        <button class="icon-btn" title={themeMode.value === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'} onClick={toggleTheme}>
+        <button class="icon-btn" title={themeMode.value === 'dark' ? t('Switch to light theme') : t('Switch to dark theme')} onClick={toggleTheme}>
           <Icon name={themeMode.value === 'dark' ? 'sun' : 'moon'} />
         </button>
       </div>

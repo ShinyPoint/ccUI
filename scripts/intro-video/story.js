@@ -2,7 +2,7 @@
 // and what "Claude" does in each session (played by the fakes in fakes.js).
 const fs = require('fs');
 const path = require('path');
-const { applyEdit, applyWrite } = require('./fakes');
+const { applyEdit, applyWrite } = require('../checks/fakes');
 
 const FILES = {
   'orbit-api': {

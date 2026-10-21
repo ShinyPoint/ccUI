@@ -1,6 +1,6 @@
-// Stand-ins for the Agent SDK sessions and the pseudo-terminals, so the intro video can be recorded with the
-// real window and no API usage. A fake chat session emits the same message stream Claude Code does (see
-// lib/chat-reducer.js), driven by the scripts in story.js; a fake terminal prints scripted text.
+// Stand-ins for the Agent SDK sessions and the pseudo-terminals, so the checks (and the intro video) run the real
+// window with no API usage. A fake chat session emits the same message stream Claude Code does (see
+// lib/chat-reducer.js), driven by a script of steps; a fake terminal prints scripted text.
 const fs = require('fs');
 const path = require('path');
 const { randomUUID } = require('crypto');
@@ -69,7 +69,7 @@ class FakeAgentSession {
     if (!this.inited) {
       this.inited = true;
       this.events({
-        type: 'system', subtype: 'init', cwd: this.cwd, model: 'claude-opus-5-5', permissionMode: this.mode,
+        type: 'system', subtype: 'init', cwd: this.cwd, model: this.opts.model || this.director.initModel || 'claude-opus-5-5', permissionMode: this.mode,
         tools: [], mcp_servers: [], slash_commands: COMMANDS.map((c) => c.name), terminal_slash_commands: [],
         claude_code_version: '2.1.287', apiKeySource: 'ANTHROPIC_API_KEY',
       });
@@ -317,7 +317,7 @@ function fakeAgents(director) {
         this.emit(channel, ...args);
       }, director);
       this.sessions.set(id, session);
-      setTimeout(() => this.emit('agent:meta', id, { commands: COMMANDS, models: MODELS }), 60);
+      setTimeout(() => this.emit('agent:meta', id, { commands: COMMANDS, models: director.models || MODELS }), 60);
       return { ok: true, id, account: { provider: 'firstParty', apiKeySource: 'ANTHROPIC_API_KEY' } };
     }
 
@@ -413,4 +413,4 @@ function install(director) {
   swap('../../src/main/pty.js', { PtyManager: fakePtys(director) });
 }
 
-module.exports = { install, applyEdit, applyWrite, sleep };
+module.exports = { install, applyEdit, applyWrite, sleep, MODELS, COMMANDS };

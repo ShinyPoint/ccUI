@@ -4,6 +4,7 @@ import { sessions, active, settings, saveSettings, newSessionDialog, settingsDia
 import { selectSession, endSession, copySelection, pasteInto, writePty } from './sessions.js';
 import { togglePanel, copyFromPanel, pasteIntoPanel } from './panel.js';
 import { toggleChanges } from './side.js';
+import { t, phrase } from './i18n.js';
 
 const isMac = /Mac/i.test(navigator.platform);
 const isWin = /Win/i.test(navigator.platform);
@@ -17,7 +18,7 @@ export const SHORTCUTS = {
   panel: isMac ? '⌃`' : 'Ctrl+`',
   sidebar: isMac ? '⌘⇧B' : 'Ctrl+Shift+B',
   changes: isMac ? '⌘⇧D' : 'Ctrl+Shift+D',
-  copy: isMac ? '⌘C' : 'Ctrl+C or Ctrl+Shift+C',
+  get copy() { return isMac ? '⌘C' : t('{a} or {b}', { a: 'Ctrl+C', b: 'Ctrl+Shift+C' }); },
   paste: isMac ? '⌘V' : isWin ? 'Ctrl+V' : 'Ctrl+Shift+V',
   newline: 'Shift+Enter',
   interrupt: 'Esc',
@@ -28,23 +29,25 @@ export const SHORTCUTS = {
   searchProjects: isMac ? '⌘⇧F' : 'Ctrl+Shift+F',
 };
 
+// The names are translated where they are shown (Settings → Shortcuts).
 export const SHORTCUT_LIST = [
-  ['New session', SHORTCUTS.newSession],
-  ['End session', SHORTCUTS.closeSession],
-  ['Next / previous session', SHORTCUTS.switchSession],
-  ['Jump to session', SHORTCUTS.jump],
-  ['Focus the message box', SHORTCUTS.composer],
-  ['Find in chat', SHORTCUTS.find],
-  ['Search projects and sessions', SHORTCUTS.searchProjects],
-  ['Show / hide Terminal', SHORTCUTS.panel],
-  ['Show / hide sidebar', SHORTCUTS.sidebar],
-  ['Show / hide changed files (chat)', SHORTCUTS.changes],
-  ['Stop Claude (chat)', SHORTCUTS.interrupt],
-  ['Cycle permission mode (chat)', SHORTCUTS.mode],
-  ['New line', SHORTCUTS.newline],
-  ['Copy / paste in terminal', `${SHORTCUTS.copy} · ${SHORTCUTS.paste}`],
-  ['Text size', SHORTCUTS.zoom],
-  ['Settings', SHORTCUTS.settings],
+  [phrase('New session'), SHORTCUTS.newSession],
+  [phrase('End session'), SHORTCUTS.closeSession],
+  [phrase('Next / previous session'), SHORTCUTS.switchSession],
+  [phrase('Jump to session'), SHORTCUTS.jump],
+  [phrase('Focus the message box'), SHORTCUTS.composer],
+  [phrase('Find in chat'), SHORTCUTS.find],
+  [phrase('Search projects and sessions'), SHORTCUTS.searchProjects],
+  [phrase('Show / hide Terminal'), SHORTCUTS.panel],
+  [phrase('Show / hide sidebar'), SHORTCUTS.sidebar],
+  [phrase('Show / hide changed files (chat)'), SHORTCUTS.changes],
+  [phrase('Stop Claude (chat)'), SHORTCUTS.interrupt],
+  [phrase('Cycle permission mode (chat)'), SHORTCUTS.mode],
+  [phrase('New line'), SHORTCUTS.newline],
+  // Its keys say "or" in the app's language, so they are read when shown (the language is set after this loads).
+  Object.defineProperty([phrase('Copy / paste in terminal')], 1, { get: () => `${SHORTCUTS.copy} · ${SHORTCUTS.paste}`, enumerable: true }),
+  [phrase('Text size'), SHORTCUTS.zoom],
+  [phrase('Settings'), SHORTCUTS.settings],
 ];
 
 function zoom(delta) {

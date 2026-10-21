@@ -1,4 +1,6 @@
 // Terminal palettes, tuned to sit on the app's own surfaces (see styles.css tokens).
+import { phrase } from './i18n.js';
+
 const DARK = {
   background: '#161618', // = --surface (app.css)
   foreground: '#F2F2F4', // = --text
@@ -51,19 +53,13 @@ const LIGHT = {
 
 // Accent colors to choose from (Settings → Appearance). Each has a shade tuned for the dark and the light
 // theme, and `ink`: the color of text and icons drawn on top of it (the send button, primary buttons).
-// Black is the default and matches the --accent values in app.css.
+// Default (black) matches the --accent values in app.css. The keys are what settings store; the labels are in
+// English (t() where shown).
 export const ACCENTS = {
-  ember: { label: 'Ember', dark: '#E58A5E', darkInk: '#1B120D', light: '#C4653D', lightInk: '#FFFFFF' },
-  red: { label: 'Red', dark: '#EE6A64', darkInk: '#220E0D', light: '#CC3F38', lightInk: '#FFFFFF' },
-  pink: { label: 'Pink', dark: '#EE85B5', darkInk: '#22101A', light: '#C94A86', lightInk: '#FFFFFF' },
-  purple: { label: 'Purple', dark: '#B48CF0', darkInk: '#170F22', light: '#8A55D6', lightInk: '#FFFFFF' },
-  blue: { label: 'Blue', dark: '#62A0F0', darkInk: '#0B1420', light: '#2F6FD6', lightInk: '#FFFFFF' },
-  teal: { label: 'Teal', dark: '#5CC2C6', darkInk: '#0B1A1B', light: '#1C8A90', lightInk: '#FFFFFF' },
-  green: { label: 'Green', dark: '#6CC88C', darkInk: '#0D1A12', light: '#2E9150', lightInk: '#FFFFFF' },
-  gold: { label: 'Gold', dark: '#E8BE55', darkInk: '#1F1806', light: '#A87A0C', lightInk: '#FFFFFF' },
-  graphite: { label: 'Graphite', dark: '#A3A8B4', darkInk: '#15171C', light: '#5D6370', lightInk: '#FFFFFF' },
-  // Pure black; on the dark theme black would vanish into the background, so it turns white there.
-  black: { label: 'Black', dark: '#FFFFFF', darkInk: '#000000', light: '#000000', lightInk: '#FFFFFF' },
+  // Black; on the dark theme black would vanish into the background, so it turns white there.
+  black: { label: phrase('Default'), dark: '#FFFFFF', darkInk: '#000000', light: '#000000', lightInk: '#FFFFFF' },
+  pink: { label: phrase('Pink'), dark: '#EE85B5', darkInk: '#22101A', light: '#C94A86', lightInk: '#FFFFFF' },
+  ember: { label: phrase('Clay'), dark: '#D97757', darkInk: '#1B110C', light: '#C96442', lightInk: '#FFFFFF' },
 };
 
 export function accentColors(name, mode) {

@@ -7,6 +7,7 @@ import { reduce, initialChat } from './chat-reducer.js';
 import { createTerminal, fitTerminal } from './terminal.js';
 import { disposePanel } from './panel.js';
 import { basename, samePath, tildify, pluralize } from './format.js';
+import { t } from './i18n.js';
 
 const agents = new Map(); // agent id -> session
 const ptys = new Map(); // pty id -> session
@@ -41,7 +42,7 @@ function chatStatus(s) {
 
 function notify(s, status) {
   if (!settings.value.notify || document.hasFocus()) return;
-  const title = status === 'needs-you' ? `${displayName(s)} needs your answer` : `${displayName(s)} is waiting for you`;
+  const title = status === 'needs-you' ? t('{name} needs your answer', { name: displayName(s) }) : t('{name} is waiting for you', { name: displayName(s) });
   const n = new Notification(title, { body: s.title.value || tildify(s.cwd) });
   n.onclick = () => {
     api.focusWindow();
@@ -138,8 +139,22 @@ api.agent.onEvents((id, batch) => {
   if (!s || s.removed) return;
   s.bucket += activityOf(batch);
   dispatch(s, batch);
-  if (batch.some((m) => m.type === 'result')) refreshContext(s);
+  if (batch.some(fillsContext)) contextChanged(s);
 });
+
+// The context ring follows the conversation while Claude works, not only when a turn ends: it is asked again a
+// moment after Claude answers, a tool returns, the conversation is compacted or a turn ends (Claude Code's summary
+// is local, from the last response's usage and estimates), at most about once a second.
+const CONTEXT_DELAY = 800;
+const fillsContext = (m) => m.type === 'result' || ((m.type === 'assistant' || m.type === 'user') && !m.parent_tool_use_id)
+  || (m.type === 'system' && (m.subtype === 'init' || m.subtype === 'compact_boundary'));
+function contextChanged(s) {
+  if (s.contextTimer) return;
+  s.contextTimer = setTimeout(() => {
+    s.contextTimer = 0;
+    refreshContext(s);
+  }, CONTEXT_DELAY);
+}
 const earlyMeta = new Map(); // agent:meta can arrive before agent:start resolves
 api.agent.onMeta((id, meta) => {
   const s = agents.get(id);
@@ -193,7 +208,7 @@ async function startAgentNow(s, { resume, model, permissionMode } = {}) {
     return res;
   }
   if (!res.ok) {
-    s.problem.value = { code: res.code || 'error', text: res.error || 'Claude Code could not start.' };
+    s.problem.value = { code: res.code || 'error', text: res.error || t('Claude Code could not start.') };
     setStatus(s, 'error');
     return res;
   }
@@ -260,7 +275,7 @@ export async function interrupt(s) {
 export async function stopTask(s, taskId) {
   if (!s.agentId) return;
   const res = await api.agent.control(s.agentId, 'stop-task', taskId);
-  if (!res.ok) toast(res.error || 'The task could not be stopped.', 'error');
+  if (!res.ok) toast(res.error || t('The task could not be stopped.'), 'error');
 }
 
 export function stopAllTasks(s) {
@@ -291,7 +306,7 @@ export async function setMode(s, mode) {
   if (!s.agentId) return false;
   const res = await api.agent.control(s.agentId, 'mode', mode);
   if (!res.ok) {
-    toast(/auto mode unavailable/i.test(res.error) ? 'Auto mode is not available for this model.' : res.error, 'error');
+    toast(/auto mode unavailable/i.test(res.error) ? t('Auto mode is not available for this model.') : res.error, 'error');
     return false;
   }
   const chat = s.chat.value;
@@ -302,7 +317,7 @@ export async function setMode(s, mode) {
 }
 
 export async function refreshContext(s) {
-  if (!s.agentId) return;
+  if (!s.agentId || s.removed) return;
   const res = await api.agent.control(s.agentId, 'context');
   if (res.ok && res.value) {
     const { percentage, totalTokens, maxTokens, categories = [] } = res.value;
@@ -329,7 +344,7 @@ const messageDraft = (item) => ({ text: item.text || '', images: item.images || 
 function canActOn(s, item) {
   if (item.queued) return false;
   if (!s.chat.value.busy) return true;
-  toast('Claude is still working. Stop it first.', 'error');
+  toast(t('Claude is still working. Stop it first.'), 'error');
   return false;
 }
 
@@ -343,7 +358,7 @@ async function fileChangesSince(s, item) {
   }
   const res = await api.agent.control(s.agentId, 'rewind', { uuid: item.key, dryRun: true });
   if (!res.ok || !res.value?.canRewind) {
-    toast(res.value?.error || res.error || 'There is no saved file state for this message.', 'error');
+    toast(res.value?.error || res.error || t('There is no saved file state for this message.'), 'error');
     return null;
   }
   const { filesChanged = [], insertions = 0, deletions = 0 } = res.value;
@@ -356,22 +371,24 @@ export async function undoFileChanges(s, item, { silentIfNone = false } = {}) {
   const changes = await fileChangesSince(s, item);
   if (!changes) return false;
   if (!changes.count) {
-    if (!silentIfNone) toast('No file changes to undo since this message.');
+    if (!silentIfNone) toast(t('No file changes to undo since this message.'));
     return silentIfNone;
   }
   const what = `${pluralize(changes.count, 'file')} (+${changes.insertions} −${changes.deletions})`;
   if (!(await confirmDialog({
-    title: 'Undo file changes?',
-    message: `Claude's changes to ${what} made since this message are undone. Changes you made yourself to those files since then are undone too.`,
-    confirm: 'Undo changes',
+    title: t('Undo file changes?'),
+    message: t('Claude\'s changes to {what} made since this message are undone. Changes you made yourself to those files since then are undone too.', { what }),
+    confirm: t('Undo changes'),
     danger: true,
   }))) return false;
   const res = await api.agent.control(s.agentId, 'rewind', { uuid: item.key });
   if (!res.ok || !res.value?.canRewind) {
-    toast(res.value?.error || res.error || 'The files could not be restored.', 'error');
+    toast(res.value?.error || res.error || t('The files could not be restored.'), 'error');
     return false;
   }
-  toast(`Restored ${pluralize(changes.count, 'file')} to how ${changes.count === 1 ? 'it was' : 'they were'} before this message.`);
+  toast(changes.count === 1
+    ? t('Restored {files} to how it was before this message.', { files: pluralize(changes.count, 'file') })
+    : t('Restored {files} to how they were before this message.', { files: pluralize(changes.count, 'file') }));
   return true;
 }
 
@@ -410,7 +427,7 @@ export async function forkFrom(s, item) {
   if (!fork.ok) return toast(fork.error, 'error');
   const res = await openSession({
     cwd: s.cwd, kind: 'chat', mode: fork.sessionId ? 'resume' : 'new', resume: fork.sessionId || undefined,
-    title: s.title.value ? `${s.title.value} (fork)` : '', model: s.selectedModel.value, permissionMode: s.mode.value,
+    title: s.title.value ? t('{title} (fork)', { title: s.title.value }) : '', model: s.selectedModel.value, permissionMode: s.mode.value,
   });
   if (res.ok) res.session.restore.value = messageDraft(item);
 }
@@ -418,25 +435,25 @@ export async function forkFrom(s, item) {
 // /branch: a copy of the whole conversation, continued in a new chat (the original stays as it is).
 export async function branchConversation(s) {
   const sessionId = s.chat.value.sessionId || s.sessionId;
-  if (!sessionId) return toast('There is nothing to branch yet: send a message first.');
+  if (!sessionId) return toast(t('There is nothing to branch yet: send a message first.'));
   const fork = await api.history.fork(sessionId, s.cwd, null);
   if (!fork.ok) return toast(fork.error, 'error');
   await openSession({
     cwd: s.cwd, kind: 'chat', mode: 'resume', resume: fork.sessionId,
-    title: s.title.value ? `${s.title.value} (branch)` : '', model: s.selectedModel.value, permissionMode: s.mode.value,
+    title: s.title.value ? t('{title} (branch)', { title: s.title.value }) : '', model: s.selectedModel.value, permissionMode: s.mode.value,
   });
 }
 
 // /btw: a quick side question to Claude about the conversation, answered beside it (above the message box)
 // without becoming part of it, and without waiting for or interrupting what Claude is doing.
 export async function askSideQuestion(s, question) {
-  if (!s.agentId) return toast('The chat isn’t running, so there is no one to ask.', 'error');
+  if (!s.agentId) return toast(t('The chat isn’t running, so there is no one to ask.'), 'error');
   const id = `side-${Date.now()}`;
   const update = (patch) => { s.sideNotes.value = s.sideNotes.value.map((n) => (n.id === id ? { ...n, ...patch } : n)); };
   s.sideNotes.value = [...s.sideNotes.value, { id, question, answer: '', state: 'asking' }];
   const res = await api.agent.control(s.agentId, 'side-question', question);
-  if (!res.ok) return update({ state: 'error', answer: res.error || 'The question could not be asked.' });
-  update({ state: 'done', answer: res.value?.response || 'No answer came back.' });
+  if (!res.ok) return update({ state: 'error', answer: res.error || t('The question could not be asked.') });
+  update({ state: 'done', answer: res.value?.response || t('No answer came back.') });
 }
 
 export function dismissSideNote(s, id) {
@@ -524,7 +541,7 @@ async function startTerminalNow(s, { resume, extraArgs } = {}) {
   // Start the process at its final size: a resize right after start makes the TUI print duplicate frames.
   await layoutSettled();
   // Closed, or switched to chat (which disposes the terminal), while waiting.
-  if (s.removed || !s.term || s.kind.value === 'chat') return { ok: false, error: 'Session closed.' };
+  if (s.removed || !s.term || s.kind.value === 'chat') return { ok: false, error: t('Session closed.') };
   fitTerminal(s);
   const isClaude = s.kind.value === 'terminal';
   const res = await api.pty.create({
@@ -661,8 +678,8 @@ export function runningTasks(s) {
   return s.kind.value === 'chat' ? Object.values(s.chat.value.agents || {}).filter((a) => a.status === 'running') : [];
 }
 
-const taskList = (tasks) => tasks.slice(0, 4).map((a) => `${a.kind === 'local_bash' ? 'Shell' : a.subagentType || 'Agent'}: ${a.description || 'working'}`)
-  .concat(tasks.length > 4 ? [`and ${tasks.length - 4} more`] : []).join('\n');
+const taskList = (tasks) => tasks.slice(0, 4).map((a) => `${a.kind === 'local_bash' ? t('Shell') : a.subagentType || t('Agent')}: ${a.description || t('working')}`)
+  .concat(tasks.length > 4 ? [t('and {n} more', { n: tasks.length - 4 })] : []).join('\n');
 
 // Before something closes a chat's Claude Code (switching to the CLI, ending the session): asks first if Claude is
 // still working or has background tasks running, which would lose their link to the conversation. True to go on.
@@ -671,21 +688,19 @@ export async function confirmLeaving(s, action) {
   const tasks = runningTasks(s);
   const busy = s.chat.value.busy;
   if (!tasks.length && !busy) return true;
-  const verb = action === 'switch' ? 'Switching' : 'Ending the session';
+  const verb = action === 'switch' ? t('Switching') : t('Ending the session');
   if (!tasks.length) {
     return confirmDialog(action === 'switch'
-      ? { title: 'Switch to the CLI?', message: 'Claude is still working. Switching stops it, and the conversation continues in the CLI.', confirm: 'Stop and switch' }
-      : { title: 'End this session?', message: 'Claude is still working. Ending the session stops it. The conversation is saved.', confirm: 'Stop and end', danger: true });
+      ? { title: t('Switch to the CLI?'), message: t('Claude is still working. Switching stops it, and the conversation continues in the CLI.'), confirm: t('Stop and switch') }
+      : { title: t('End this session?'), message: t('Claude is still working. Ending the session stops it. The conversation is saved.'), confirm: t('Stop and end'), danger: true });
   }
   return confirmDialog({
-    title: tasks.length === 1 ? '1 background task is still running' : `${tasks.length} background tasks are still running`,
+    title: tasks.length === 1 ? t('1 background task is still running') : t('{n} background tasks are still running', { n: tasks.length }),
     detail: taskList(tasks),
     message: tasks.length === 1
-      ? `${verb} closes this chat’s Claude Code. The task may keep running on its own, but Claude is no longer told `
-        + 'when it finishes, so it won’t carry on from there. You can wait for it here instead.'
-      : `${verb} closes this chat’s Claude Code. The tasks may keep running on their own, but Claude is no longer told `
-        + 'when they finish, so it won’t carry on from there. You can wait for them here instead.',
-    confirm: action === 'switch' ? 'Switch anyway' : 'End anyway',
+      ? t('{verb} closes this chat’s Claude Code. The task may keep running on its own, but Claude is no longer told when it finishes, so it won’t carry on from there. You can wait for it here instead.', { verb })
+      : t('{verb} closes this chat’s Claude Code. The tasks may keep running on their own, but Claude is no longer told when they finish, so it won’t carry on from there. You can wait for them here instead.', { verb }),
+    confirm: action === 'switch' ? t('Switch anyway') : t('End anyway'),
     safeDefault: true,
   });
 }
@@ -746,7 +761,7 @@ export async function openSession(opts, { activate = true } = {}) {
   let resume = opts.resume;
   if (opts.mode === 'continue' && !resume && kind !== 'shell') {
     resume = await latestSessionId(opts.cwd);
-    if (!resume) toast('No earlier conversation in this folder, so a new one was started.');
+    if (!resume) toast(t('No earlier conversation in this folder, so a new one was started.'));
   }
   const s = makeSession({ kind, cwd: opts.cwd, name: opts.name, sessionId: resume || null });
   if (resume && opts.title) setTitle(s, opts.title);

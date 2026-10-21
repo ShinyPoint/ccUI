@@ -3,6 +3,7 @@
 // app itself (see guardRequests in main.js). Only the file named in the settings is ever read.
 const fs = require('fs');
 const path = require('path');
+const { t } = require('./i18n');
 
 const TYPES = {
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp',
@@ -23,10 +24,10 @@ class Background {
   // Copies `file` in and makes it the background. Returns { ok, settings } or { ok: false, error }.
   use(file) {
     const ext = path.extname(file).toLowerCase();
-    if (!TYPES[ext]) return { ok: false, error: 'Choose a PNG, JPEG, WebP, GIF, AVIF or BMP image.' };
+    if (!TYPES[ext]) return { ok: false, error: t('Choose a PNG, JPEG, WebP, GIF, AVIF or BMP image.') };
     try {
       const { size } = fs.statSync(file);
-      if (size > MAX_BYTES) return { ok: false, error: 'That image is larger than 40 MB.' };
+      if (size > MAX_BYTES) return { ok: false, error: t('That image is larger than 40 MB.') };
       fs.mkdirSync(this.dir, { recursive: true });
       const name = `background-${Date.now()}${ext}`;
       fs.copyFileSync(file, path.join(this.dir, name));
@@ -34,7 +35,7 @@ class Background {
       this.settings.setPrivate({ backgroundImage: name });
       return { ok: true, settings: this.settings.get() };
     } catch (err) {
-      return { ok: false, error: `The image could not be copied: ${err.message}` };
+      return { ok: false, error: t('The image could not be copied: {error}', { error: err.message }) };
     }
   }
 

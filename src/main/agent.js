@@ -6,6 +6,7 @@ const path = require('path');
 const { randomUUID } = require('crypto');
 const { shellEnvReady, childEnv } = require('./shell-env');
 const skills = require('./skills');
+const { t } = require('./i18n');
 
 let sdkModule = null;
 const loadSdk = () => (sdkModule ??= import('@anthropic-ai/claude-agent-sdk'));
@@ -98,7 +99,7 @@ class AgentSession {
   async start() {
     const sdk = await loadSdk();
     await shellEnvReady;
-    if (this.closed) return { ok: false, code: 'closed', error: 'Session closed.' }; // closed while loading
+    if (this.closed) return { ok: false, code: 'closed', error: t('Session closed.') }; // closed while loading
     const { cwd, model, effort, permissionMode, resume, claudeFile, apiKey } = this.opts;
     const self = this;
     async function* input() {
@@ -136,7 +137,7 @@ class AgentSession {
     try {
       account = await this.q.accountInfo();
     } catch { /* not signed in yet: the first turn reports the problem */ }
-    if (this.closed) return { ok: false, code: 'closed', error: 'Session closed.' };
+    if (this.closed) return { ok: false, code: 'closed', error: t('Session closed.') };
     if (usesSubscriptionLogin(account)) {
       this.close();
       return { ok: false, code: 'subscription' };
@@ -322,7 +323,7 @@ class AgentSession {
         case 'interrupt': return { ok: true, value: (await this.q.interrupt({ cancelQueued: true })) || null };
         // One background task (a subagent, a background shell); Claude Code reports it with task_notification.
         case 'stop-task':
-          if (typeof arg !== 'string' || !arg) return { ok: false, error: 'No task given.' };
+          if (typeof arg !== 'string' || !arg) return { ok: false, error: t('No task given.') };
           await this.q.stopTask(arg);
           return { ok: true };
         case 'model': await this.q.setModel(arg || undefined); return { ok: true };
@@ -352,7 +353,7 @@ class AgentSession {
         // SDK's runtime but not (yet) in its typings.
         // /btw: a quick side question, answered without touching the conversation. { response } or null.
         case 'side-question':
-          if (typeof arg !== 'string' || !arg.trim()) return { ok: false, error: 'No question given.' };
+          if (typeof arg !== 'string' || !arg.trim()) return { ok: false, error: t('No question given.') };
           return { ok: true, value: await this.q.askSideQuestion(arg.trim()) };
         // /status: { sections: [{ title, rows: [{ label, value }] }] }
         case 'status': return { ok: true, value: await this.q.getStatus() };
@@ -365,7 +366,7 @@ class AgentSession {
         case 'mcp-reconnect': await this.q.reconnectMcpServer(arg); return { ok: true };
         // /rename: the title stored with the conversation (what Claude Code's own lists show).
         case 'rename':
-          if (typeof arg !== 'string' || !arg.trim()) return { ok: false, error: 'No name given.' };
+          if (typeof arg !== 'string' || !arg.trim()) return { ok: false, error: t('No name given.') };
           await this.q.renameSession(arg.trim());
           return { ok: true };
         default: return { ok: false, error: `Unknown action ${action}` };
@@ -444,7 +445,7 @@ async function forkBefore(sessionId, cwd, uuid) {
   if (!uuid) return sdk.forkSession(sessionId, { dir: cwd });
   const messages = await sdk.getSessionMessages(sessionId, { dir: cwd });
   const at = messages.findIndex((m) => m.uuid === uuid);
-  if (at < 0) throw new Error('This message is not in the saved conversation, so it cannot be used as a starting point.');
+  if (at < 0) throw new Error(t('This message is not in the saved conversation, so it cannot be used as a starting point.'));
   if (at === 0) return { sessionId: null };
   return sdk.forkSession(sessionId, { dir: cwd, upToMessageId: messages[at - 1].uuid });
 }

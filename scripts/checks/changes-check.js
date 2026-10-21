@@ -1,13 +1,13 @@
 // Check of the Changes panel (the files a turn changed, at the right of a chat), without API usage: Claude is
-// scripted (intro-video/fakes.js) and edits real files in a throwaway project. Screenshots in dist/changes-check/.
-// Usage: npx vite build && npx electron scripts/changes-check.js   (add --dark for the dark theme)
+// scripted (fakes.js) and edits real files in a throwaway project. Screenshots in dist/changes-check/.
+// Usage: npx vite build && npx electron scripts/checks/changes-check.js   (add --dark for the dark theme)
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app, clipboard } = require('electron');
-const { install, applyEdit, applyWrite } = require('./intro-video/fakes');
+const { install, applyEdit, applyWrite } = require('./fakes');
 
-const outDir = path.join(__dirname, '..', 'dist', 'changes-check');
+const outDir = path.join(__dirname, '..', '..', 'dist', 'changes-check');
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-changes-profile-'));
 const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-changes-project-'));
 const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-changes-elsewhere-'));
@@ -43,7 +43,7 @@ install({
 
 const THEME = process.argv.includes('--dark') ? 'dark' : 'light';
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  theme: THEME, confirmClose: false, notify: false, recent: [{ path: project, at: Date.now() }], trustedFolders: [project],
+  language: 'en', theme: THEME, confirmClose: false, notify: false, recent: [{ path: project, at: Date.now() }], trustedFolders: [project],
 }));
 app.setPath('userData', profile);
 
@@ -208,6 +208,21 @@ app.on('browser-window-created', (_e, win) => {
       const width = await js("Math.round(document.querySelector('.side-panel').getBoundingClientRect().width)");
       const saved = JSON.parse(fs.readFileSync(path.join(profile, 'settings.json'), 'utf8')).sidePanelWidth;
       check('the panel resizes and remembers its width', Math.abs(width - (edge.w + 120)) < 4 && Math.abs(saved - width) < 4, `${edge.w} → ${width}, saved ${saved}`);
+      // A smaller window: the panel gives way so the chat keeps room, and the message box still fits, its send
+      // button in view (it used to run under the panel); the width chosen comes back with the room.
+      for (const size of [900, 760]) {
+        win.setSize(size, 860);
+        await wait(600);
+        const narrow = JSON.parse(await js(`JSON.stringify((() => { const r = (q) => document.querySelector(q).getBoundingClientRect();
+          const bar = document.querySelector('.composer-bar'); const box = r('.chat-composer'); const send = r('.chat-composer .send-btn');
+          return { chat: Math.round(r('.chat').width), panel: Math.round(r('.side-panel').width), over: bar.scrollWidth - bar.clientWidth,
+            send: send.left >= box.left && send.right <= box.right, chip: r('.ws-files').right <= r('.chat').right }; })())`));
+        check(`in a ${size}px window the panel gives way and the message box still fits`, narrow.panel < width && narrow.chat >= 260 && narrow.over <= 0 && narrow.send && narrow.chip, JSON.stringify(narrow));
+      }
+      await shot('2d-narrow');
+      win.setSize(1320, 860);
+      await wait(600);
+      check('the width chosen comes back with the room', Math.abs((await js("document.querySelector('.side-panel').getBoundingClientRect().width")) - width) < 4);
 
       // Close, then the file name in an Edit card opens that file.
       await js("document.querySelector('.side-head .icon-btn[aria-label=\"Close\"]').click(); true");
@@ -250,4 +265,4 @@ app.on('browser-window-created', (_e, win) => {
   });
 });
 
-require('../src/main/main.js');
+require('../../src/main/main.js');

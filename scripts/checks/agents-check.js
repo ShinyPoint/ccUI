@@ -1,16 +1,16 @@
-// Check of background subagents in a chat, without API usage (Claude is scripted, see intro-video/fakes.js).
+// Check of background subagents in a chat, without API usage (Claude is scripted, see fakes.js).
 // A turn sends two agents to the background and ends; the chat must go idle (no Stop button, you can type),
 // the strip above the message box shows both agents, ✕ stops one, and the other's return starts a turn of
 // its own, marked in the timeline. Then Stop (Esc) during a turn ends it and its agents, and nothing stays
 // "working". Screenshots in dist/agents-check/.
-// Usage: npx vite build && npx electron scripts/agents-check.js   (add --dark for the dark theme)
+// Usage: npx vite build && npx electron scripts/checks/agents-check.js   (add --dark for the dark theme)
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app } = require('electron');
-const { install, sleep } = require('./intro-video/fakes');
+const { install, sleep } = require('./fakes');
 
-const outDir = path.join(__dirname, '..', 'dist', 'agents-check');
+const outDir = path.join(__dirname, '..', '..', 'dist', 'agents-check');
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-agents-profile-'));
 const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-agents-project-'));
 fs.mkdirSync(outDir, { recursive: true });
@@ -66,7 +66,7 @@ install(director);
 
 const THEME = process.argv.includes('--dark') ? 'dark' : 'light';
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  theme: THEME, confirmClose: false, notify: false, recent: [{ path: project, at: Date.now() }], trustedFolders: [project],
+  language: 'en', theme: THEME, confirmClose: false, notify: false, recent: [{ path: project, at: Date.now() }], trustedFolders: [project],
 }));
 app.setPath('userData', profile);
 
@@ -182,7 +182,14 @@ app.on('browser-window-created', (_e, win) => {
       }
       await js("[...document.querySelectorAll('.tool.agent')].find((t) => /Map the modules/.test(t.textContent)).querySelector('.tool-head').click(); true");
       await wait(300);
-      await until('the strip to fold away', "!document.querySelector('.agents')", 9000);
+      // When the last ended task's time is up, the strip folds away (its height eases down) rather than vanishing.
+      const fold = await js(`new Promise((done) => { const out = []; const t0 = performance.now();
+        const f = () => { const el = document.querySelector('.agents'); out.push(el ? Math.round(el.getBoundingClientRect().height) : 0);
+          if (el && performance.now() - t0 < 9000) requestAnimationFrame(f); else done(out); };
+        requestAnimationFrame(f); })`);
+      const full = fold[0];
+      const between = [...new Set(fold.filter((h) => h > 2 && h < full - 2))];
+      check('the strip folds away, not vanishing', fold.at(-1) === 0 && between.length >= 3, `${full}px → ${between.slice(0, 8).join(' ')} → 0`);
       check('the session is not left working', await js("!document.querySelector('.session-row.working, .status-badge.working')"));
 
       // Stop during a turn ends it and its agents.
@@ -205,4 +212,4 @@ app.on('browser-window-created', (_e, win) => {
   });
 });
 
-require('../src/main/main.js');
+require('../../src/main/main.js');

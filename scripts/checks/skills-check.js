@@ -2,13 +2,13 @@
 // a throwaway project with its own skill, the Skills panel lists it, turning it off and on again writes the
 // project's .claude/settings.local.json and updates the / list, and CLI-only commands aren't sent to Claude.
 // Only "This project" is changed, so your own Claude Code settings are left alone.
-// Usage: npx vite build && npx electron scripts/skills-check.js   (writes dist/skills-check/*.png)
+// Usage: npx vite build && npx electron scripts/checks/skills-check.js   (writes dist/skills-check/*.png)
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app } = require('electron');
 
-const outDir = path.join(__dirname, '..', 'dist', 'skills-check');
+const outDir = path.join(__dirname, '..', '..', 'dist', 'skills-check');
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-skills-profile-'));
 const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-skills-project-'));
 const local = path.join(project, '.claude', 'settings.local.json');
@@ -17,7 +17,7 @@ fs.mkdirSync(path.join(project, '.claude', 'skills', 'release-notes'), { recursi
 fs.writeFileSync(path.join(project, '.claude', 'skills', 'release-notes', 'SKILL.md'),
   '---\nname: release-notes\ndescription: Write release notes from the commits since the last tag.\n---\n\nRead git log, group by type, write NOTES.md.\n');
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  theme: 'light', confirmClose: false, notify: false, sidebarGlass: false,
+  language: 'en', theme: 'light', confirmClose: false, notify: false, sidebarGlass: false,
   recent: [{ path: project, at: Date.now() }], trustedFolders: [project],
 }));
 app.setPath('userData', profile);
@@ -47,6 +47,11 @@ app.on('browser-window-created', (_e, win) => {
     el.value = ${JSON.stringify(text)}; el.dispatchEvent(new Event('input', { bubbles: true })); } true`);
   const enter = () => js("document.querySelector('.chat-composer .composer-input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); true");
   const row = (name) => `[...document.querySelectorAll('.skill')].find((r) => r.querySelector('.skill-name span').textContent === '/${name}')`;
+  // A skill's state is a Dropdown (ui.jsx): open it and pick the option with that label.
+  const pickState = (name, label) => js(`(async () => { const r = ${row(name)}; r.querySelector('.dropdown .menu-button').click();
+    await new Promise((d) => setTimeout(d, 200));
+    [...r.querySelectorAll('.menu-list button')].find((b) => b.querySelector('.menu-label').textContent === ${JSON.stringify(label)}).click(); return true; })()`);
+  const stateOf = (name) => `${row(name)}?.querySelector('.dropdown .menu-button, .dropdown-field').textContent.trim()`;
   win.webContents.on('console-message', (ev) => { if (ev.level === 'error') console.log('[renderer]', ev.message); });
 
   win.webContents.once('did-finish-load', async () => {
@@ -71,8 +76,8 @@ app.on('browser-window-created', (_e, win) => {
       await shot('1-skills');
 
       // Off, in this project only.
-      await js(`{ const sel = ${row('release-notes')}.querySelector('select'); sel.value = 'off'; sel.dispatchEvent(new Event('change', { bubbles: true })); } true`);
-      await until('off applied', `${row('release-notes')}?.querySelector('select').value === 'off' && ${row('release-notes')}.classList.contains('off')`);
+      await pickState('release-notes', 'Off');
+      await until('off applied', `${stateOf('release-notes')} === 'Off' && ${row('release-notes')}.classList.contains('off')`);
       check('Off is written to the project’s settings.local.json', overrides()['release-notes'] === 'off', JSON.stringify(overrides()));
       await shot('2-off');
       await js("document.querySelector('.dialog-skills').close(); true");
@@ -85,8 +90,8 @@ app.on('browser-window-created', (_e, win) => {
       await type('/skills');
       await enter();
       await until('the Skills panel again', `Boolean(${row('release-notes')})`);
-      await js(`{ const sel = ${row('release-notes')}.querySelector('select'); sel.value = 'on'; sel.dispatchEvent(new Event('change', { bubbles: true })); } true`);
-      await until('on applied', `${row('release-notes')}?.querySelector('select').value === 'on' && !${row('release-notes')}.classList.contains('off')`);
+      await pickState('release-notes', 'On');
+      await until('on applied', `${stateOf('release-notes')} === 'On' && !${row('release-notes')}.classList.contains('off')`);
       check('On removes the entry', !('release-notes' in overrides()), JSON.stringify(overrides()));
       await js("document.querySelector('.dialog-skills').close(); true");
       await wait(400);
@@ -99,7 +104,7 @@ app.on('browser-window-created', (_e, win) => {
       await enter();
       await wait(300);
       check('a CLI-only command is not sent and stays in the box', await js("!document.querySelector('.msg-user') && document.querySelector('.chat-composer .composer-input').value === '/doctor'"));
-      check('and says where it works', await js("[...document.querySelectorAll('.toast')].some((t) => /CLI/.test(t.textContent))"));
+      check('and offers to continue in the CLI', /opens in the CLI/.test(await js("document.querySelector('.dialog-confirm[open]')?.textContent || ''")));
       await shot('3-cli-only');
     } catch (err) {
       console.error('failed:', err);
@@ -111,4 +116,4 @@ app.on('browser-window-created', (_e, win) => {
   });
 });
 
-require('../src/main/main.js');
+require('../../src/main/main.js');

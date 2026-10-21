@@ -1,6 +1,7 @@
 // App-wide state as signals. Session objects are stable; their changing parts are signals.
 import { signal, computed } from '@preact/signals';
 import { initialChat } from './chat-reducer.js';
+import { t } from './i18n.js';
 
 export const api = window.ccui;
 
@@ -95,7 +96,7 @@ export function saveSettings(patch) {
 // `danger`: a red confirm button; `safeDefault` (on with danger): Cancel has the focus.
 export const confirms = signal([]);
 let confirmId = 0;
-export function confirmDialog({ title, message, detail, confirm = 'OK', cancel = 'Cancel', danger = false, safeDefault = danger }) {
+export function confirmDialog({ title, message, detail, confirm = t('OK'), cancel = t('Cancel'), danger = false, safeDefault = danger }) {
   return new Promise((resolve) => {
     confirms.value = [...confirms.value, { id: ++confirmId, title, message, detail, confirm, cancel, danger, safeDefault, resolve }];
   });

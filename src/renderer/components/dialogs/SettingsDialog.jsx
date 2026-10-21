@@ -2,21 +2,24 @@
 // as soon as it is made: switches, choices and swatches right away, sliders when let go (previewed while
 // dragging), text fields when they lose focus or on Enter.
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { Dialog, Segmented, Icon, SetGroup as Group, SetRow as Row, Switch } from '../ui.jsx';
+import { Dialog, Dropdown, Segmented, Icon, SetGroup as Group, SetRow as Row, Switch } from '../ui.jsx';
 import { MODE_LABELS } from '../chat/Prompts.jsx';
 import { MODEL_CHOICES } from './NewSessionDialog.jsx';
 import { api, info, settings, saveSettings, settingsDialog, claudeCheck, claudeUpdate, toast, themeMode, backgroundUrl } from '../../lib/store.js';
 import { SHORTCUT_LIST } from '../../lib/keyboard.js';
 import { ACCENTS, accentColors } from '../../lib/themes.js';
+import { t, phrase, LANGUAGES, systemLocale } from '../../lib/i18n.js';
+
+const PERMISSION_MODES = ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'];
 
 const DEFAULT_FONT = '"JetBrains Mono", Consolas, Menlo, monospace';
 
 const SECTIONS = [
-  { id: 'general', label: 'General', icon: 'settings' },
-  { id: 'appearance', label: 'Appearance', icon: 'sun' },
-  { id: 'terminal', label: 'Terminal', icon: 'terminal' },
-  { id: 'claude', label: 'Claude Code', icon: 'chat' },
-  { id: 'shortcuts', label: 'Shortcuts', icon: 'keyboard' },
+  { id: 'general', label: phrase('General'), icon: 'settings' },
+  { id: 'appearance', label: phrase('Appearance'), icon: 'sun' },
+  { id: 'terminal', label: phrase('Terminal'), icon: 'terminal' },
+  { id: 'claude', label: phrase('Claude Code'), icon: 'chat' },
+  { id: 'shortcuts', label: phrase('Shortcuts'), icon: 'keyboard' },
 ];
 let lastSection = 'general'; // reopening Settings shows the section you left
 
@@ -40,6 +43,7 @@ function SliderRow({ setting, label, note, min, max, step, format = String }) {
     <Row label={label} note={note}>
       <div class="set-slider">
         <input type="range" min={min} max={max} step={step} value={value} aria-label={label}
+               style={{ '--f': (value - min) / (max - min) }}
                onInput={(e) => preview({ [setting]: Number(e.currentTarget.value) })}
                onChange={(e) => saveSettings({ [setting]: Number(e.currentTarget.value) })} />
         <output>{format(value)}</output>
@@ -69,9 +73,9 @@ function TextField({ value, onSave, placeholder, mono = true, label }) {
 // A row of round color swatches, like macOS's accent color setting.
 function AccentPicker({ value, onChange }) {
   return (
-    <div class="swatches" role="radiogroup" aria-label="Accent color">
+    <div class="swatches" role="radiogroup" aria-label={t('Accent color')}>
       {Object.entries(ACCENTS).map(([name, a]) => (
-        <label key={name} class="swatch" title={a.label} style={{ '--swatch': accentColors(name, themeMode.value).accent }}>
+        <label key={name} class="swatch" title={t(a.label)} style={{ '--swatch': accentColors(name, themeMode.value).accent }}>
           <input type="radio" name="accent" value={name} checked={value === name} onChange={() => onChange(name)} />
           <span />
         </label>
@@ -86,16 +90,16 @@ function BackgroundImage() {
   const run = async (action) => {
     const res = await action();
     if (res?.canceled) return;
-    if (!res?.ok) return toast(res?.error || 'The image could not be used.', 'error');
+    if (!res?.ok) return toast(res?.error || t('The image could not be used.'), 'error');
     settings.value = res.settings;
   };
   return (
     <div class="bg-pick">
       <span class={`bg-thumb ${url ? '' : 'empty'}`} style={url ? { backgroundImage: `url("${url}")` } : undefined}>
-        {!url && 'None'}
+        {!url && t('None')}
       </span>
-      <button type="button" class="secondary-btn" onClick={() => run(api.background.pick)}>{url ? 'Change…' : 'Choose…'}</button>
-      {url && <button type="button" class="secondary-btn" onClick={() => run(api.background.clear)}>Remove</button>}
+      <button type="button" class="secondary-btn" onClick={() => run(api.background.pick)}>{url ? t('Change…') : t('Choose…')}</button>
+      {url && <button type="button" class="secondary-btn" onClick={() => run(api.background.clear)}>{t('Remove')}</button>}
     </div>
   );
 }
@@ -109,11 +113,11 @@ function ApiKey({ focus }) {
 
   const save = async (value) => {
     const res = await api.setApiKey(value);
-    if (!res?.ok) return toast(res?.error || 'The key could not be saved.', 'error');
+    if (!res?.ok) return toast(res?.error || t('The key could not be saved.'), 'error');
     settings.value = res.settings;
     setKey('');
     setEditing(!value);
-    toast(value ? 'API key saved. New chat sessions will use it.' : 'API key removed.');
+    toast(value ? t('API key saved. New chat sessions will use it.') : t('API key removed.'));
   };
 
   return (
@@ -121,28 +125,34 @@ function ApiKey({ focus }) {
       {editing ? (
         <div class="input-row">
           <input ref={input} type="password" value={key} autofocus={focus} spellcheck={false} autocomplete="off" placeholder="sk-ant-…"
-                 aria-label="Anthropic API key" onInput={(e) => setKey(e.currentTarget.value)}
+                 aria-label={t('Anthropic API key')} onInput={(e) => setKey(e.currentTarget.value)}
                  onKeyDown={(e) => { if (e.key === 'Enter' && key.trim()) { e.preventDefault(); save(key); } }} />
-          <button type="button" class="secondary-btn" disabled={!key.trim()} onClick={() => save(key)}>Save key</button>
+          <button type="button" class="secondary-btn" disabled={!key.trim()} onClick={() => save(key)}>{t('Save key')}</button>
           {s.hasApiKey && !s.apiKeyUnreadable && (
-            <button type="button" class="secondary-btn" onClick={() => { setKey(''); setEditing(false); }}>Cancel</button>
+            <button type="button" class="secondary-btn" onClick={() => { setKey(''); setEditing(false); }}>{t('Cancel')}</button>
           )}
         </div>
       ) : (
         <div class="input-row key-saved">
-          <span class="key-state"><Icon name="check" size={13} />Saved, encrypted on this computer</span>
-          <button type="button" class="secondary-btn" onClick={() => setEditing(true)}>Replace</button>
-          <button type="button" class="secondary-btn" onClick={() => save('')}>Remove</button>
+          <span class="key-state"><Icon name="check" size={13} />{t('Saved, encrypted on this computer')}</span>
+          <button type="button" class="secondary-btn" onClick={() => setEditing(true)}>{t('Replace')}</button>
+          <button type="button" class="secondary-btn" onClick={() => save('')}>{t('Remove')}</button>
         </div>
       )}
       {s.apiKeyUnreadable && (
         <p class="set-note bad">
-          The saved key can’t be decrypted on this computer (the profile was copied or the system keychain changed).
-          Enter it again.
+          {t('The saved key can’t be decrypted on this computer (the profile was copied or the system keychain changed). Enter it again.')}
         </p>
       )}
     </>
   );
+}
+
+// "Claude Code 2.1.301 (built in)", and why chat can't use it when it can't.
+function found(check) {
+  const name = t('Claude Code {version}', { version: check.version });
+  const label = check.bundled ? t('{name} (built in)', { name }) : name;
+  return check.chatCapable ? label : t('{label}. CLI sessions only: chat needs an executable file', { label });
 }
 
 function Executable() {
@@ -163,16 +173,16 @@ function Executable() {
   return (
     <>
       <div class="input-row">
-        <TextField value={path} placeholder="Built-in (recommended)" label="Claude Code executable" onSave={save} />
+        <TextField value={path} placeholder={t('Built-in (recommended)')} label={t('Claude Code executable')} onSave={save} />
         <button type="button" class="secondary-btn" onClick={async () => {
-          const file = await api.pickFile('Choose the claude executable');
+          const file = await api.pickFile(t('Choose the claude executable'));
           if (file) save(file);
-        }}>Browse…</button>
+        }}>{t('Browse…')}</button>
       </div>
       <p class={`set-note ${check ? (check.ok ? 'ok' : 'bad') : ''}`}>
-        {!check ? 'Checking…'
-          : !check.ok ? 'Not found. Leave empty to use the built-in Claude Code.'
-          : `Claude Code ${check.version}${check.bundled ? ' (built in)' : ''}${check.chatCapable ? '' : '. CLI sessions only: chat needs an executable file'}`}
+        {!check ? t('Checking…')
+          : !check.ok ? t('Not found. Leave empty to use the built-in Claude Code.')
+          : found(check)}
       </p>
     </>
   );
@@ -184,32 +194,33 @@ function ClaudeUpdates() {
   const own = Boolean((settings.value.claudePath || '').trim());
   const busy = ['checking', 'downloading', 'installing'].includes(u.state);
   const pct = u.total ? Math.min(100, Math.round(((u.received || 0) / u.total) * 100)) : null;
-  const note = own ? 'Not in use: you chose your own Claude Code above. Update that one yourself.'
-    : u.state === 'checking' ? 'Checking for a newer version…'
-    : u.state === 'available' ? `Version ${u.latest} is available. You have ${u.current}.`
-    : u.state === 'downloading' ? `Downloading ${u.latest}…${pct == null ? '' : ` ${pct}%`}`
-    : u.state === 'installing' ? `Installing ${u.latest}…`
-    : u.state === 'up-to-date' ? `Version ${u.current}, the newest.`
-    : u.state === 'ready' ? `Updated to ${u.latest}. New sessions use it; running ones keep their version.`
+  const v = { latest: u.latest, current: u.current, pct };
+  const note = own ? t('Not in use: you chose your own Claude Code above. Update that one yourself.')
+    : u.state === 'checking' ? t('Checking for a newer version…')
+    : u.state === 'available' ? t('Version {latest} is available. You have {current}.', v)
+    : u.state === 'downloading' ? (pct == null ? t('Downloading {latest}…', v) : t('Downloading {latest}… {pct}%', v))
+    : u.state === 'installing' ? t('Installing {latest}…', v)
+    : u.state === 'up-to-date' ? t('Version {current}, the newest.', v)
+    : u.state === 'ready' ? t('Updated to {latest}. New sessions use it; running ones keep their version.', v)
     : u.state === 'error' ? u.error
-    : u.current ? `Version ${u.current}` : '';
+    : u.current ? t('Version {current}', v) : '';
   const run = (action) => { action().catch(() => {}); };
   return (
     <>
-      <Row label="Built-in Claude Code" note={<span class={u.state === 'error' && !own ? 'bad' : ''}>{note}</span>}>
+      <Row label={t('Built-in Claude Code')} note={<span class={u.state === 'error' && !own ? 'bad' : ''}>{note}</span>}>
         {u.state === 'available' && !own
-          ? <button type="button" class="primary-btn" onClick={() => run(api.claudeUpdate.run)}>Update to {u.latest}</button>
+          ? <button type="button" class="primary-btn" onClick={() => run(api.claudeUpdate.run)}>{t('Update to {latest}', v)}</button>
           : <button type="button" class="secondary-btn" disabled={own || busy} onClick={() => run(api.claudeUpdate.check)}>
-              {u.state === 'downloading' || u.state === 'installing' ? 'Updating…' : u.state === 'checking' ? 'Checking…' : 'Check for updates'}
+              {u.state === 'downloading' || u.state === 'installing' ? t('Updating…') : u.state === 'checking' ? t('Checking…') : t('Check for updates')}
             </button>}
       </Row>
       {u.state === 'downloading' && !own && (
-        <div class="set-progress" role="progressbar" aria-label="Download" aria-valuenow={pct ?? undefined}>
+        <div class="set-progress" role="progressbar" aria-label={t('Download')} aria-valuenow={pct ?? undefined}>
           <span style={{ width: `${pct ?? 0}%` }} />
         </div>
       )}
-      <ToggleRow setting="autoUpdateClaude" label="Update automatically" disabled={own}
-                 note="Checks when ccUI starts and every 6 hours, and downloads new versions in the background" />
+      <ToggleRow setting="autoUpdateClaude" label={t('Update automatically')} disabled={own}
+                 note={t('Checks when ccUI starts and every 6 hours, and downloads new versions in the background')} />
     </>
   );
 }
@@ -220,34 +231,40 @@ function General() {
   const s = settings.value;
   return (
     <>
-      <Group title="New sessions">
-        <Row label="Open as" note="What New session starts with">
+      <Group>
+        <Row label={t('Language')} note={t('The app’s own words; Claude answers in the language you write in')}>
+          {/* Each language named in itself; Follow system says which one that is now. */}
+          <Dropdown label={t('Language')} value={s.language || 'system'} onChange={(v) => saveSettings({ language: v })}
+                    options={LANGUAGES.map((l) => (l.value === 'system'
+                      ? { value: l.value, label: t('Follow system'), hint: LANGUAGES.find((x) => x.value === systemLocale())?.label }
+                      : { value: l.value, label: l.label }))} />
+        </Row>
+      </Group>
+      <Group title={t('New sessions')}>
+        <Row label={t('Open as')} note={t('What New session starts with')}>
           <Segmented name="defaultKind" value={s.defaultKind} onChange={(v) => saveSettings({ defaultKind: v })} options={[
-            { value: 'chat', label: 'Chat' },
+            { value: 'chat', label: t('Chat') },
             { value: 'terminal', label: 'CLI' },
           ]} />
         </Row>
-        <Row label="Model">
-          <select value={s.defaultModel} aria-label="Model" onChange={(e) => saveSettings({ defaultModel: e.currentTarget.value })}>
-            {MODEL_CHOICES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-          </select>
+        <Row label={t('Model')}>
+          <Dropdown label={t('Model')} value={s.defaultModel} onChange={(v) => saveSettings({ defaultModel: v })}
+                    options={MODEL_CHOICES.map((m) => ({ value: m.value, label: t(m.label) }))} />
         </Row>
-        <Row label="Permissions">
-          <select value={s.defaultPermissionMode} aria-label="Permissions"
-                  onChange={(e) => saveSettings({ defaultPermissionMode: e.currentTarget.value })}>
-            {['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'].map((m) => <option key={m} value={m}>{MODE_LABELS[m]}</option>)}
-          </select>
+        <Row label={t('Permissions')}>
+          <Dropdown label={t('Permissions')} value={s.defaultPermissionMode} onChange={(v) => saveSettings({ defaultPermissionMode: v })}
+                    options={PERMISSION_MODES.map((m) => ({ value: m, label: t(MODE_LABELS[m]) }))} />
         </Row>
-        <Row label="CLI arguments" note="Added to every CLI session">
-          <TextField value={s.defaultArgs} placeholder="e.g. --model sonnet" label="CLI arguments"
+        <Row label={t('CLI arguments')} note={t('Added to every CLI session')}>
+          <TextField value={s.defaultArgs} placeholder={t('e.g. --model sonnet')} label={t('CLI arguments')}
                      onSave={(v) => saveSettings({ defaultArgs: v.trim() })} />
         </Row>
       </Group>
-      <Group title="Behavior">
-        <ToggleRow setting="showStarters" label="Suggested prompts" note="Shown under the question on a new chat" />
-        <ToggleRow setting="notify" label="Notifications" note="When a background session needs you" />
-        <ToggleRow setting="restoreSessions" label="Reopen sessions" note="Bring back your sessions when the app starts" />
-        <ToggleRow setting="confirmClose" label="Ask before quitting" note="When sessions are still running" />
+      <Group title={t('Behavior')}>
+        <ToggleRow setting="showStarters" label={t('Suggested prompts')} note={t('Shown under the question on a new chat')} />
+        <ToggleRow setting="notify" label={t('Notifications')} note={t('When a background session needs you')} />
+        <ToggleRow setting="restoreSessions" label={t('Reopen sessions')} note={t('Bring back your sessions when the app starts')} />
+        <ToggleRow setting="confirmClose" label={t('Ask before quitting')} note={t('When sessions are still running')} />
       </Group>
     </>
   );
@@ -260,32 +277,32 @@ function Appearance() {
   return (
     <>
       <Group>
-        <Row label="Theme">
+        <Row label={t('Theme')}>
           <Segmented name="theme" value={s.theme} onChange={(v) => saveSettings({ theme: v })} options={[
-            { value: 'system', label: 'System' },
-            { value: 'dark', label: 'Dark' },
-            { value: 'light', label: 'Light' },
+            { value: 'system', label: t('System') },
+            { value: 'dark', label: t('Dark') },
+            { value: 'light', label: t('Light') },
           ]} />
         </Row>
-        <Row label="Accent color" note={ACCENTS[accent].label}>
+        <Row label={t('Accent color')} note={t(ACCENTS[accent].label)}>
           <AccentPicker value={accent} onChange={(v) => saveSettings({ accent: v })} />
         </Row>
-        <SliderRow setting="chatFontSize" label="Chat text size" min={11} max={22} step={1} format={(v) => `${v}px`} />
+        <SliderRow setting="chatFontSize" label={t('Chat text size')} min={11} max={22} step={1} format={(v) => `${v}px`} />
       </Group>
-      <Group title="Window">
-        <ToggleRow setting="sidebarGlass" label="Frosted glass"
-                   note={!glassSupported ? 'Menus and pop-ups are frosted. The window itself needs Windows 11 (22H2 or later) or macOS'
-                     : backgroundUrl.value ? 'Menus and pop-ups are frosted; the background image takes the window’s place'
-                     : 'The desktop shows through the sidebar and top bar, and menus and pop-ups are frosted'} />
-        <ToggleRow setting="fillEdge" label="Work area to the window’s edge" note="No gap to the right of the chat and CLI" />
-        <Row label="Background image" note="Drawn blurred behind the whole window">
+      <Group title={t('Window')}>
+        <ToggleRow setting="sidebarGlass" label={t('Frosted glass')}
+                   note={!glassSupported ? t('Menus and pop-ups are frosted. The window itself needs Windows 11 (22H2 or later) or macOS')
+                     : backgroundUrl.value ? t('Menus and pop-ups are frosted; the background image takes the window’s place')
+                     : t('The desktop shows through the sidebar and top bar, and menus and pop-ups are frosted')} />
+        <ToggleRow setting="fillEdge" label={t('Work area to the window’s edge')} note={t('No gap to the right of the chat and CLI')} />
+        <Row label={t('Background image')} note={t('Drawn blurred behind the whole window')}>
           <BackgroundImage />
         </Row>
         {backgroundUrl.value && (
           <>
-            <SliderRow setting="backgroundShow" label="Visibility" note="How much of the image shows through"
+            <SliderRow setting="backgroundShow" label={t('Visibility')} note={t('How much of the image shows through')}
                        min={10} max={90} step={5} format={(v) => `${v}%`} />
-            <SliderRow setting="backgroundBlur" label="Blur" min={0} max={40} step={1} format={(v) => `${v}px`} />
+            <SliderRow setting="backgroundBlur" label={t('Blur')} min={0} max={40} step={1} format={(v) => `${v}px`} />
           </>
         )}
       </Group>
@@ -298,22 +315,22 @@ function Terminal() {
   return (
     <>
       <Group>
-        <Row label="Background" note="Claude Code’s colors are designed for a dark terminal">
+        <Row label={t('Background')} note={t('Claude Code’s colors are designed for a dark terminal')}>
           <Segmented name="terminalTheme" value={s.terminalTheme || 'match'} onChange={(v) => saveSettings({ terminalTheme: v })} options={[
-            { value: 'match', label: 'Match theme' },
-            { value: 'dark', label: 'Always dark' },
+            { value: 'match', label: t('Match theme') },
+            { value: 'dark', label: t('Always dark') },
           ]} />
         </Row>
-        <SliderRow setting="fontSize" label="Text size" min={10} max={24} step={1} format={(v) => `${v}px`} />
-        <SliderRow setting="lineHeight" label="Line height" min={1} max={1.6} step={0.05} format={(v) => Number(v).toFixed(2)} />
-        <Row label="Font" stack>
-          <TextField value={s.fontFamily} label="Terminal font"
+        <SliderRow setting="fontSize" label={t('Text size')} min={10} max={24} step={1} format={(v) => `${v}px`} />
+        <SliderRow setting="lineHeight" label={t('Line height')} min={1} max={1.6} step={0.05} format={(v) => Number(v).toFixed(2)} />
+        <Row label={t('Font')} stack>
+          <TextField value={s.fontFamily} label={t('Terminal font')}
                      onSave={(v) => saveSettings({ fontFamily: v.trim() || DEFAULT_FONT })} />
         </Row>
       </Group>
       <Group>
-        <ToggleRow setting="copyOnSelect" label="Copy on select" note="Copy text as soon as you select it" />
-        <ToggleRow setting="cursorBlink" label="Blinking cursor" />
+        <ToggleRow setting="copyOnSelect" label={t('Copy on select')} note={t('Copy text as soon as you select it')} />
+        <ToggleRow setting="cursorBlink" label={t('Blinking cursor')} />
       </Group>
     </>
   );
@@ -322,18 +339,18 @@ function Terminal() {
 function ClaudeCode({ focusAccount }) {
   return (
     <>
-      <Group title="Account">
-        <Row stack label="Anthropic API key"
-             note="Chat sessions use this key. Without one they use Claude Code’s own credentials: an API key, Amazon Bedrock, Google Vertex AI or Microsoft Foundry. Claude.ai subscription logins work only in CLI sessions.">
+      <Group title={t('Account')}>
+        <Row stack label={t('Anthropic API key')}
+             note={t('Chat sessions use this key. Without one they use Claude Code’s own credentials: an API key, Amazon Bedrock, Google Vertex AI or Microsoft Foundry. Claude.ai subscription logins work only in CLI sessions.')}>
           <ApiKey focus={focusAccount} />
         </Row>
       </Group>
-      <Group title="Executable">
-        <Row stack label="Claude Code" note="Leave empty to use the version built into the app">
+      <Group title={t('Executable')}>
+        <Row stack label="Claude Code" note={t('Leave empty to use the version built into the app')}>
           <Executable />
         </Row>
       </Group>
-      <Group title="Updates">
+      <Group title={t('Updates')}>
         <ClaudeUpdates />
       </Group>
     </>
@@ -344,7 +361,7 @@ function Shortcuts() {
   return (
     <Group>
       {SHORTCUT_LIST.map(([label, keys]) => (
-        <div class="set-row shortcut" key={label}><span>{label}</span><kbd>{keys}</kbd></div>
+        <div class="set-row shortcut" key={label}><span>{t(label)}</span><kbd>{keys}</kbd></div>
       ))}
     </Group>
   );
@@ -372,21 +389,21 @@ function SettingsPanel({ start }) {
   };
   return (
     <form class="settings" onSubmit={done}>
-      <nav class="settings-nav" aria-label="Settings sections">
-        <h3>Settings</h3>
+      <nav class="settings-nav" aria-label={t('Settings sections')}>
+        <h3>{t('Settings')}</h3>
         {SECTIONS.map((x) => (
           <button type="button" key={x.id} class={x.id === section ? 'on' : ''} aria-current={x.id === section ? 'page' : undefined}
                   onClick={() => pick(x.id)}>
-            <Icon name={x.icon} size={15} />{x.label}
+            <Icon name={x.icon} size={15} />{t(x.label)}
           </button>
         ))}
         <span class="spacer" />
-        <p class="settings-saved">Changes are saved as you make them.</p>
+        <p class="settings-saved">{t('Changes are saved as you make them.')}</p>
       </nav>
       <div class="settings-main">
         <header class="settings-head">
-          <h2>{current.label}</h2>
-          <button type="submit" class="primary-btn">Done</button>
+          <h2>{t(current.label)}</h2>
+          <button type="submit" class="primary-btn">{t('Done')}</button>
         </header>
         <div class="settings-body" ref={body} tabIndex={-1} autofocus={start !== 'account'}>
           {section === 'general' && <General />}

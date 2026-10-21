@@ -12,7 +12,7 @@ const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-shots-project-'));
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(project, 'README.md'), '# demo\n');
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  theme: 'dark', confirmClose: false, notify: false, recent: [{ path: project, at: Date.now() }],
+  language: 'en', theme: 'dark', confirmClose: false, notify: false, recent: [{ path: project, at: Date.now() }],
   trustedFolders: [project], // a throwaway folder: skip the trust prompt
 }));
 app.setPath('userData', profile);

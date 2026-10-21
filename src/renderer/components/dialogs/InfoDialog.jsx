@@ -2,6 +2,7 @@
 // lib/commands.js): sections of rows, each a name with a value or a note, and maybe a button.
 import { Dialog, SetGroup, SetRow } from '../ui.jsx';
 import { infoDialog } from '../../lib/store.js';
+import { t } from '../../lib/i18n.js';
 
 export function InfoDialog() {
   const info = infoDialog.value;
@@ -24,7 +25,7 @@ export function InfoDialog() {
             ))}
           </div>
           <div class="dialog-actions">
-            <button type="button" class="primary-btn" autofocus onClick={close}>Done</button>
+            <button type="button" class="primary-btn" autofocus onClick={close}>{t('Done')}</button>
           </div>
         </>
       )}

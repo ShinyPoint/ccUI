@@ -6,6 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { dialog } = require('electron');
+const { t } = require('./i18n');
 
 const isWin = process.platform === 'win32';
 
@@ -50,16 +51,16 @@ const asking = new Map(); // normalized folder -> pending answer, so two session
 function askNatively(win, cwd) {
   return dialog.showMessageBox(win, {
     type: 'warning',
-    buttons: ['Trust this folder', 'Cancel'],
+    buttons: [t('Trust this folder'), t('Cancel')],
     defaultId: 1,
     cancelId: 1,
-    message: 'Do you trust the files in this folder?',
-    detail: `${cwd}\n\n${TRUST_DETAIL}`,
+    message: t('Do you trust the files in this folder?'),
+    detail: `${cwd}\n\n${trustDetail()}`,
   }).then(({ response }) => response === 0);
 }
 
-const TRUST_DETAIL = 'Claude Code will be able to read, edit and run files here. A project’s settings can also run '
-  + 'commands as soon as a session starts. Only trust folders you created or whose contents you know.';
+// What trusting means, in the app's language (also shown by the window's own question).
+const trustDetail = () => t('Claude Code will be able to read, edit and run files here. A project’s settings can also run commands as soon as a session starts. Only trust folders you created or whose contents you know.');
 
 // Resolves true when the folder may be used for a chat session. `ask(cwd)` puts the question to the user and
 // resolves true if they trust the folder (the app's own dialog; the system's when left out).
@@ -78,4 +79,4 @@ function ensureTrusted(settings, win, cwd, ask = (dir) => askNatively(win, dir))
   return answer;
 }
 
-module.exports = { ensureTrusted, isTrusted, askNatively, TRUST_DETAIL };
+module.exports = { ensureTrusted, isTrusted, askNatively, trustDetail };

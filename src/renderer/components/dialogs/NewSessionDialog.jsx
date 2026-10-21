@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'preact/hooks';
-import { Dialog, Segmented, Icon, SetGroup, SetRow } from '../ui.jsx';
+import { Dialog, Dropdown, Segmented, Icon, SetGroup, SetRow } from '../ui.jsx';
 import { MODE_LABELS } from '../chat/Prompts.jsx';
 import { api, active, settings, newSessionDialog } from '../../lib/store.js';
 import { openSession } from '../../lib/sessions.js';
 import { basename, relativeTime, tildify, samePath } from '../../lib/format.js';
+import { t, phrase } from '../../lib/i18n.js';
 
+// Labels in English; t() where shown.
 export const MODEL_CHOICES = [
-  { value: '', label: 'Claude Code default' },
+  { value: '', label: phrase('Claude Code default') },
   { value: 'opus', label: 'Opus' },
   { value: 'sonnet', label: 'Sonnet' },
   { value: 'haiku', label: 'Haiku' },
@@ -24,15 +26,15 @@ function HistoryList({ cwd, value, onChange }) {
     });
     return () => { live = false; };
   }, [cwd]);
-  if (state.loading) return <p class="ns-empty">Loading conversations…</p>;
-  if (!state.list.length) return <p class="ns-empty">No earlier conversations in this folder.</p>;
+  if (state.loading) return <p class="ns-empty">{t('Loading conversations…')}</p>;
+  if (!state.list.length) return <p class="ns-empty">{t('No earlier conversations in this folder.')}</p>;
   return (
     <ul class="history-list" role="listbox">
       {state.list.map((h) => (
         <li key={h.sessionId}>
           <label class={value === h.sessionId ? 'chosen' : ''}>
             <input type="radio" name="history" checked={value === h.sessionId} onChange={() => onChange(h.sessionId)} />
-            <span class="h-title">{h.customTitle || h.summary || h.firstPrompt || 'Untitled conversation'}</span>
+            <span class="h-title">{h.customTitle || h.summary || h.firstPrompt || t('Untitled conversation')}</span>
             <span class="h-meta">{relativeTime(h.lastModified)}{h.gitBranch ? ` · ${h.gitBranch}` : ''}</span>
           </label>
         </li>
@@ -56,8 +58,8 @@ function Form({ prefill }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!cwd.trim()) return setError('Choose a project folder first.');
-    if (mode === 'resume' && claudeKind && !resumeId) return setError('Pick a conversation to continue.');
+    if (!cwd.trim()) return setError(t('Choose a project folder first.'));
+    if (mode === 'resume' && claudeKind && !resumeId) return setError(t('Pick a conversation to continue.'));
     setBusy(true);
     const res = await openSession({
       cwd: cwd.trim(),
@@ -71,33 +73,33 @@ function Form({ prefill }) {
     });
     setBusy(false);
     if (res.ok) newSessionDialog.value = null;
-    else setError(res.error || 'The session could not start.');
+    else setError(res.error || t('The session could not start.'));
   };
 
   const pick = (path) => { setCwd(path); setResumeId(''); setError(''); };
   const recent = (s.recent || []).slice(0, 5);
-  const note = !claudeKind ? 'Your system shell, without Claude.'
-    : kind === 'chat' && mode !== 'new' ? 'The conversation keeps the model and permissions it had.'
-    : kind === 'terminal' ? 'Claude Code’s own command-line interface.' : '';
+  const note = !claudeKind ? t('Your system shell, without Claude.')
+    : kind === 'chat' && mode !== 'new' ? t('The conversation keeps the model and permissions it had.')
+    : kind === 'terminal' ? t('Claude Code’s own command-line interface.') : '';
 
   return (
     <form class="ns-form" onSubmit={submit}>
       <header class="ns-head">
-        <h3>New session</h3>
-        <button type="button" class="icon-btn" aria-label="Close" title="Close (Esc)" onClick={() => { newSessionDialog.value = null; }}>
+        <h3>{t('New session')}</h3>
+        <button type="button" class="icon-btn" aria-label={t('Close')} title={t('Close (Esc)')} onClick={() => { newSessionDialog.value = null; }}>
           <Icon name="x" />
         </button>
       </header>
 
-      <SetGroup title="Project">
+      <SetGroup title={t('Project')}>
         <div class="ns-folder">
           <span class="ns-folder-icon"><Icon name="folder" /></span>
-          <input type="text" value={cwd} spellcheck={false} autoFocus aria-label="Project folder"
-                 placeholder="The folder Claude should work in" onInput={(e) => pick(e.currentTarget.value)} />
+          <input type="text" value={cwd} spellcheck={false} autoFocus aria-label={t('Project folder')}
+                 placeholder={t('The folder Claude should work in')} onInput={(e) => pick(e.currentTarget.value)} />
           <button type="button" class="secondary-btn" onClick={async () => {
             const folder = await api.pickFolder(cwd || undefined);
             if (folder) pick(folder);
-          }}>Choose…</button>
+          }}>{t('Choose…')}</button>
         </div>
         {recent.map(({ path }) => {
           const chosen = samePath(path, cwd.trim());
@@ -112,46 +114,44 @@ function Form({ prefill }) {
         })}
       </SetGroup>
 
-      <SetGroup title="Session">
-        <SetRow label="Open as">
+      <SetGroup title={t('Session')}>
+        <SetRow label={t('Open as')}>
           <Segmented name="kind" value={kind} onChange={setKind} options={[
-            { value: 'chat', label: 'Chat', title: 'Claude Code in a chat view' },
-            { value: 'terminal', label: 'CLI', title: 'Claude Code’s own command-line interface' },
-            { value: 'shell', label: 'Shell', title: 'Your system shell, without Claude' },
+            { value: 'chat', label: t('Chat'), title: t('Claude Code in a chat view') },
+            { value: 'terminal', label: 'CLI', title: t('Claude Code’s own command-line interface') },
+            { value: 'shell', label: t('Shell'), title: t('Your system shell, without Claude') },
           ]} />
         </SetRow>
         {claudeKind && (
-          <SetRow label="Conversation">
+          <SetRow label={t('Conversation')}>
             <Segmented name="mode" value={mode} onChange={setMode} options={[
-              { value: 'new', label: 'New' },
-              { value: 'continue', label: 'Latest' },
-              { value: 'resume', label: 'Pick one…' },
+              { value: 'new', label: t('New') },
+              { value: 'continue', label: t('Latest') },
+              { value: 'resume', label: t('Pick one…') },
             ]} />
           </SetRow>
         )}
         {claudeKind && mode === 'resume' && (
           <div class="ns-history">
             {cwd.trim() ? <HistoryList cwd={cwd.trim()} value={resumeId} onChange={setResumeId} />
-              : <p class="ns-empty">Choose a project folder to see its conversations.</p>}
+              : <p class="ns-empty">{t('Choose a project folder to see its conversations.')}</p>}
           </div>
         )}
         {kind === 'chat' && mode === 'new' && (
           <>
-            <SetRow label="Model">
-              <select value={model} aria-label="Model" onChange={(e) => setModel(e.currentTarget.value)}>
-                {MODEL_CHOICES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-              </select>
+            <SetRow label={t('Model')}>
+              <Dropdown label={t('Model')} value={model} onChange={setModel}
+                        options={MODEL_CHOICES.map((m) => ({ value: m.value, label: t(m.label) }))} />
             </SetRow>
-            <SetRow label="Permissions">
-              <select value={permissionMode} aria-label="Permissions" onChange={(e) => setPermissionMode(e.currentTarget.value)}>
-                {['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'].map((m) => <option key={m} value={m}>{MODE_LABELS[m]}</option>)}
-              </select>
+            <SetRow label={t('Permissions')}>
+              <Dropdown label={t('Permissions')} value={permissionMode} onChange={setPermissionMode}
+                        options={['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'].map((m) => ({ value: m, label: t(MODE_LABELS[m]) }))} />
             </SetRow>
           </>
         )}
         {kind === 'terminal' && (
-          <SetRow label="Extra arguments" note="Optional, added to the claude command">
-            <input type="text" value={extraArgs} spellcheck={false} placeholder="e.g. --model opus" aria-label="Extra arguments"
+          <SetRow label={t('Extra arguments')} note={t('Optional, added to the claude command')}>
+            <input type="text" value={extraArgs} spellcheck={false} placeholder={t('e.g. --model opus')} aria-label={t('Extra arguments')}
                    onInput={(e) => setExtraArgs(e.currentTarget.value)} />
           </SetRow>
         )}
@@ -159,8 +159,8 @@ function Form({ prefill }) {
 
       <footer class="ns-foot">
         <span class={error ? 'form-error' : 'ns-note'}>{error || note}</span>
-        <button type="button" class="secondary-btn" onClick={() => { newSessionDialog.value = null; }}>Cancel</button>
-        <button type="submit" class="primary-btn" disabled={busy}>{busy ? 'Starting…' : 'Start session'}</button>
+        <button type="button" class="secondary-btn" onClick={() => { newSessionDialog.value = null; }}>{t('Cancel')}</button>
+        <button type="submit" class="primary-btn" disabled={busy}>{busy ? t('Starting…') : t('Start session')}</button>
       </footer>
     </form>
   );

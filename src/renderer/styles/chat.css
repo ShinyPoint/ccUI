@@ -25,7 +25,7 @@
    selecting up to the end instead of dropping the selection. */
 .chat-scroll, .timeline { user-select: text; }
 .timeline :is(button, input, select, textarea, svg),
-.chat-intro, .work-summary, .tool-head, .tool-meta, .code-head, .msg-actions, .msg-queued, .turn-end, .activity,
+.chat-intro, .work-summary, .tool-head, .tool-meta, .code-head, .msg-actions, .answer-actions, .msg-queued, .turn-end, .activity,
 .thinking-summary, .divider, .q-header, .diff-line .ln, .diff-line .sign, .prompt-sign, .jump-latest, .tasks {
   user-select: none;
 }
@@ -107,7 +107,7 @@
   border-radius: var(--r-full);
   background: color-mix(in srgb, var(--wait) 18%, transparent);
   color: var(--wait);
-  font: 600 11px/1.6 var(--ui);
+  font: var(--bold) 11px/1.6 var(--ui);
   user-select: none;
 }
 .msg-user-text { white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -179,11 +179,13 @@
   background: var(--base);
 }
 .code-head {
+  /* Like a table's header row (.md th): the same shade, height and text. */
   display: flex; justify-content: space-between; align-items: center;
-  padding: 3px 6px 3px 12px;
+  padding: 4px 6px 4px 14px;
+  min-height: 34px;
   background: var(--fill);
-  font: 11px var(--ui);
-  color: var(--muted);
+  font: 600 .94em var(--ui);
+  color: var(--text);
 }
 .code-copy { padding: 2px 8px; border-radius: var(--r-xs); font: 11px var(--ui); color: var(--muted); }
 .code-copy:hover { background: var(--fill-2); color: var(--text); }
@@ -291,7 +293,7 @@
 }
 .tool-target.mono { font: .9em var(--mono); }
 /* A step with no target names itself, in the weight the verb had. */
-.tool-target.as-verb { font-weight: 600; color: var(--text); }
+.tool-target.as-verb { font-weight: var(--bold); color: var(--text); }
 .tool-target.as-verb.in-progress, .tool:is([data-status="cancelled"], [data-status="denied"]) .tool-target { color: var(--muted); }
 .tool-meta {
   display: flex; gap: 10px;
@@ -403,7 +405,7 @@
   animation: prompt-in .2s var(--ease);
 }
 @keyframes prompt-in { from { opacity: 0; transform: translateY(4px); } }
-.prompt-title { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.prompt-title { display: flex; align-items: center; gap: 8px; font-weight: var(--bold); }
 .prompt-title .icon { color: var(--wait); flex-shrink: 0; }
 .prompt-desc { margin: 6px 0 0; color: var(--text-2); }
 .prompt-desc code { font: .9em var(--mono); }
@@ -427,7 +429,7 @@
   border-radius: var(--r-sm);
   background: var(--danger);
   color: #fff;
-  font-weight: 600;
+  font-weight: var(--bold);
 }
 .danger-btn:hover { filter: brightness(1.08); }
 .prompt.plan {
@@ -444,7 +446,7 @@
   user-select: text;
 }
 .prompt.question fieldset { border: 0; margin: 0 0 14px; padding: 0; min-width: 0; }
-.prompt.question legend { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; padding: 0; font-weight: 600; }
+.prompt.question legend { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; padding: 0; font-weight: var(--bold); }
 .q-header {
   padding: 1px 6px;
   border-radius: var(--r-xs);
@@ -499,6 +501,14 @@
   color: var(--off);
 }
 .turn-stopped { color: var(--wait); }
+/* The line under a finished turn's answer: Copy at the left, under the answer's first letters (the button's
+   padding hangs out into the margin); the time and cost, when shown there, at the right. */
+.turn-foot { display: flex; align-items: center; margin: -8px 0 -4px -6px; }
+.turn-foot > .turn-end { margin: 0 0 0 auto; }
+.answer-actions { display: flex; gap: 2px; }
+.answer-actions .icon-btn { width: 26px; height: 26px; color: var(--off); }
+.answer-actions .icon-btn:hover { color: var(--text); }
+.answer-actions .icon-btn.copied { color: var(--ok); }
 .divider {
   display: flex; align-items: center; gap: 12px;
   margin: 8px 0;
@@ -620,7 +630,7 @@
 .side-note-item + .side-note-item { box-shadow: inset 0 1px 0 var(--hair); }
 .side-note-head { display: flex; align-items: center; gap: 8px; padding: 6px 6px 2px 12px; font-size: 13px; }
 .side-note-head .icon-btn { width: 24px; height: 24px; color: var(--muted); }
-.side-note-tag { flex-shrink: 0; padding: 1px 7px; border-radius: var(--r-full); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font: 600 11px var(--ui); }
+.side-note-tag { flex-shrink: 0; padding: 1px 7px; border-radius: var(--r-full); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font: var(--bold) 11px var(--ui); }
 .side-note-q { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
 .side-note-wait { display: flex; align-items: center; gap: 8px; padding: 4px 12px 10px; color: var(--muted); font-size: 12.5px; }
 .side-note-a { padding: 2px 14px 10px 12px; font-size: 13.5px; user-select: text; }
@@ -642,6 +652,9 @@
   min-height: 28px;
   font-size: 13px;
 }
+/* An ended task in its last second, while others stay: it folds out of the list. */
+.agent-list li.leaving { animation: agent-row-out .3s cubic-bezier(.2, .7, .2, 1) forwards; overflow: hidden; }
+@keyframes agent-row-out { to { min-height: 0; height: 0; opacity: 0; } }
 .agent-mark { display: grid; place-items: center; color: var(--muted); }
 .agent-list li[data-status="running"] .agent-mark::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
 .agent-list li[data-status="completed"] .agent-mark { color: var(--ok); }
@@ -677,8 +690,24 @@
   user-select: text;
 }
 .chat-composer .composer-input::placeholder { color: var(--muted); }
-.composer-bar { display: flex; align-items: center; gap: 4px; margin-top: 6px; margin-left: -8px; }
+.composer-bar { display: flex; align-items: center; gap: 4px; margin-top: 6px; margin-left: -8px; container-type: inline-size; }
 .composer-bar .spacer { flex: 1; }
+/* The bar fits whatever width the chat has (a small window, the Changes panel open), the send button always in
+   view: the permission mode's name shortens first, then the model's; narrower, the mode shows only its mark, the
+   context only its ring, and the menus lose their arrows. */
+.composer-bar > * { flex-shrink: 0; }
+.composer-bar > .mode-menu { flex-shrink: 8; min-width: 53px; } /* down to its mark and arrow */
+.composer-bar > .model-menu { flex-shrink: 1; min-width: 64px; }
+.composer-bar .menu-button { max-width: 100%; }
+.composer-bar .menu-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+@container (max-width: 400px) {
+  .composer-bar > .mode-menu { min-width: auto; }
+  .mode-menu .menu-text { display: none; }
+}
+@container (max-width: 250px) {
+  .context-meter .menu-text, .composer-bar .menu-button > .icon:last-child { display: none; }
+  .composer-bar > .model-menu { min-width: 44px; }
+}
 .chat-composer .send-btn { width: 32px; height: 32px; }
 .send-btn { transition: background .15s, transform .1s; }
 .send-btn:not(:disabled):active { transform: scale(.94); }
@@ -701,7 +730,7 @@
 /* The context pop-up (ContextButton in Composer.jsx): total, a bar, what takes the space, the cost, Compact. */
 .menu-list.context-pop { width: 290px; padding: 14px 14px 12px; }
 .ctx-head { display: flex; align-items: baseline; justify-content: space-between; }
-.ctx-title { font-weight: 600; }
+.ctx-title { font-weight: var(--bold); }
 .ctx-total, .ctx-pct, .ctx-rows li span:last-child, .ctx-cost span:last-child { font-variant-numeric: tabular-nums; }
 .ctx-total { font-size: 12px; color: var(--text-2); }
 .ctx-bar { height: 6px; margin: 10px 0 4px; border-radius: var(--r-full); background: var(--raise); overflow: hidden; }
@@ -748,7 +777,7 @@
 .ac-label { font: 12.5px var(--mono); white-space: nowrap; }
 .ac-hint { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
 /* A command only Claude Code's CLI shows: the chat offers to continue there. */
-.ac-tag { flex-shrink: 0; align-self: center; padding: 1px 6px; border-radius: var(--r-full); background: var(--fill); color: var(--muted); font: 600 10px var(--ui); letter-spacing: .02em; }
+.ac-tag { flex-shrink: 0; align-self: center; padding: 1px 6px; border-radius: var(--r-full); background: var(--fill); color: var(--muted); font: var(--bold) 10px var(--ui); letter-spacing: .02em; }
 
 .menu { position: relative; }
 .menu-button {
@@ -777,54 +806,65 @@
 .menu-list button:hover, .menu-list button.selected { background: var(--raise); }
 .menu-label { font-weight: 500; }
 .menu-hint { font-size: 11.5px; color: var(--muted); }
-.menu-footer { margin-top: 4px; box-shadow: 0 -1px 0 var(--hair); }
+/* Under the options, and always in sight: it floats over the list's foot while the options scroll beneath it. Solid,
+   also when menus are frosted: anything see-through lets the options scrolling under it show through. */
+.menu-footer {
+  position: sticky; bottom: -4px; z-index: 1;
+  margin: 4px -4px -4px; padding: 0 4px 4px;
+  border-radius: 0 0 var(--r-md) var(--r-md);
+  background: var(--base);
+  box-shadow: 0 -1px 0 var(--hair), 0 -14px 18px -12px rgba(0, 0, 0, .22);
+}
 
-/* Effort slider (EffortSlider.jsx), at the foot of the model menu. --p is the thumb's place, 0 to 1. The
-   thumb and the fill only ever move by transform: a quick ease while following the pointer, a short spring
-   when they settle on a stop. */
-/* Clips the translated travel box: a transform still counts toward the menu's scrollable width. The 14px side
-   padding leaves room for the scaled thumb and its focus ring. */
+/* Effort slider (EffortSlider.jsx), at the foot of the model menu, drawn like the Settings switches: a 22px pill
+   with the accent filling it up to a white knob inset 3px. --p is the knob's place, 0 to 1. The knob and the fill
+   only move by transform and clip: a quick ease while following the pointer, a short spring when they settle on a
+   stop. Pressed, the knob stretches into a pill (inward at either end), like a switch being held. */
+/* Clips the translated travel box: a transform still counts toward the menu's scrollable width. */
 .effort { --p: 0; padding: 10px 14px 10px; overflow: hidden; }
-.effort-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+.effort-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
 .effort-title { font-weight: 500; }
 .effort-value { font: 11.5px var(--ui); color: var(--accent); font-variant-numeric: tabular-nums; }
-.effort-track { position: relative; height: 22px; cursor: pointer; touch-action: none; outline: none; }
-.effort-rail, .effort-fill {
-  position: absolute; left: 7px; right: 7px; top: 50%;
-  height: 4px; margin-top: -2px;
+.effort-track {
+  position: relative; height: 22px;
   border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--text) 16%, transparent);
+  cursor: pointer; touch-action: none; outline: none;
 }
-.effort-rail { background: var(--line); }
-.effort-fill { background: var(--accent); transform-origin: left center; transform: scaleX(var(--p)); }
+/* The fill runs 3px past the knob and ends round, around it, as on a switch that is on. */
+.effort-fill {
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: var(--accent);
+  clip-path: inset(0 calc((1 - var(--p)) * (100% - 22px - var(--stretch, 0px))) 0 0 round 11px);
+  opacity: min(1, calc(var(--p) * 40)); /* at the first stop (Auto) there is no fill, as on a switch that is off */
+}
 .effort-stop {
-  position: absolute; top: 50%; left: calc(7px + var(--at) * (100% - 14px));
+  position: absolute; top: 50%; left: calc(11px + var(--at) * (100% - 22px));
   width: 4px; height: 4px; margin: -2px 0 0 -2px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--text) 35%, transparent);
+  background: color-mix(in srgb, var(--text) 30%, transparent);
   transition: background-color .2s ease;
 }
 .effort-stop.on { background: color-mix(in srgb, var(--accent-ink) 55%, transparent); }
-/* Spans the thumb's travel (the track less one thumb), so translateX(100%) is exactly the far end. */
-.effort-travel { position: absolute; top: 0; bottom: 0; left: 0; right: 14px; transform: translateX(calc(var(--p) * 100%)); pointer-events: none; }
+/* Spans the knob's travel (the track less the insets and one knob), so translateX(100%) is exactly the far end. */
+.effort-travel { position: absolute; top: 3px; bottom: 3px; left: 3px; right: 19px; transform: translateX(calc(var(--p) * 100%)); pointer-events: none; }
 .effort-thumb {
-  position: absolute; left: 0; top: 50%;
-  width: 14px; height: 14px; margin-top: -7px;
-  border-radius: 50%;
+  position: absolute; left: 0; top: 0;
+  width: 16px; height: 16px;
+  border-radius: var(--r-full);
   background: #fff;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, .14), 0 1px 3px rgba(0, 0, 0, .35);
-  transition: transform .18s var(--ease), box-shadow .18s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+  transition: width .22s var(--ease), margin-left .22s var(--ease), box-shadow .18s ease;
 }
-.effort-travel, .effort-fill { transition: transform .32s cubic-bezier(.34, 1.18, .64, 1); will-change: transform; }
-.effort.dragging .effort-travel, .effort.dragging .effort-fill { transition: transform .08s cubic-bezier(.2, .8, .2, 1); }
-.effort-track:hover .effort-thumb { transform: scale(1.08); }
-.effort.dragging .effort-thumb, .effort-track:active .effort-thumb { transform: scale(1.18); }
-.effort-track:focus-visible .effort-thumb {
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, .14), 0 1px 3px rgba(0, 0, 0, .35), 0 0 0 2px var(--base), 0 0 0 4px var(--accent);
-}
-.effort-hint { margin-top: 4px; font-size: 11.5px; color: var(--muted); }
+.effort.pressed { --stretch: 6px; } /* the held knob's extra width, which the fill keeps around */
+.effort.pressed .effort-thumb { width: 22px; margin-left: calc(var(--p) * -6px); box-shadow: 0 1px 4px rgba(0, 0, 0, .34); }
+.effort-travel, .effort-fill { transition: transform .32s cubic-bezier(.34, 1.18, .64, 1), clip-path .32s cubic-bezier(.34, 1.18, .64, 1); will-change: transform; }
+.effort.dragging .effort-travel, .effort.dragging .effort-fill { transition: transform .08s cubic-bezier(.2, .8, .2, 1), clip-path .08s cubic-bezier(.2, .8, .2, 1); }
+.effort-track:focus-visible:not(:active) { box-shadow: 0 0 0 2px var(--base), 0 0 0 4px var(--accent); }
+.effort-hint { margin-top: 6px; font-size: 11.5px; color: var(--muted); }
 .effort.disabled { opacity: .5; }
 .effort.disabled .effort-track { cursor: default; }
-.effort.disabled .effort-thumb { transform: none; }
 
 /* ---------- finished turns: working steps folded into one line ---------- */
 .work-summary {
@@ -871,15 +911,15 @@
 .folder .collapse.open:not(.settled) .session { animation: row-in .3s var(--ease) both; animation-delay: calc(min(var(--i, 0), 8) * 28ms); }
 @keyframes row-in { from { opacity: 0; transform: translateY(-6px); } }
 .folder.collapsed .folder-chevron { transform: rotate(-90deg); }
-.folder-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--text-2); }
+.folder-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--bold); color: var(--text-2); }
 .folder.has-active .folder-name { color: var(--text); }
-.folder-main .count { margin-left: auto; font: 500 10.5px var(--ui); color: var(--muted); }
+.folder-row > .count { flex-shrink: 0; min-width: 12px; margin: 0 8px 0 2px; text-align: right; font: 500 10.5px var(--ui); color: var(--muted); pointer-events: none; }
 .folder-flag { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 .folder-flag.wait { background: var(--wait); }
 .folder-flag.busy { background: var(--ok); animation: pulse 1.4s ease-in-out infinite; }
 .folder-row .icon-btn { width: 24px; height: 24px; opacity: 0; flex-shrink: 0; }
 .folder-row:hover .icon-btn, .folder-row .icon-btn:focus-visible { opacity: 1; }
-.folder-add { margin-right: 3px; }
+.folder-add { margin-right: 0; }
 .folder .session-list { margin: 2px 0 6px 12px; }
 
 .recents { margin: 2px 0 6px 12px; }
@@ -1049,12 +1089,12 @@ body.resizing-side .side-panel, body.resizing-side .chat { transition: none; }
 /* Header: the file shown (its name switches between the files the turn changed), where it is, its counts, and
    what can be done with it. */
 .side-head { display: flex; align-items: center; gap: 6px; height: 46px; min-width: 0; padding: 0 8px 0 14px; flex-shrink: 0; }
-.side-title { display: flex; align-items: center; gap: 7px; font-weight: 600; }
+.side-title { display: flex; align-items: center; gap: 7px; font-weight: var(--bold); }
 .side-title .icon, .side-file-icon { color: var(--muted); }
 .side-file-icon { display: grid; flex-shrink: 0; }
 .side-head .spacer, .side-bar .spacer { flex: 1; }
 .side-head .icon-btn { flex-shrink: 0; }
-.sf-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.sf-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--bold); }
 .sf-name.single { min-width: 0; font-size: 13.5px; }
 .side-files { min-width: 0; }
 .side-files > .menu-button { max-width: 100%; padding-left: 5px; font-size: 13.5px; color: var(--text); }
@@ -1109,7 +1149,7 @@ body.resizing-side .side-panel, body.resizing-side .chat { transition: none; }
 .file-view .more { margin-top: 4px; }
 
 /* The files a finished turn changed, beside its "Worked for" line. */
-.ws-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ws-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; } /* a narrow chat: the files chip goes under */
 .ws-files {
   display: inline-flex; align-items: center; gap: 6px;
   margin: -2px 0 -4px;

@@ -17,6 +17,7 @@ import { installShortcuts } from './lib/keyboard.js';
 import { installTooltips } from './lib/tooltip.js';
 import { restoreSessions, runningTasks } from './lib/sessions.js';
 import { App } from './components/App.jsx';
+import { language, locale, t } from './lib/i18n.js';
 
 info.value = await api.info();
 settings.value = await api.getSettings();
@@ -29,6 +30,9 @@ const resolveTheme = () => {
   return theme === 'system' ? (prefersDark.matches ? 'dark' : 'light') : theme;
 };
 prefersDark.addEventListener('change', () => { themeMode.value = resolveTheme(); });
+// The app's language (Settings → General, lib/i18n.js); <html lang> for CJK line breaking and fonts.
+effect(() => { language.value = settings.value.language || 'system'; });
+effect(() => { document.documentElement.lang = locale.value; });
 effect(() => { themeMode.value = resolveTheme(); });
 effect(() => { api.setThemeSource(settings.value.theme); });
 // Frosted glass: the window gets the system material and the frame around the work area turns see-through.
@@ -113,16 +117,16 @@ const ASKS = {
   quit: ({ count }) => {
     const tasks = sessions.peek().flatMap(runningTasks);
     return {
-      title: count === 1 ? '1 session is still running' : `${count} sessions are still running`,
-      message: 'Quitting ends them. Conversations are saved, so you can continue them later.'
-        + (tasks.length ? ` ${tasks.length === 1 ? 'A background task is' : `${tasks.length} background tasks are`} running too: `
-          + 'it may keep running on its own, but Claude won’t be told when it finishes.' : ''),
-      confirm: 'End sessions and quit',
+      title: count === 1 ? t('1 session is still running') : t('{n} sessions are still running', { n: count }),
+      message: !tasks.length ? t('Quitting ends them. Conversations are saved, so you can continue them later.')
+        : tasks.length === 1 ? t('Quitting ends them. Conversations are saved, so you can continue them later. A background task is running too: it may keep running on its own, but Claude won’t be told when it finishes.')
+          : t('Quitting ends them. Conversations are saved, so you can continue them later. {n} background tasks are running too: they may keep running on their own, but Claude won’t be told when they finish.', { n: tasks.length }),
+      confirm: t('End sessions and quit'),
       danger: true,
     };
   },
   trust: ({ folder, detail }) => ({
-    title: 'Trust this folder?', detail: folder, message: detail, confirm: 'Trust this folder', safeDefault: true,
+    title: t('Trust this folder?'), detail: folder, message: detail, confirm: t('Trust this folder'), safeDefault: true,
   }),
 };
 api.onAsk((id, kind, payload) => {
@@ -135,7 +139,7 @@ api.claudeUpdate.onState((st) => {
   claudeUpdate.value = st;
   if (st.state === 'ready' && was !== 'ready') {
     api.detectClaude(settings.value.claudePath).then((res) => { claudeCheck.value = res; });
-    toast(`Claude Code ${st.latest} is ready. New sessions use it.`);
+    toast(t('Claude Code {version} is ready. New sessions use it.', { version: st.latest }));
   }
 });
 if (settings.value.restoreSessions) restoreSessions();

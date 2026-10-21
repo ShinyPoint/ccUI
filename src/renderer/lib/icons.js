@@ -1,6 +1,6 @@
 // App icons, drawn in the style of Apple's SF Symbols: one 1.6 stroke on a 24×24 grid, round caps and joins,
 // soft generously-rounded geometry, glyphs optically sized to a ~17-unit box, and fills only where SF uses them
-// (stop, ellipsis). Strokes and fills use currentColor. The previous set is kept in icons-legacy.js.
+// (stop, ellipsis). Strokes and fills use currentColor. scripts/icon-sheet.js draws them all.
 export const ICON_STROKE = 1.6;
 
 const fill = 'fill="currentColor" stroke="none"';

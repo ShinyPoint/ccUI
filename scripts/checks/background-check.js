@@ -1,15 +1,15 @@
 // Visual check of the background image, without API usage: a generated test image is set as the background
 // of a throwaway profile; the script opens a chat (nothing is sent), the Terminal panel and Settings, checks
 // the image is applied and that choosing and removing images works, and saves screenshots in dark and light.
-// Usage: npx vite build && npx electron scripts/background-check.js   (writes dist/background-check/*.png)
+// Usage: npx vite build && npx electron scripts/checks/background-check.js   (writes dist/background-check/*.png)
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const zlib = require('zlib');
 const { app } = require('electron');
-const { Background } = require('../src/main/background');
+const { Background } = require('../../src/main/background');
 
-const outDir = path.join(__dirname, '..', 'dist', 'background-check');
+const outDir = path.join(__dirname, '..', '..', 'dist', 'background-check');
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-bg-profile-'));
 const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-bg-project-'));
 fs.mkdirSync(outDir, { recursive: true });
@@ -84,7 +84,7 @@ const check = (label, ok, detail = '') => {
 fs.mkdirSync(path.join(profile, 'backgrounds'));
 fs.writeFileSync(path.join(profile, 'backgrounds', 'background-1.png'), image);
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  theme: 'dark', confirmClose: false, notify: false, recent: [{ path: project, at: Date.now() }],
+  language: 'en', theme: 'dark', confirmClose: false, notify: false, recent: [{ path: project, at: Date.now() }],
   trustedFolders: [project], backgroundImage: 'background-1.png',
 }));
 app.setPath('userData', profile);
@@ -158,4 +158,4 @@ app.on('browser-window-created', (_e, win) => {
   });
 });
 
-require('../src/main/main.js');
+require('../../src/main/main.js');

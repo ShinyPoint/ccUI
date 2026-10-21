@@ -1,5 +1,5 @@
 // Intro video, step 1 of 2: records the app. Opens the built app on a throwaway profile with demo projects,
-// plays the story in story.js (Claude and the terminals are scripted, see fakes.js: no API usage), and saves
+// plays the story in story.js (Claude and the terminals are scripted, see ../checks/fakes.js: no API usage), and saves
 // what the window shows as numbered frames plus a timeline of captions, pointer moves and camera moves.
 // Step 2 (compose.js) turns those into the video.
 // Usage: npm run video   (writes dist/intro-video/)
@@ -25,7 +25,7 @@ fs.mkdirSync(profile, { recursive: true });
 // The demo projects live in a made-up home folder, so paths read "~\code\orbit-api" on any computer.
 os.homedir = () => home;
 
-const { install, sleep } = require('./fakes');
+const { install, sleep } = require('../checks/fakes');
 const { createProjects, makeDirector, PROMPTS, HISTORIES } = require('./story');
 const projects = createProjects(home);
 const director = makeDirector(projects);
@@ -45,7 +45,7 @@ const saved = (key) => {
   return { kind: 'chat', cwd: projects[h.project], title: h.title, sessionId: `0000${key}-demo` };
 };
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  theme: 'dark', confirmClose: false, notify: false, sidebarGlass: false, settingsVersion: 2,
+  language: 'en', theme: 'dark', confirmClose: false, notify: false, sidebarGlass: false, settingsVersion: 2,
   recent: Object.values(projects).map((p) => ({ path: p, at: Date.now() })),
   trustedFolders: Object.values(projects),
   lastSessions: [saved('tests'), { kind: 'chat', cwd: projects['atlas-web'], active: true }, saved('notes')],
@@ -185,7 +185,10 @@ app.on('browser-window-created', (_e, win) => {
     await js(FIND);
 
     // Before the recording starts: the second session gets its task, then a new chat opens in orbit-api.
-    await until(`document.querySelectorAll('.session').length === 3 && Boolean(document.querySelector('.chat-composer .composer-input'))`, 'restored sessions');
+    // Folders start folded at launch, except the open chat's: unfold the others so all three cards show.
+    await until(`document.querySelectorAll('.folder').length === 3 && Boolean(document.querySelector('.chat-composer .composer-input'))`, 'restored sessions');
+    await js(`document.querySelectorAll('.folder.collapsed .folder-main').forEach((b) => b.click()); 0`);
+    await until(`document.querySelectorAll('.session').length === 3`, 'the folders unfolded');
     await sleep(900);
     await js(`{ const el = document.querySelector('.chat-composer .composer-input');
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(el, ${JSON.stringify(PROMPTS.atlas)});
@@ -288,14 +291,14 @@ app.on('browser-window-created', (_e, win) => {
     await sleep(500);
 
     // 9. Appearance
-    caption('Light or dark, ten accent colors, your own background.');
+    caption('Light or dark, an accent color, your own background.');
     await click(['.sidebar-bottom .icon-btn']);
     await sleep(2000);
     await click(['.sidebar-bottom .ghost-btn']);
     await sleep(900);
     await click(['.settings-nav button', 'Appearance']);
     await sleep(600);
-    await click(['.swatch[title="Purple"]']);
+    await click(['.swatch[title="Clay"]']);
     await sleep(900);
     const image = path.join(root, 'dusk.png');
     fs.writeFileSync(image, wallpaper(960, 540));

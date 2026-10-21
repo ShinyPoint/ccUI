@@ -1,5 +1,6 @@
 // Small display helpers shared by the components.
 import { info } from './store.js';
+import { t, plural, locale } from './i18n.js';
 
 const isWin = () => info.value?.platform === 'win32';
 
@@ -26,11 +27,11 @@ export function quotePath(p) {
 
 export function formatDuration(ms) {
   if (ms == null) return '';
-  if (ms < 1000) return `${Math.round(ms)}ms`;
+  if (ms < 1000) return t('{n}ms', { n: Math.round(ms) });
   const s = ms / 1000;
-  if (s < 60) return `${s < 10 ? s.toFixed(1) : Math.round(s)}s`;
+  if (s < 60) return t('{n}s', { n: s < 10 ? s.toFixed(1) : Math.round(s) });
   const m = Math.floor(s / 60);
-  return m < 60 ? `${m}m ${Math.round(s % 60)}s` : `${Math.floor(m / 60)}h ${m % 60}m`;
+  return m < 60 ? t('{m}m {s}s', { m, s: Math.round(s % 60) }) : t('{h}h {m}m', { h: Math.floor(m / 60), m: m % 60 });
 }
 
 export function formatCost(usd) {
@@ -46,15 +47,16 @@ export function formatTokens(n) {
 export function relativeTime(ms) {
   const diff = Date.now() - ms;
   const min = Math.round(diff / 60000);
-  if (min < 1) return 'just now';
-  if (min < 60) return `${min} min ago`;
+  if (min < 1) return t('just now');
+  if (min < 60) return t('{n} min ago', { n: min });
   const h = Math.round(min / 60);
-  if (h < 24) return `${h} h ago`;
+  if (h < 24) return t('{n} h ago', { n: h });
   const days = Math.round(h / 24);
-  return days < 30 ? `${days} d ago` : new Date(ms).toLocaleDateString();
+  return days < 30 ? t('{n} d ago', { n: days }) : new Date(ms).toLocaleDateString(locale.value);
 }
 
-export const pluralize = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+// "3 files", in the app's language (lib/i18n.js plural).
+export const pluralize = plural;
 
 export function formatBytes(n) {
   if (!n && n !== 0) return '';

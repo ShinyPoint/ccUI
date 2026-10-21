@@ -11,7 +11,8 @@ const { ClaudeUpdater } = require('./claude-update');
 const { shellEnvReady } = require('./shell-env');
 const { listFiles, readProjectFile } = require('./files');
 const { Settings } = require('./settings');
-const { ensureTrusted, askNatively, TRUST_DETAIL } = require('./trust');
+const { ensureTrusted, askNatively, trustDetail } = require('./trust');
+const { t, setLanguage } = require('./i18n');
 const { Background } = require('./background');
 
 const isMac = process.platform === 'darwin';
@@ -116,13 +117,15 @@ function createWindow() {
     },
   });
   if (process.platform === 'win32') {
-    // The taskbar takes its icon from the app id's details, not the window icon: without this it shows the
-    // icon of electron.exe when running from source. A packaged build points at its own .exe (it carries the
-    // icon, and Windows cannot read files inside app.asar).
+    // The taskbar takes its icon and name from the app id's details, not the window icon: without this it shows
+    // electron.exe's icon and "Electron" when running from source. Windows ignores the icon and the name unless a
+    // relaunch command is set too. A packaged build points at its own .exe (it carries the icon, and Windows
+    // cannot read files inside app.asar).
     win.setAppDetails({
       appId: APP_ID,
       appIconPath: app.isPackaged ? process.execPath : path.join(__dirname, '..', '..', 'assets', 'icon.ico'),
       appIconIndex: 0,
+      relaunchCommand: app.isPackaged ? `"${process.execPath}"` : `"${process.execPath}" "${app.getAppPath()}"`,
       relaunchDisplayName: 'ccUI',
     });
   }
@@ -180,11 +183,11 @@ function createWindow() {
       quitAsking = true;
       askWindow('quit', { count: live }, () => dialog.showMessageBoxSync(win, {
         type: 'question',
-        buttons: ['End sessions and quit', 'Cancel'],
+        buttons: [t('End sessions and quit'), t('Cancel')],
         defaultId: 0,
         cancelId: 1,
-        message: live === 1 ? '1 session is still running.' : `${live} sessions are still running.`,
-        detail: 'Quitting ends them. Conversations are saved, so you can continue them later.',
+        message: live === 1 ? t('1 session is still running.') : t('{n} sessions are still running.', { n: live }),
+        detail: t('Quitting ends them. Conversations are saved, so you can continue them later.'),
       }) === 0).then((yes) => {
         quitAsking = false;
         if (!yes || !win || win.isDestroyed()) return;
@@ -242,7 +245,7 @@ async function detectClaude(custom) {
     }, (err, stdout) => {
       const match = /(\d+\.\d+\.\d+)/.exec(stdout || '');
       if (match) resolve({ ok: true, version: match[1], bundled: !!claude.bundled, chatCapable: !!claude.file });
-      else resolve({ ok: false, error: (err && err.message) || 'No version reported' });
+      else resolve({ ok: false, error: (err && err.message) || t('No version reported') });
     });
   });
 }
@@ -272,6 +275,10 @@ function registerIpc() {
   ipc.handle('settings:set', (_e, patch) => {
     const next = settings.set(patch);
     updater.configure(); // automatic updates, or a Claude Code of your own, may have been switched
+    if (patch && 'language' in patch) {
+      setLanguage(next.language, app.getLocale());
+      buildMenu();
+    }
     return next;
   });
 
@@ -289,7 +296,7 @@ function registerIpc() {
 
   ipc.handle('dialog:pick-folder', async (_e, defaultPath) => {
     const result = await dialog.showOpenDialog(win, {
-      title: 'Choose a project folder',
+      title: t('Choose a project folder'),
       defaultPath: defaultPath || os.homedir(),
       properties: ['openDirectory', 'createDirectory'],
     });
@@ -319,27 +326,26 @@ function registerIpc() {
   // Chat sessions
   ipc.handle('agent:start', async (_e, opts) => {
     if (!opts?.cwd || !fs.existsSync(opts.cwd) || !fs.statSync(opts.cwd).isDirectory()) {
-      return { ok: false, code: 'folder', error: `Folder not found: ${opts?.cwd}` };
+      return { ok: false, code: 'folder', error: t('Folder not found: {path}', { path: opts?.cwd }) };
     }
     const claude = resolveClaude(settings.get().claudePath);
     if (!claude.file) {
       return {
         ok: false,
         code: 'no-binary',
-        error: 'Chat sessions need a Claude Code executable (claude.exe or claude), not a command name or a .cmd script. '
-          + 'Choose one in Settings, or leave the setting empty to use the built-in Claude Code.',
+        error: t('Chat sessions need a Claude Code executable (claude.exe or claude), not a command name or a .cmd script. Choose one in Settings, or leave the setting empty to use the built-in Claude Code.'),
       };
     }
-    const askTrust = (cwd) => askWindow('trust', { folder: cwd, detail: TRUST_DETAIL }, () => askNatively(win, cwd));
+    const askTrust = (cwd) => askWindow('trust', { folder: cwd, detail: trustDetail() }, () => askNatively(win, cwd));
     if (!(await ensureTrusted(settings, win, opts.cwd, askTrust))) {
-      return { ok: false, code: 'untrusted', error: 'You did not trust this folder, so Claude Code was not started there.' };
+      return { ok: false, code: 'untrusted', error: t('You did not trust this folder, so Claude Code was not started there.') };
     }
     return agents.start({ ...opts, claudeFile: claude.file, apiKey: settings.getApiKey() });
   });
   ipc.on('agent:send', (_e, id, payload) => agents.get(id)?.send(payload));
   ipc.on('agent:permission-reply', (_e, id, requestId, answer) => agents.get(id)?.answerPermission(requestId, answer));
   ipc.handle('agent:control', (_e, id, action, arg) =>
-    agents.get(id)?.control(action, arg) ?? { ok: false, error: 'Session is not running.' });
+    agents.get(id)?.control(action, arg) ?? { ok: false, error: t('Session is not running.') });
   ipc.on('agent:close', (_e, id) => agents.close(id));
 
   ipc.handle('history:list', async (_e, cwd) => {
@@ -366,9 +372,9 @@ function registerIpc() {
   ipc.handle('files:list', (_e, cwd) => listFiles(cwd).catch(() => []));
   // /export: the conversation as text, saved where the user picks (the system's Save dialog).
   ipc.handle('dialog:save-text', async (_e, { name, text, cwd }) => {
-    if (typeof text !== 'string') return { ok: false, error: 'Nothing to save.' };
+    if (typeof text !== 'string') return { ok: false, error: t('Nothing to save.') };
     const result = await dialog.showSaveDialog(win, {
-      title: 'Export the conversation',
+      title: t('Export the conversation'),
       defaultPath: path.join(cwd && fs.existsSync(cwd) ? cwd : app.getPath('documents'), path.basename(String(name || 'conversation.txt'))),
     });
     if (result.canceled || !result.filePath) return { ok: false, canceled: true };
@@ -383,7 +389,7 @@ function registerIpc() {
   // yet. Only CLAUDE.md / CLAUDE.local.md, in a folder that exists.
   ipc.handle('files:open-memory', async (_e, file) => {
     const full = path.resolve(String(file || ''));
-    if (!/^CLAUDE(\.local)?\.md$/i.test(path.basename(full)) || !fs.existsSync(path.dirname(full))) return { ok: false, error: 'Not an instructions file.' };
+    if (!/^CLAUDE(\.local)?\.md$/i.test(path.basename(full)) || !fs.existsSync(path.dirname(full))) return { ok: false, error: t('Not an instructions file.') };
     try {
       if (!fs.existsSync(full)) fs.writeFileSync(full, '', { flag: 'wx' });
       const error = await shell.openPath(full);
@@ -411,9 +417,9 @@ function registerIpc() {
   ipc.on('window:glass', (_e, on) => applyGlass(Boolean(on)));
   ipc.handle('background:pick', async () => {
     const result = await dialog.showOpenDialog(win, {
-      title: 'Choose a background image',
+      title: t('Choose a background image'),
       properties: ['openFile'],
-      filters: [{ name: 'Images', extensions: Background.extensions() }],
+      filters: [{ name: t('Images'), extensions: Background.extensions() }],
     });
     return result.canceled ? { ok: false, canceled: true } : background.use(result.filePaths[0]);
   });
@@ -442,13 +448,14 @@ function registerIpc() {
   });
 }
 
+// Built again when the language changes (settings:set).
 function buildMenu() {
   // The window has no visible menu bar; on macOS the menu keeps standard Cmd shortcuts working.
   if (!isMac) return Menu.setApplicationMenu(null);
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { role: 'appMenu' },
     { role: 'editMenu' },
-    { label: 'View', submenu: [{ role: 'reload' }, ...(app.isPackaged ? [] : [{ role: 'toggleDevTools' }]), { type: 'separator' }, { role: 'togglefullscreen' }] },
+    { label: t('View'), submenu: [{ role: 'reload' }, ...(app.isPackaged ? [] : [{ role: 'toggleDevTools' }]), { type: 'separator' }, { role: 'togglefullscreen' }] },
     { role: 'windowMenu' },
   ]));
 }
@@ -458,6 +465,7 @@ app.setAppUserModelId(APP_ID);
 app.whenReady().then(() => {
   if (!primaryInstance) return;
   settings = new Settings(app.getPath('userData'));
+  setLanguage(settings.get().language, app.getLocale()); // before the menu and any dialog
   background = new Background(app.getPath('userData'), settings);
   useDownloads(path.join(app.getPath('userData'), 'claude-code'));
   updater = new ClaudeUpdater(path.join(app.getPath('userData'), 'claude-code'), settings, send);

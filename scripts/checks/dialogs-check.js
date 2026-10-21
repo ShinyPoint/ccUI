@@ -1,15 +1,15 @@
 // Check of the app's own dialogs and the redesigned New session, without API usage (Claude is scripted, see
-// intro-video/fakes.js). A fresh profile: New session → the folder trust question (asked by the main process,
+// fakes.js). A fresh profile: New session → the folder trust question (asked by the main process,
 // shown in the window), the Bypass permissions confirmation, Settings, and quitting with a session running.
 // Screenshots in dist/dialogs-check/.
-// Usage: npx vite build && npx electron scripts/dialogs-check.js   (add --dark for the dark theme)
+// Usage: npx vite build && npx electron scripts/checks/dialogs-check.js   (add --dark for the dark theme)
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app, BrowserWindow } = require('electron');
-const { install } = require('./intro-video/fakes');
+const { install } = require('./fakes');
 
-const outDir = path.join(__dirname, '..', 'dist', 'dialogs-check');
+const outDir = path.join(__dirname, '..', '..', 'dist', 'dialogs-check');
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-dialogs-profile-'));
 const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-dialogs-project-'));
 const other = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-dialogs-other-'));
@@ -20,7 +20,7 @@ install({ histories: [], transcripts: new Map(), script: () => null, prompt: () 
 const THEME = process.argv.includes('--dark') ? 'dark' : 'light';
 // Not trusted yet, and quitting with sessions running asks first.
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  theme: THEME, confirmClose: true, notify: false,
+  language: 'en', theme: THEME, confirmClose: true, notify: false,
   recent: [{ path: project, at: Date.now() }, { path: other, at: Date.now() - 1000 }],
   folders: { [project]: { collapsed: false } },
 }));
@@ -65,6 +65,8 @@ app.on('browser-window-created', (_e, win) => {
   win.webContents.once('did-finish-load', async () => {
     try {
       await wait(1200);
+      // A profile with nothing set: both window options are on (frosted glass, work area to the window's edge).
+      check('by default the work area reaches the window’s edge and menus are frosted', await js("document.documentElement.classList.contains('fill-edge') && document.documentElement.classList.contains('frost')"));
       check('project folders start folded', await js("[...document.querySelectorAll('#sidebar .folder')].every((f) => f.classList.contains('collapsed'))"),
         await js("JSON.stringify([...document.querySelectorAll('#sidebar .folder')].map((f) => f.className))"));
 
@@ -161,7 +163,7 @@ app.on('browser-window-created', (_e, win) => {
       await js("[...document.querySelectorAll('.sidebar-bottom button')].find((b) => b.textContent.includes('Settings')).click(); true");
       await until('Settings', "Boolean(document.querySelector('.settings-nav'))");
       await wait(300);
-      check('Settings cards and fields have no borders', await js(`[...document.querySelectorAll('.dialog-settings .set-card, .dialog-settings select, .dialog-settings')]
+      check('Settings cards and fields have no borders', await js(`[...document.querySelectorAll('.dialog-settings .set-card, .dialog-settings .dropdown > .menu-button, .dialog-settings')]
         .every((el) => getComputedStyle(el).borderTopWidth === '0px') && getComputedStyle(document.querySelector('.settings-nav')).borderRightWidth === '0px'`));
       await shot('4-settings');
       await js("[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent.includes('Claude Code')).click(); true");
@@ -191,4 +193,4 @@ app.on('browser-window-created', (_e, win) => {
   });
 });
 
-require('../src/main/main.js');
+require('../../src/main/main.js');

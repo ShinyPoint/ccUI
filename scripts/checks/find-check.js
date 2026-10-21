@@ -1,18 +1,18 @@
 // End-to-end check of Find in chat (Ctrl+F) and the project search (Ctrl+Shift+F). Launches the built app
 // with a throwaway profile and project, has one short chat on Haiku, then drives the shortcuts and saves
-// screenshots. Usage: npx vite build && npx electron scripts/find-check.js (writes dist/find-check/*.png)
+// screenshots. Usage: npx vite build && npx electron scripts/checks/find-check.js (writes dist/find-check/*.png)
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app } = require('electron');
 
-const outDir = path.join(__dirname, '..', 'dist', 'find-check');
+const outDir = path.join(__dirname, '..', '..', 'dist', 'find-check');
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-find-profile-'));
 const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-find-project-'));
 const other = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-other-folder-'));
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  theme: 'dark', confirmClose: false, notify: false, defaultModel: 'haiku', defaultPermissionMode: 'default',
+  language: 'en', theme: 'dark', confirmClose: false, notify: false, defaultModel: 'haiku', defaultPermissionMode: 'default',
   recent: [{ path: project, at: Date.now() }, { path: other, at: Date.now() - 1000 }],
   trustedFolders: [project],
 }));
@@ -132,4 +132,4 @@ app.on('browser-window-created', (_e, win) => {
   });
 });
 
-require('../src/main/main.js');
+require('../../src/main/main.js');

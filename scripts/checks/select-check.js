@@ -1,14 +1,14 @@
-// Check of text selection in the chat, without API usage (Claude is scripted, see intro-video/fakes.js): real mouse
+// Check of text selection in the chat, without API usage (Claude is scripted, see fakes.js): real mouse
 // drags over a reply, from a reply into the space around it, and across your message and a reply, then reports
 // what got selected. Only conversation text should be: not buttons, labels, icons or the message box.
-// Usage: npx vite build && npx electron scripts/select-check.js   (writes dist/select-check/*.png)
+// Usage: npx vite build && npx electron scripts/checks/select-check.js   (writes dist/select-check/*.png)
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app } = require('electron');
-const { install } = require('./intro-video/fakes');
+const { install } = require('./fakes');
 
-const outDir = path.join(__dirname, '..', 'dist', 'select-check');
+const outDir = path.join(__dirname, '..', '..', 'dist', 'select-check');
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-select-profile-'));
 const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-select-project-'));
 fs.mkdirSync(outDir, { recursive: true });
@@ -30,7 +30,7 @@ install({
 
 const THEME = process.argv.includes('--dark') ? 'dark' : 'light';
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  theme: THEME, confirmClose: false, notify: false, sidebarGlass: false,
+  language: 'en', theme: THEME, confirmClose: false, notify: false, sidebarGlass: false,
   recent: [{ path: project, at: Date.now() }], trustedFolders: [project],
 }));
 app.setPath('userData', profile);
@@ -174,4 +174,4 @@ app.on('browser-window-created', (_e, win) => {
   });
 });
 
-require('../src/main/main.js');
+require('../../src/main/main.js');

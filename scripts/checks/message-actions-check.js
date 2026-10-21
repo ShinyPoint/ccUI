@@ -1,20 +1,20 @@
 // End-to-end check of Stop with a queued message, and of the actions on a sent message (edit and resend
 // with file undo, fork). Launches the built app with a throwaway profile and project, drives a real chat
-// on Haiku, and saves screenshots. Usage: npx vite build && npx electron scripts/message-actions-check.js
+// on Haiku, and saves screenshots. Usage: npx vite build && npx electron scripts/checks/message-actions-check.js
 // (writes dist/message-actions/*.png; costs a few cents)
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app } = require('electron');
 
-const outDir = path.join(__dirname, '..', 'dist', 'message-actions');
+const outDir = path.join(__dirname, '..', '..', 'dist', 'message-actions');
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-actions-profile-'));
 const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-actions-project-'));
 const notes = path.join(project, 'notes.txt');
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(notes, 'alpha\n');
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  theme: 'dark', confirmClose: false, notify: false, defaultModel: 'haiku', defaultPermissionMode: 'bypassPermissions',
+  language: 'en', theme: 'dark', confirmClose: false, notify: false, defaultModel: 'haiku', defaultPermissionMode: 'bypassPermissions',
   recent: [{ path: project, at: Date.now() }],
   trustedFolders: [project], // a throwaway folder: skip the trust prompt
 }));
@@ -146,4 +146,4 @@ app.on('browser-window-created', (_e, win) => {
   });
 });
 
-require('../src/main/main.js');
+require('../../src/main/main.js');

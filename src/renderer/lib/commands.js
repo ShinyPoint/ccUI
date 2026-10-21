@@ -7,27 +7,26 @@ import {
 import {
   setModel, setEffort, setMode, renameSession, askSideQuestion, branchConversation, openInTerminal, endSession,
 } from './sessions.js';
-import { topLevel, groupTurns } from './chat-reducer.js';
+import { topLevel, groupTurns, answerText } from './chat-reducer.js';
 import { pluralize, tildify } from './format.js';
+import { t, phrase } from './i18n.js';
 
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max', 'auto'];
 
 // Claude's answers, latest first: each turn's final text.
 function answers(s) {
   const chat = s.chat.value;
-  return groupTurns(topLevel(chat), chat.busy).filter((g) => g.kind === 'turn')
-    .map((g) => g.answer.filter((i) => i.type === 'text').map((i) => i.text).join('\n\n').trim())
-    .filter(Boolean).reverse();
+  return groupTurns(topLevel(chat), chat.busy).filter((g) => g.kind === 'turn').map(answerText).filter(Boolean).reverse();
 }
 
 async function control(s, action, arg) {
   if (!s.agentId) {
-    toast('The chat isn’t running yet: send a message first.', 'error');
+    toast(t('The chat isn’t running yet: send a message first.'), 'error');
     return null;
   }
   const res = await api.agent.control(s.agentId, action, arg);
   if (!res.ok) {
-    toast(res.error || 'Claude Code could not do that.', 'error');
+    toast(res.error || t('Claude Code could not do that.'), 'error');
     return null;
   }
   return res.value;
@@ -41,7 +40,7 @@ async function showStatus(s) {
   const status = await control(s, 'status');
   if (!status) return;
   infoDialog.value = {
-    title: 'Status',
+    title: t('Status'),
     sections: (status.sections || []).map((sec) => ({
       title: sec.title,
       rows: (sec.rows || []).map((r) => ({ label: r.label, value: masked(r.label, r.value), mono: /id|url|cwd|version|path/i.test(r.label) })),
@@ -58,21 +57,21 @@ async function showMemory(s) {
     infoDialog.value = null;
   };
   infoDialog.value = {
-    title: 'Memory',
-    note: 'Claude reads these instructions at the start of every session in this project.',
+    title: t('Memory'),
+    note: t('Claude reads these instructions at the start of every session in this project.'),
     sections: [
       {
-        title: 'Instructions',
+        title: t('Instructions'),
         rows: (memory.files || []).map((f) => ({
-          label: f.label, note: f.exists ? tildify(f.path) : `${tildify(f.path)} · not there yet`, mono: false,
-          action: { label: f.exists ? 'Open' : 'Create', run: () => open(f) },
+          label: f.label, note: f.exists ? tildify(f.path) : t('{path} · not there yet', { path: tildify(f.path) }), mono: false,
+          action: { label: f.exists ? t('Open') : t('Create'), run: () => open(f) },
         })),
       },
       ...(memory.folders?.length ? [{
-        title: 'Auto memory',
+        title: t('Auto memory'),
         rows: memory.folders.map((f) => ({
           label: f.label, note: [f.description, memory.auto_memory?.status].filter(Boolean).join(' · '),
-          action: { label: 'Open', run: () => { api.openPath(f.path); infoDialog.value = null; } },
+          action: { label: t('Open'), run: () => { api.openPath(f.path); infoDialog.value = null; } },
         })),
       }] : []),
     ],
@@ -83,15 +82,15 @@ async function showMcp(s) {
   const servers = await control(s, 'mcp-status');
   if (!servers) return;
   infoDialog.value = {
-    title: 'MCP servers',
-    note: servers.length ? 'Turn one on or off with /mcp enable <server> or /mcp disable <server>.' : 'No MCP servers are set up for this project.',
+    title: t('MCP servers'),
+    note: servers.length ? t('Turn one on or off with /mcp enable <server> or /mcp disable <server>.') : t('No MCP servers are set up for this project.'),
     sections: servers.length ? [{
       rows: servers.map((m) => ({
         label: m.name, note: [m.status, m.serverInfo?.version, m.scope].filter(Boolean).join(' · '),
         action: m.status === 'connected' ? null : {
-          label: 'Reconnect',
+          label: t('Reconnect'),
           run: async () => {
-            if (await control(s, 'mcp-reconnect', m.name) !== null) { toast(`Reconnecting ${m.name}…`); showMcp(s); }
+            if (await control(s, 'mcp-reconnect', m.name) !== null) { toast(t('Reconnecting {name}…', { name: m.name })); showMcp(s); }
           },
         },
       })),
@@ -103,105 +102,105 @@ async function exportConversation(s) {
   const out = await control(s, 'export');
   if (!out) return;
   const saved = await api.saveText(out.default_filename || 'conversation.txt', out.text || '', s.cwd);
-  if (saved.ok) toast(`Saved to ${tildify(saved.path)}.`);
-  else if (!saved.canceled) toast(saved.error || 'The file could not be saved.', 'error');
+  if (saved.ok) toast(t('Saved to {path}.', { path: tildify(saved.path) }));
+  else if (!saved.canceled) toast(saved.error || t('The file could not be saved.'), 'error');
 }
 
-// `ui`: what only the message box can do: { openModelMenu, openContext, showAll, setText }.
+// `ui`: what only the message box can do: { openModelMenu, openContext, showAll, setText }. Descriptions (and hints
+// that name something) are translated where they are shown (commandList).
 export const APP_COMMANDS = [
-  { name: 'btw', argumentHint: '<question>', description: 'Ask a quick side question without interrupting the conversation',
-    run: (s, args) => (args ? askSideQuestion(s, args) : toast('Add your question: /btw why is this test slow?')) },
-  { name: 'skills', description: 'Manage skills: turn them on or off, see what they cost in context', run: (s) => { skillsDialog.value = s; } },
-  { name: 'rename', aliases: ['name'], argumentHint: '[name]', description: 'Rename this conversation',
+  { name: 'btw', argumentHint: phrase('<question>'), description: phrase('Ask a quick side question without interrupting the conversation'),
+    run: (s, args) => (args ? askSideQuestion(s, args) : toast(t('Add your question: /btw why is this test slow?'))) },
+  { name: 'skills', description: phrase('Manage skills: turn them on or off, see what they cost in context'), run: (s) => { skillsDialog.value = s; } },
+  { name: 'rename', aliases: ['name'], argumentHint: phrase('[name]'), description: phrase('Rename this conversation'),
     run: async (s, args) => {
-      if (!args) return toast('Add the new name: /rename Fix the login bug');
+      if (!args) return toast(t('Add the new name: /rename Fix the login bug'));
       renameSession(s, args);
       if (s.agentId && (s.chat.value.sessionId || s.sessionId)) await control(s, 'rename', args);
-      toast(`Renamed to “${args}”.`);
+      toast(t('Renamed to “{name}”.', { name: args }));
     } },
-  { name: 'model', argumentHint: '[model]', description: 'Choose the model (with no name, opens the model menu)',
+  { name: 'model', argumentHint: phrase('[model]'), description: phrase('Choose the model (with no name, opens the model menu)'),
     run: (s, args, ui) => (args ? setModel(s, args) : ui.openModelMenu()) },
-  { name: 'effort', argumentHint: '[low|medium|high|xhigh|max]', description: 'Set the effort level (with none, opens the model menu)',
+  { name: 'effort', argumentHint: '[low|medium|high|xhigh|max]', description: phrase('Set the effort level (with none, opens the model menu)'),
     run: async (s, args, ui) => {
       if (!args) return ui.openModelMenu();
-      if (!EFFORTS.includes(args)) return toast(`Effort is one of ${EFFORTS.join(', ')}.`, 'error');
-      if (await setEffort(s, args === 'auto' ? '' : args)) toast(`Effort: ${args}.`);
+      if (!EFFORTS.includes(args)) return toast(t('Effort is one of {levels}.', { levels: EFFORTS.join(', ') }), 'error');
+      if (await setEffort(s, args === 'auto' ? '' : args)) toast(t('Effort: {level}.', { level: args }));
     } },
-  { name: 'plan', description: 'Switch to plan mode: Claude plans before it changes anything', run: (s) => setMode(s, 'plan') },
-  { name: 'context', description: 'Show what fills the context window', run: (s, args, ui) => ui.openContext() },
-  { name: 'usage', aliases: ['cost', 'stats'], description: 'Show what this session has cost so far', run: (s, args, ui) => ui.openContext() },
-  { name: 'status', aliases: ['version'], description: 'Show Claude Code’s status: version, model, account, settings', run: showStatus },
-  { name: 'memory', description: 'Open the CLAUDE.md instructions Claude reads', run: showMemory },
-  { name: 'mcp', argumentHint: '[reconnect|enable|disable <server>]', description: 'Show the MCP servers (with arguments, Claude Code runs it)',
+  { name: 'plan', description: phrase('Switch to plan mode: Claude plans before it changes anything'), run: (s) => setMode(s, 'plan') },
+  { name: 'context', description: phrase('Show what fills the context window'), run: (s, args, ui) => ui.openContext() },
+  { name: 'usage', aliases: ['cost', 'stats'], description: phrase('Show what this session has cost so far'), run: (s, args, ui) => ui.openContext() },
+  { name: 'status', aliases: ['version'], description: phrase('Show Claude Code’s status: version, model, account, settings'), run: showStatus },
+  { name: 'memory', description: phrase('Open the CLAUDE.md instructions Claude reads'), run: showMemory },
+  { name: 'mcp', argumentHint: '[reconnect|enable|disable <server>]', description: phrase('Show the MCP servers (with arguments, Claude Code runs it)'),
     passWithArgs: true, run: showMcp },
-  { name: 'export', description: 'Save this conversation to a file', run: exportConversation },
-  { name: 'copy', argumentHint: '[N]', description: 'Copy Claude’s last answer (or the Nth latest)',
+  { name: 'export', description: phrase('Save this conversation to a file'), run: exportConversation },
+  { name: 'copy', argumentHint: '[N]', description: phrase('Copy Claude’s last answer (or the Nth latest)'),
     run: (s, args) => {
       const n = Math.max(1, parseInt(args, 10) || 1);
       const text = answers(s)[n - 1];
-      if (!text) return toast(n === 1 ? 'Claude hasn’t answered yet.' : `There is no answer number ${n}.`);
+      if (!text) return toast(n === 1 ? t('Claude hasn’t answered yet.') : t('There is no answer number {n}.', { n }));
       api.writeClipboard(text);
-      toast(n === 1 ? 'Copied Claude’s last answer.' : `Copied the answer ${pluralize(n - 1, 'answer')} back.`);
+      toast(n === 1 ? t('Copied Claude’s last answer.') : t('Copied the answer {answers} back.', { answers: pluralize(n - 1, 'answer') }));
     } },
-  { name: 'branch', description: 'Continue a copy of this conversation in a new chat', run: branchConversation },
-  { name: 'resume', description: 'Open an earlier conversation from this folder',
+  { name: 'branch', description: phrase('Continue a copy of this conversation in a new chat'), run: branchConversation },
+  { name: 'resume', description: phrase('Open an earlier conversation from this folder'),
     run: (s) => { newSessionDialog.value = { cwd: s.cwd, kind: 'chat', mode: 'resume' }; } },
-  { name: 'config', aliases: ['settings'], argumentHint: '[key=value]', description: 'Open Settings (with key=value, Claude Code sets it)',
+  { name: 'config', aliases: ['settings'], argumentHint: '[key=value]', description: phrase('Open Settings (with key=value, Claude Code sets it)'),
     passWithArgs: true, run: () => { settingsDialog.value = true; } },
-  { name: 'theme', description: 'Change the theme and colors', run: () => { settingsDialog.value = 'appearance'; } },
-  { name: 'tasks', aliases: ['bashes'], description: 'Show what is running in the background',
+  { name: 'theme', description: phrase('Change the theme and colors'), run: () => { settingsDialog.value = 'appearance'; } },
+  { name: 'tasks', aliases: ['bashes'], description: phrase('Show what is running in the background'),
     run: (s) => {
       const running = Object.values(s.chat.value.agents || {}).filter((a) => a.status === 'running');
-      toast(running.length ? `${pluralize(running.length, 'background task')} running: see the strip above the message box.` : 'Nothing is running in the background.');
+      toast(running.length ? t('{tasks} running: see the strip above the message box.', { tasks: pluralize(running.length, 'background task') }) : t('Nothing is running in the background.'));
     } },
-  { name: 'help', description: 'Show every command', run: (s, args, ui) => ui.showAll() },
-  { name: 'exit', aliases: ['quit'], description: 'End this session (the conversation is saved)', run: (s) => endSession(s) },
+  { name: 'help', description: phrase('Show every command'), run: (s, args, ui) => ui.showAll() },
+  { name: 'exit', aliases: ['quit'], description: phrase('End this session (the conversation is saved)'), run: (s) => endSession(s) },
 ];
 
-// Claude Code's commands that only its CLI can show. Name, other names, and what it does.
+// Claude Code's commands that only its CLI can show. Name, other names, and what it does (translated where shown).
 export const CLI_COMMANDS = [
-  ['permissions', ['allowed-tools'], 'Manage allow and deny rules for tools'],
-  ['hooks', [], 'View hook configurations for tool events'],
-  ['agents', [], 'Create and manage subagents'],
-  ['plugin', ['plugins', 'marketplace'], 'Manage Claude Code plugins'],
-  ['ide', [], 'Manage IDE integrations and show status'],
-  ['login', [], 'Sign in with your Anthropic account'],
-  ['logout', [], 'Sign out from your Anthropic account'],
-  ['doctor', ['checkup'], 'Check the health of your Claude Code installation'],
-  ['color', [], 'Set the prompt bar color for this session'],
-  ['focus', [], 'Toggle focus view'],
-  ['vim', [], 'Toggle Vim editing mode'],
-  ['terminal-setup', [], 'Set up Shift+Enter for new lines in your terminal'],
-  ['statusline', [], 'Set up a status line'],
-  ['feedback', ['bug'], 'Send feedback to Anthropic or report a bug'],
-  ['release-notes', [], 'Show what is new in Claude Code'],
-  ['privacy-settings', [], 'View and update your privacy settings'],
-  ['install-github-app', [], 'Set up Claude GitHub Actions for a repository'],
-  ['add-dir', [], 'Add a new working directory'],
-  ['cd', [], 'Move this session to a new working directory'],
-  ['fork', [], 'Spawn a background agent that inherits the full conversation'],
-  ['subtask', [], 'Send a subagent off with your full context'],
-  ['autocompact', [], 'Set how full the context gets before auto-summarizing'],
-  ['output-style', [], 'Choose an output style'],
-  ['advisor', [], 'Let Claude consult a stronger model at key moments'],
-  ['brief', [], 'Toggle brief-only mode'],
-  ['background', ['bg'], 'Send this session to the background'],
-  ['workflows', [], 'Browse running and completed workflows'],
-  ['loops', [], 'List, create and delete loops'],
-  ['artifacts', [], 'Browse your published and shared artifacts'],
-  ['upgrade', [], 'Upgrade your plan'],
-  ['usage-credits', [], 'Configure usage credits'],
-  ['rate-limit-options', [], 'Manage usage limits'],
-  ['setup-bedrock', [], 'Set up Amazon Bedrock'],
-  ['setup-vertex', [], 'Set up Google Vertex AI'],
-  ['import', [], 'Import config from another AI coding agent'],
-  ['tui', [], 'Set the terminal UI renderer'],
-  ['scroll-speed', [], 'Adjust mouse wheel scroll speed'],
-  ['wellbeing', ['breaks'], 'Break reminders and quiet hours'],
-  ['powerup', [], 'Learn Claude Code features in short lessons'],
-  ['teleport', [], 'Send this session to the cloud, or resume one'],
-  ['desktop', ['app'], 'Continue the session in Claude Desktop'],
-  ['mobile', ['ios', 'android'], 'Download the Claude mobile app'],
+  ['permissions', ['allowed-tools'], phrase('Manage allow and deny rules for tools')],
+  ['hooks', [], phrase('View hook configurations for tool events')],
+  ['agents', [], phrase('Create and manage subagents')],
+  ['plugin', ['plugins', 'marketplace'], phrase('Manage Claude Code plugins')],
+  ['ide', [], phrase('Manage IDE integrations and show status')],
+  ['login', [], phrase('Sign in with your Anthropic account')],
+  ['logout', [], phrase('Sign out from your Anthropic account')],
+  ['doctor', ['checkup'], phrase('Check the health of your Claude Code installation')],
+  ['color', [], phrase('Set the prompt bar color for this session')],
+  ['focus', [], phrase('Toggle focus view')],
+  ['vim', [], phrase('Toggle Vim editing mode')],
+  ['terminal-setup', [], phrase('Set up Shift+Enter for new lines in your terminal')],
+  ['statusline', [], phrase('Set up a status line')],
+  ['feedback', ['bug'], phrase('Send feedback to Anthropic or report a bug')],
+  ['privacy-settings', [], phrase('View and update your privacy settings')],
+  ['install-github-app', [], phrase('Set up Claude GitHub Actions for a repository')],
+  ['add-dir', [], phrase('Add a new working directory')],
+  ['cd', [], phrase('Move this session to a new working directory')],
+  ['fork', [], phrase('Spawn a background agent that inherits the full conversation')],
+  ['subtask', [], phrase('Send a subagent off with your full context')],
+  ['autocompact', [], phrase('Set how full the context gets before auto-summarizing')],
+  ['output-style', [], phrase('Choose an output style')],
+  ['advisor', [], phrase('Let Claude consult a stronger model at key moments')],
+  ['brief', [], phrase('Toggle brief-only mode')],
+  ['background', ['bg'], phrase('Send this session to the background')],
+  ['workflows', [], phrase('Browse running and completed workflows')],
+  ['loops', [], phrase('List, create and delete loops')],
+  ['artifacts', [], phrase('Browse your published and shared artifacts')],
+  ['upgrade', [], phrase('Upgrade your plan')],
+  ['usage-credits', [], phrase('Configure usage credits')],
+  ['rate-limit-options', [], phrase('Manage usage limits')],
+  ['setup-bedrock', [], phrase('Set up Amazon Bedrock')],
+  ['setup-vertex', [], phrase('Set up Google Vertex AI')],
+  ['import', [], phrase('Import config from another AI coding agent')],
+  ['tui', [], phrase('Set the terminal UI renderer')],
+  ['scroll-speed', [], phrase('Adjust mouse wheel scroll speed')],
+  ['wellbeing', ['breaks'], phrase('Break reminders and quiet hours')],
+  ['powerup', [], phrase('Learn Claude Code features in short lessons')],
+  ['teleport', [], phrase('Send this session to the cloud, or resume one')],
+  ['desktop', ['app'], phrase('Continue the session in Claude Desktop')],
+  ['mobile', ['ios', 'android'], phrase('Download the Claude mobile app')],
 ].map(([name, aliases, description]) => ({ name, aliases, description, argumentHint: '', cli: true }));
 
 const matches = (c, name) => c.name === name || c.aliases?.includes(name);
@@ -215,12 +214,16 @@ export function parseCommand(text) {
 export function commandList(s) {
   const own = APP_COMMANDS;
   const claude = (s.meta.value.commands || []).filter((c) => !own.some((a) => matches(a, c.name)));
+  // Only the CLI shows them: what Claude Code names so (once a message has gone), and the ones known here (before).
   const terminal = new Set(s.chat.value.init?.terminalCommands || []);
-  const cli = CLI_COMMANDS.filter((c) => !own.some((a) => matches(a, c.name)) && !claude.some((x) => matches(x, c.name) && !terminal.has(x.name)));
+  const cliOnly = (c) => terminal.has(c.name) || CLI_COMMANDS.some((x) => matches(x, c.name));
+  const cli = CLI_COMMANDS.filter((c) => !own.some((a) => matches(a, c.name)) && !claude.some((x) => matches(x, c.name)));
+  // The app's own descriptions in the app's language; Claude Code's come as Claude Code wrote them.
+  const shown = (c) => ({ ...c, description: t(c.description), argumentHint: c.argumentHint && t(c.argumentHint) });
   return [
-    ...own,
-    ...claude.map((c) => (terminal.has(c.name) ? { ...c, cli: true } : c)),
-    ...cli,
+    ...own.map(shown),
+    ...claude.map((c) => (cliOnly(c) ? { ...c, cli: true } : c)),
+    ...cli.map(shown),
   ];
 }
 
@@ -238,18 +241,21 @@ export function runCommand(s, text, ui) {
   const commands = s.meta.value.commands || [];
   const terminal = new Set(s.chat.value.init?.terminalCommands || []);
   const claude = commands.find((c) => matches(c, cmd.name));
-  if (claude && !terminal.has(claude.name)) return false;
-  const cli = claude || CLI_COMMANDS.find((c) => matches(c, cmd.name));
+  const listed = CLI_COMMANDS.find((c) => matches(c, cmd.name));
+  // Claude Code names its CLI-only commands only after the first message; until then the known ones count.
+  if (claude && !terminal.has(claude.name) && !listed) return false;
+  const cli = claude || listed;
   if (cli) {
+    const what = claude ? claude.description : listed.description && t(listed.description);
     confirmDialog({
-      title: `/${cmd.name} opens in the CLI`,
-      message: `${cli.description ? `${cli.description}. ` : ''}It is one of Claude Code’s interactive screens, which only its CLI shows. `
-        + 'Continue this conversation in the CLI? The command is typed in for you there.',
-      confirm: 'Open in the CLI',
+      title: t('/{name} opens in the CLI', { name: cmd.name }),
+      message: (what ? t('{description}. ', { description: what }) : '')
+        + t('It is one of Claude Code’s interactive screens, which only its CLI shows. Continue this conversation in the CLI? The command is typed in for you there.'),
+      confirm: t('Open in the CLI'),
     }).then((yes) => { if (yes) openInTerminal(s, { input: text.trim() }); });
     return 'blocked';
   }
   if (!commands.length) return false; // Claude Code's list hasn't come yet: let it decide
-  toast(`/${cmd.name} isn’t a command. Type / to see them all.`, 'error');
+  toast(t('/{name} isn’t a command. Type / to see them all.', { name: cmd.name }), 'error');
   return 'blocked';
 }

@@ -2,13 +2,13 @@
 // download from the npm registry (a few tens of MB). The app is made to believe its built-in Claude Code is
 // 2.1.0, so the newest one is offered; the script presses Update and checks that the new build is unpacked
 // into the (throwaway) profile, starts, and is used from then on. Screenshots in dist/update-check/.
-// Usage: npx vite build && npx electron scripts/update-check.js
+// Usage: npx vite build && npx electron scripts/checks/update-check.js
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app } = require('electron');
 
-const outDir = path.join(__dirname, '..', 'dist', 'update-check');
+const outDir = path.join(__dirname, '..', '..', 'dist', 'update-check');
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-update-profile-'));
 fs.mkdirSync(outDir, { recursive: true });
 
@@ -22,7 +22,7 @@ fs.readFileSync = function readFileSync(file, ...rest) {
 };
 
 // Automatic updates off, so the button is what starts it (the default, on, is checked below).
-fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({ theme: 'light', confirmClose: false, notify: false, autoUpdateClaude: false }));
+fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({ language: 'en', theme: 'light', confirmClose: false, notify: false, autoUpdateClaude: false }));
 app.setPath('userData', profile);
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -51,7 +51,7 @@ app.on('browser-window-created', (_e, win) => {
   win.webContents.once('did-finish-load', async () => {
     try {
       await wait(1200);
-      const { Settings } = require('../src/main/settings');
+      const { Settings } = require('../../src/main/settings');
       check('automatic updates are on by default', new Settings(fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-update-fresh-'))).get().autoUpdateClaude === true);
 
       await js("[...document.querySelectorAll('.sidebar-bottom button')].find((b) => b.textContent.includes('Settings')).click(); true");
@@ -79,7 +79,7 @@ app.on('browser-window-created', (_e, win) => {
       check('the new build is in the profile', fs.existsSync(file), file);
       check('nothing half-done is left behind', fs.readdirSync(path.join(profile, 'claude-code')).every((n) => !n.startsWith('.')), fs.readdirSync(path.join(profile, 'claude-code')).join(', '));
       check('a toast says new sessions use it', await js(`[...document.querySelectorAll('.toast')].some((t) => t.textContent.includes('${latest}'))`));
-      const { resolveClaude } = require('../src/main/claude-binary');
+      const { resolveClaude } = require('../../src/main/claude-binary');
       check('new sessions start it', resolveClaude('').file === file, resolveClaude('').file);
       await until('the executable row to report it', `/Claude Code ${latest.replace(/\./g, '\\.')}/.test([...document.querySelectorAll('.dialog .set-note')].map((n) => n.textContent).join(' '))`, 60000);
       await js("[...document.querySelectorAll('.dialog button')].find((b) => b.textContent === 'Check for updates').click(); true");
@@ -95,4 +95,4 @@ app.on('browser-window-created', (_e, win) => {
   });
 });
 
-require('../src/main/main.js');
+require('../../src/main/main.js');

@@ -5,6 +5,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { t } = require('./i18n');
 
 // What a skill can be set to, as Claude Code's settings name them. Absent means 'on'.
 const STATES = ['on', 'name-only', 'user-invocable-only', 'off'];
@@ -61,7 +62,7 @@ function readJson(file) {
     const data = JSON.parse(text);
     if (data && typeof data === 'object' && !Array.isArray(data)) return data;
   } catch { /* below */ }
-  throw new Error(`${file} isn't valid JSON, so it was left alone. Fix it and try again.`);
+  throw new Error(t('{file} isn\'t valid JSON, so it was left alone. Fix it and try again.', { file }));
 }
 
 // The skillOverrides entry for `name` in one settings file ('' when there is none).

@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { safeStorage } = require('electron');
+const { t } = require('./i18n');
 
 const DEFAULTS = {
   theme: 'system', // 'system' | 'dark' | 'light'
@@ -15,6 +16,7 @@ const DEFAULTS = {
   panelHeight: 260, // bottom Terminal panel, px
   sidePanelWidth: 440, // the Changes panel at the right of a chat, px
   sidePanelWrap: false, // and whether it wraps long lines
+  language: 'system', // 'system' | 'en' | 'zh-CN' (lib/i18n.js)
   cursorBlink: true,
   copyOnSelect: false,
   scrollback: 10000,
@@ -30,7 +32,7 @@ const DEFAULTS = {
   restoreSessions: true,
   sidebarCollapsed: false,
   sidebarGlass: true, // frosted-glass sidebar (system material; Windows 11 22H2+ and macOS)
-  fillEdge: false, // the chat / CLI area runs out to the window's right edge (no gap there)
+  fillEdge: true, // the chat / CLI area runs out to the window's right edge (no gap there)
   backgroundImage: '', // file name of the background image in <userData>/backgrounds (set by background.js)
   backgroundShow: 40, // how much of the background image shows through, percent
   backgroundBlur: 8, // blur of the background image, px
@@ -41,7 +43,7 @@ const DEFAULTS = {
   bounds: null,
   apiKeyEnc: '',
   trustedFolders: [], // folders the user trusted for chat sessions (main process only, see trust.js)
-  settingsVersion: 7,
+  settingsVersion: 8,
 };
 
 // Kept by the main process; the window can neither read nor change them through settings:set.
@@ -99,8 +101,12 @@ class Settings {
       // Ember was the default accent until version 7, when Black took its place; it was saved as such.
       this.data.accent = 'black';
     }
-    if (version < 7) {
-      this.data.settingsVersion = 7;
+    if (version < 8 && !['black', 'pink', 'ember'].includes(this.data.accent)) {
+      // Version 8 keeps three accents (Default, Pink, Clay); the others turn into Default.
+      this.data.accent = 'black';
+    }
+    if (version < 8) {
+      this.data.settingsVersion = 8;
       try { this.save(); } catch { /* read-only profile: keep the in-memory upgrade */ }
     }
   }
@@ -134,7 +140,7 @@ class Settings {
 
   setApiKey(key) {
     const value = (key || '').trim();
-    if (value && !safeStorage.isEncryptionAvailable()) throw new Error('This system has no secure storage for the key.');
+    if (value && !safeStorage.isEncryptionAvailable()) throw new Error(t('This system has no secure storage for the key.'));
     this.data.apiKeyEnc = value ? safeStorage.encryptString(value).toString('base64') : '';
     this.save();
     return this.get();

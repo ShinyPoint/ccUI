@@ -2,13 +2,14 @@
 // permission-mode and model menus (with the effort slider), context meter, send / stop.
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Icon, Menu, Popover } from '../ui.jsx';
-import { MODE_LABELS } from './Prompts.jsx';
+import { modeLabel } from './Prompts.jsx';
 import { api, toast, confirmDialog } from '../../lib/store.js';
 import { sendMessage, interrupt, setMode, setModel, setEffort, refreshContext } from '../../lib/sessions.js';
 import { commandList, runCommand } from '../../lib/commands.js';
 import { EffortSlider } from './EffortSlider.jsx';
 import { formatTokens, formatCost } from '../../lib/format.js';
 import { SHORTCUTS } from '../../lib/keyboard.js';
+import { t, phrase } from '../../lib/i18n.js';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const BASE_MODES = ['default', 'acceptEdits', 'plan'];
@@ -21,9 +22,27 @@ const MODE_ICONS = {
   bypassPermissions: 'modeBypass',
 };
 
+// The model menu's entry for the model in use. Ids may carry a context-size suffix the list doesn't (claude-opus-5-5[1m]
+// runs Opus with a 1M window), and the list may name a model by its alias (opus) rather than its id.
+const baseId = (id) => String(id || '').replace(/\[\w+\]$/, '').toLowerCase();
+const FAMILIES = ['opus', 'sonnet', 'haiku', 'fable'];
+function findModel(models, selected, running) {
+  const exact = selected && models.find((m) => m.value === selected);
+  if (exact) return exact;
+  const want = baseId(selected || running);
+  if (!want) return null;
+  // Nothing chosen: the default, when that is what runs.
+  const byDefault = !selected && models.find((m) => m.value === 'default' && m.resolvedModel && baseId(m.resolvedModel) === want);
+  if (byDefault) return byDefault;
+  const named = models.find((m) => m.value !== 'default' && (baseId(m.value) === want || (m.resolvedModel && baseId(m.resolvedModel) === want)));
+  if (named) return named;
+  const family = FAMILIES.find((f) => want.includes(f));
+  return (family && models.find((m) => m.value !== 'default' && (baseId(m.value) === family || m.displayName?.toLowerCase().startsWith(family)))) || null;
+}
+
 function readImage(file) {
   return new Promise((resolve, reject) => {
-    if (file.size > MAX_IMAGE_BYTES) return reject(new Error(`${file.name || 'Image'} is larger than 5 MB.`));
+    if (file.size > MAX_IMAGE_BYTES) return reject(new Error(t('{name} is larger than 5 MB.', { name: file.name || t('Image') })));
     const reader = new FileReader();
     reader.onload = () => {
       const url = String(reader.result);
@@ -59,6 +78,13 @@ function findTrigger(text, caret) {
   return null;
 }
 
+// Claude Code's names for what fills the context window; others show as they come.
+const CONTEXT_ROWS = new Set([
+  phrase('System prompt'), phrase('System tools'), phrase('MCP tools'), phrase('Memory files'), phrase('Skills'),
+  phrase('Custom agents'), phrase('Messages'), phrase('Free space'), phrase('Autocompact buffer'),
+]);
+const rowName = (name) => (CONTEXT_ROWS.has(name) ? t(name) : name);
+
 // How full the context window is: a ring and a percentage that open the breakdown (what takes the space, the
 // session's cost) and a button to compact the conversation.
 function ContextButton({ s, onCompact }) {
@@ -71,38 +97,38 @@ function ContextButton({ s, onCompact }) {
   const cost = s.chat.value.costTotal;
   return (
     <Popover className={`context-menu-wrap ${pct >= 80 ? 'high' : ''}`} align="right" panelClass="context-pop"
-             title={`Context: ${pct}% used`} onOpen={() => refreshContext(s)}
+             title={t('Context: {pct}% used', { pct })} onOpen={() => refreshContext(s)}
              button={(
                <span class="context-meter">
                  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
                    <circle cx="9" cy="9" r={r} class="track" />
                    <circle cx="9" cy="9" r={r} class="fill" stroke-dasharray={`${(c * pct) / 100} ${c}`} transform="rotate(-90 9 9)" />
                  </svg>
-                 {pct}%
+                 <span class="menu-text">{pct}%</span>
                </span>
              )}>
       {(close) => (
         <>
           <div class="ctx-head">
-            <span class="ctx-title">Context</span>
+            <span class="ctx-title">{t('Context')}</span>
             <span class="ctx-total">{formatTokens(context.totalTokens)} / {formatTokens(context.maxTokens)}</span>
           </div>
           <div class="ctx-bar" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
             <span style={{ width: `${pct}%` }} />
           </div>
-          <div class="ctx-pct">{pct}% used</div>
+          <div class="ctx-pct">{t('{pct}% used', { pct })}</div>
           {rows.length > 0 && (
             <ul class="ctx-rows">
               {rows.map((x) => (
-                <li key={x.name} class={`ctx-${x.kind}`}><span>{x.name}</span><span>{formatTokens(x.tokens)}</span></li>
+                <li key={x.name} class={`ctx-${x.kind}`}><span>{rowName(x.name)}</span><span>{formatTokens(x.tokens)}</span></li>
               ))}
             </ul>
           )}
           <div class="ctx-foot">
-            <div class="ctx-cost"><span>This session</span><span>{formatCost(cost || 0)}</span></div>
-            <button type="button" class="secondary-btn" title="Summarize the conversation so far to free up context (/compact)"
+            <div class="ctx-cost"><span>{t('This session')}</span><span>{formatCost(cost || 0)}</span></div>
+            <button type="button" class="secondary-btn" title={t('Summarize the conversation so far to free up context (/compact)')}
                     onClick={() => { close(); onCompact(); }}>
-              Compact conversation
+              {t('Compact conversation')}
             </button>
           </div>
         </>
@@ -133,7 +159,7 @@ export function Composer({ s, prefill }) {
   useEffect(() => {
     if (!restore) return;
     s.restore.value = null;
-    setText((t) => [restore.text, t].filter(Boolean).join('\n\n'));
+    setText((typed) => [restore.text, typed].filter(Boolean).join('\n\n'));
     setImages((list) => [...restore.images.map((img) => ({ ...img, preview: img.preview || `data:${img.mediaType};base64,${img.data}` })), ...list]);
     input.current?.focus();
   }, [restore]);
@@ -151,10 +177,10 @@ export function Composer({ s, prefill }) {
   const busy = chat.busy;
   const mode = chat.init?.permissionMode || s.mode.value || 'default';
   const models = meta.models || [];
-  const currentModel = models.find((m) => m.value === s.selectedModel.value)
-    || models.find((m) => m.resolvedModel && m.resolvedModel === chat.init?.model)
-    || models.find((m) => chat.init?.model && m.value === chat.init.model);
-  const modelLabel = currentModel?.displayName || chat.init?.model || s.selectedModel.value || 'Default model';
+  const currentModel = findModel(models, s.selectedModel.value, chat.init?.model);
+  const longContext = /\[1m\]$/i.test(s.selectedModel.value || chat.init?.model || '');
+  const modelLabel = currentModel ? `${currentModel.displayName}${longContext && !/1m/i.test(currentModel.displayName) ? ' · 1M' : ''}`
+    : chat.init?.model || s.selectedModel.value || t('Default model');
   const modes = currentModel?.supportsAutoMode ? [...BASE_MODES, 'auto'] : BASE_MODES;
   // Effort levels come from the running model; before the first turn names it, from Claude Code's default.
   const effortModel = currentModel || (!s.selectedModel.value && models.find((m) => m.value === 'default'));
@@ -180,7 +206,9 @@ export function Composer({ s, prefill }) {
         .sort((a, b) => a[1] - b[1])
         .map(([c]) => {
           const name = `/${c.name.replace(/^\//, '')}`;
-          return { value: name, label: name, hint: c.argumentHint ? `${c.argumentHint} · ${c.description}` : c.description, cli: c.cli };
+          // (The app's own commands' texts are translated; Claude Code's come in English and show as they are.)
+          const description = c.description ? t(c.description) : '';
+          return { value: name, label: name, hint: c.argumentHint ? `${t(c.argumentHint)} · ${description}` : description, cli: c.cli };
         });
     } else {
       if (!files.current) {
@@ -215,12 +243,12 @@ export function Composer({ s, prefill }) {
     openModelMenu: () => {
       const button = root.current?.querySelector('.model-menu .menu-button');
       if (button) button.click();
-      else toast('The models aren’t loaded yet: send a message first.');
+      else toast(t('The models aren’t loaded yet: send a message first.'));
     },
     openContext: () => {
       const button = root.current?.querySelector('.context-menu-wrap .menu-button');
       if (button) button.click();
-      else toast('Context usage shows after Claude’s first reply.');
+      else toast(t('Context usage shows after Claude’s first reply.'));
     },
     // After the message box empties for the command that asked.
     showAll: () => {
@@ -261,7 +289,7 @@ export function Composer({ s, prefill }) {
         }
       } else {
         const path = api.pathForFile(file);
-        if (path) setText((t) => `${t}${t && !/\s$/.test(t) ? ' ' : ''}@${path} `);
+        if (path) setText((typed) => `${typed}${typed && !/\s$/.test(typed) ? ' ' : ''}@${path} `);
       }
     }
   }
@@ -330,7 +358,7 @@ export function Composer({ s, prefill }) {
                       onMouseDown={(e) => { e.preventDefault(); accept(item); }}>
                 <span class="ac-label">{item.label}</span>
                 {item.hint && <span class="ac-hint">{item.hint}</span>}
-                {item.cli && <span class="ac-tag" title="Shown in Claude Code’s CLI: the chat offers to continue there">CLI</span>}
+                {item.cli && <span class="ac-tag" title={t('Shown in Claude Code’s CLI: the chat offers to continue there')}>CLI</span>}
               </button>
             </li>
           ))}
@@ -340,8 +368,8 @@ export function Composer({ s, prefill }) {
         <div class="attachments">
           {images.map((img, i) => (
             <div class="attachment" key={i}>
-              <img src={img.preview} alt="Attachment" />
-              <button type="button" class="icon-btn" title="Remove image" onClick={() => setImages(images.filter((_, j) => j !== i))}>
+              <img src={img.preview} alt={t('Attachment')} />
+              <button type="button" class="icon-btn" title={t('Remove image')} onClick={() => setImages(images.filter((_, j) => j !== i))}>
                 <Icon name="x" size={12} />
               </button>
             </div>
@@ -354,7 +382,7 @@ export function Composer({ s, prefill }) {
         rows={1}
         spellcheck={false}
         value={text}
-        placeholder={busy ? 'Claude is working. Send a message to queue it: Claude reads it at its next step. Stop cancels it.' : 'Ask Claude to build, fix or explain something. Type / for commands and @ for files.'}
+        placeholder={busy ? t('Claude is working. Send a message to queue it: Claude reads it at its next step. Stop cancels it.') : t('Ask Claude to build, fix or explain something. Type / for commands and @ for files.')}
         onInput={(e) => {
           setText(e.currentTarget.value);
           updateAutocomplete(e.currentTarget.value, e.currentTarget.selectionStart);
@@ -372,18 +400,18 @@ export function Composer({ s, prefill }) {
       <div class="composer-bar">
         <Menu
           className="mode-menu"
-          title={`Permission mode (${SHORTCUTS.mode} to switch)`}
-          label={<><span class={`mode-icon mode-${mode}`}><Icon name={MODE_ICONS[mode] || 'modeAsk'} size={14} /></span>{MODE_LABELS[mode] || mode}</>}
+          title={t('Permission mode ({key} to switch)', { key: SHORTCUTS.mode })}
+          label={<><span class={`mode-icon mode-${mode}`}><Icon name={MODE_ICONS[mode] || 'modeAsk'} size={14} /></span><span class="menu-text">{modeLabel(mode)}</span></>}
           value={mode}
-          options={[...modes, 'bypassPermissions'].map((m) => ({ value: m, label: MODE_LABELS[m], hint: MODE_HINTS[m] }))}
+          options={[...modes, 'bypassPermissions'].map((m) => ({ value: m, label: modeLabel(m), hint: t(MODE_HINTS[m]) }))}
           onSelect={async (m) => {
             if (m === 'bypassPermissions' && mode !== m && !(await confirmDialog({
-              title: 'Bypass permissions?', message: BYPASS_WARNING, confirm: 'Bypass permissions', danger: true,
+              title: t('Bypass permissions?'), message: t(BYPASS_WARNING), confirm: t('Bypass permissions'), danger: true,
             }))) return;
             setMode(s, m);
           }}
         />
-        <button type="button" class="icon-btn" title="Attach images" onClick={() => fileInput.current.click()}>
+        <button type="button" class="icon-btn" title={t('Attach images')} onClick={() => fileInput.current.click()}>
           <Icon name="clip" />
         </button>
         <input ref={fileInput} type="file" accept="image/*" multiple hidden
@@ -392,9 +420,9 @@ export function Composer({ s, prefill }) {
         {models.length > 0 && (
           <Menu
             className="model-menu"
-            title="Model and effort"
+            title={t('Model and effort')}
             align="right"
-            label={modelLabel}
+            label={<span class="menu-text">{modelLabel}</span>}
             value={currentModel?.value}
             options={models.map((m) => ({ value: m.value, label: m.displayName, hint: m.description }))}
             onSelect={(v) => setModel(s, v)}
@@ -409,11 +437,11 @@ export function Composer({ s, prefill }) {
         )}
         <ContextButton s={s} onCompact={() => sendMessage(s, { text: '/compact' })} />
         {busy && !canSend ? (
-          <button type="button" class="send-btn stop" title={`Stop (${SHORTCUTS.interrupt})`} onClick={() => interrupt(s)}>
+          <button type="button" class="send-btn stop" title={t('Stop ({key})', { key: SHORTCUTS.interrupt })} onClick={() => interrupt(s)}>
             <Icon name="stop" size={14} />
           </button>
         ) : (
-          <button type="button" class="send-btn" title="Send (Enter)" disabled={!canSend} onClick={send}>
+          <button type="button" class="send-btn" title={t('Send (Enter)')} disabled={!canSend} onClick={send}>
             <Icon name="send" size={15} />
           </button>
         )}
@@ -423,14 +451,12 @@ export function Composer({ s, prefill }) {
 }
 
 const MODE_HINTS = {
-  default: 'Claude asks before editing files or running commands',
-  acceptEdits: 'File edits are applied without asking',
-  plan: 'Claude researches and proposes a plan before changing anything',
-  auto: 'A safety classifier approves routine actions',
-  bypassPermissions: 'Claude acts without asking, for anything',
+  default: phrase('Claude asks before editing files or running commands'),
+  acceptEdits: phrase('File edits are applied without asking'),
+  plan: phrase('Claude researches and proposes a plan before changing anything'),
+  auto: phrase('A safety classifier approves routine actions'),
+  bypassPermissions: phrase('Claude acts without asking, for anything'),
 };
 
 // Bypass is only chosen on purpose: it is in the menu (with this warning), not in the Shift+Tab cycle.
-const BYPASS_WARNING = 'Claude will edit files and run any command in this session without asking you first, '
-  + 'including ones that delete files or reach the internet. Use it only in a folder you can afford to lose, '
-  + 'such as a disposable copy or a container.';
+const BYPASS_WARNING = phrase('Claude will edit files and run any command in this session without asking you first, including ones that delete files or reach the internet. Use it only in a folder you can afford to lose, such as a disposable copy or a container.');

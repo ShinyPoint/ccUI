@@ -632,6 +632,9 @@ export function childrenOf(state, toolId) {
   return (state.children[toolId] || []).map((key) => state.items[state.index[key]]);
 }
 
+// A turn's answer as Claude wrote it (Markdown), without its steps: what Copy and /copy take.
+export const answerText = (g) => g.answer.filter((i) => i.type === 'text').map((i) => i.text).join('\n\n').trim();
+
 // Splits top-level items into turns: the prompt, Claude's work (tool calls, thinking, and text between
 // them), the answer (whatever follows the last step), and the turn summary. Items outside any turn are
 // passed through. A turn is `live` while Claude is still busy with it: the last turn, or one followed only

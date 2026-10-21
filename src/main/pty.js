@@ -4,6 +4,7 @@ const fs = require('fs');
 const { execFileSync } = require('child_process');
 const pty = require('@lydell/node-pty');
 const { childEnv } = require('./shell-env');
+const { t } = require('./i18n');
 
 const isWin = process.platform === 'win32';
 
@@ -51,7 +52,7 @@ function claudeLaunch(claude, args) {
     // cmd.exe expands %VAR% (and !VAR! with delayed expansion) even inside quotes, and ^ escapes: arguments
     // with these characters cannot be passed through it safely.
     const unsafe = args.find((a) => /[%!^\r\n]/.test(a));
-    if (unsafe) throw new Error(`This argument cannot be passed to Claude Code through cmd.exe: ${unsafe}`);
+    if (unsafe) throw new Error(t('This argument cannot be passed to Claude Code through cmd.exe: {argument}', { argument: unsafe }));
     const line = [claude.command, ...args.map(winQuote)].join(' ');
     return { file: 'cmd.exe', args: `/d /s /c "${line}"` };
   }
@@ -69,7 +70,7 @@ class PtyManager {
   // kind: 'terminal' runs Claude Code, 'shell' runs the user's shell.
   create({ kind, cwd, claude, args = [], extraArgs = '', cols = 100, rows = 30 }) {
     if (!cwd || !fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) {
-      throw new Error(`Folder not found: ${cwd}`);
+      throw new Error(t('Folder not found: {path}', { path: cwd }));
     }
     const launch = kind === 'shell' ? defaultShell() : claudeLaunch(claude, [...args, ...splitArgs(extraArgs)]);
 

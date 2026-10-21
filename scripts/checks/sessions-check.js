@@ -1,13 +1,13 @@
-// Check of session housekeeping, without API usage (Claude is scripted, see intro-video/fakes.js): at launch the
+// Check of session housekeeping, without API usage (Claude is scripted, see fakes.js): at launch the
 // shown session's folder is open and the others folded; restored chats read their history one at a time; a chat
 // left alone lets its Claude Code go (the clock is moved on) without a notice, and starts again on the same
 // conversation when selected; a crashed window is logged and loads again with its sessions.
-// Usage: npx vite build && npx electron scripts/sessions-check.js
+// Usage: npx vite build && npx electron scripts/checks/sessions-check.js
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app } = require('electron');
-const { install } = require('./intro-video/fakes');
+const { install } = require('./fakes');
 
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-sessions-profile-'));
 const a = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-sessions-a-'));
@@ -21,7 +21,7 @@ const transcripts = new Map([
 ]);
 const director = { histories: [], transcripts, script: () => null, prompt: () => '', shell: () => '', cli: () => '' };
 install(director);
-const agentModule = require.cache[require.resolve('../src/main/agent')].exports;
+const agentModule = require.cache[require.resolve('../../src/main/agent')].exports;
 // What the app asks of Claude Code: sessions started (with what they resume) and closed; histories read, in order.
 const started = [];
 const closed = [];
@@ -33,7 +33,7 @@ const load = agentModule.loadHistory;
 agentModule.loadHistory = async (id, cwd) => { reads.push(`start:${id}`); await new Promise((r) => setTimeout(r, 300)); reads.push(`end:${id}`); return load(id, cwd); };
 
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  theme: 'light', confirmClose: false, notify: false, trustedFolders: [a, b],
+  language: 'en', theme: 'light', confirmClose: false, notify: false, trustedFolders: [a, b],
   recent: [{ path: a, at: Date.now() }, { path: b, at: Date.now() - 1000 }],
   lastSessions: [
     { kind: 'chat', cwd: a, title: 'Chat in A', sessionId: 'conv-a' },
@@ -119,4 +119,4 @@ app.on('browser-window-created', (_e, win) => {
   });
 });
 
-require('../src/main/main.js');
+require('../../src/main/main.js');

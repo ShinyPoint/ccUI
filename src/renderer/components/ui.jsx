@@ -15,6 +15,36 @@ export function Icon({ name, size = 16 }) {
 
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+// For something that comes and goes on its own (the strips above the message box): it unfolds as it comes (height,
+// margins and opacity from nothing), and when `present` turns false it folds away before it goes. Returns whether
+// to keep rendering it; `ref` is its element. Its contents while leaving are the caller's to keep (the last ones).
+export function usePresence(present, ref, ms = 240) {
+  const [kept, setKept] = useState(present);
+  const first = useRef(true);
+  useLayoutEffect(() => {
+    const initial = first.current;
+    first.current = false;
+    if (present) setKept(true);
+    if (initial && present) return undefined; // on screen from the start (a session shown again): no animation
+    const el = ref.current;
+    if (!el || reducedMotion()) {
+      if (!present) setKept(false);
+      return undefined;
+    }
+    const cs = getComputedStyle(el);
+    const full = { height: `${el.offsetHeight}px`, marginTop: cs.marginTop, marginBottom: cs.marginBottom, opacity: 1 };
+    const none = { height: '0px', marginTop: '0px', marginBottom: '0px', opacity: 0 };
+    el.style.overflow = 'hidden';
+    const anim = el.animate(present ? [none, full] : [full, none], { duration: ms, easing: 'cubic-bezier(.2, .7, .2, 1)' });
+    anim.onfinish = () => {
+      el.style.overflow = '';
+      if (!present) setKept(false);
+    };
+    return () => anim.cancel();
+  }, [present]);
+  return kept || present;
+}
+
 // Animated expand / collapse for the content under a bar. The content mounts when it opens and stays mounted
 // until the closing animation has played; while settled open it is not clipped (focus rings, shadows).
 export function Collapse({ open, children }) {
@@ -110,6 +140,23 @@ export function Popover({ button, title, as: Panel = 'div', role = 'dialog', ali
         </Panel>
       )}
     </div>
+  );
+}
+
+// A choice from a list, shown like a field: the chosen option, and the app's own menu of all of them under it (in
+// place of the system's <select> pop-up). `options`: [{ value, label, hint }].
+export function Dropdown({ value, options, onChange, label, disabled, className = '' }) {
+  const current = options.find((o) => o.value === value) || options[0];
+  if (disabled) {
+    return (
+      <button type="button" class={`dropdown-field ${className}`} disabled aria-label={label}>
+        <span>{current?.label}</span><Icon name="chevron" size={13} />
+      </button>
+    );
+  }
+  return (
+    <Menu className={`dropdown ${className}`} title={label} align="right" up={false} label={<span>{current?.label}</span>}
+          value={current?.value} options={options} onSelect={onChange} />
   );
 }
 
@@ -211,9 +258,44 @@ export function SetRow({ label, note, stack, children }) {
   );
 }
 
+// An on/off switch. Held, its knob stretches; it can be clicked or dragged across, and follows the pointer while
+// dragged (--x on the label, 0 to 1).
 export function Switch({ checked, disabled, onChange, label }) {
+  const drag = useRef(null);
+  const skipClick = useRef(false);
+  const [held, setHeld] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const down = (e) => {
+    if (disabled || e.button !== 0) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { id: e.pointerId, x: e.clientX, from: checked ? 1 : 0, at: checked ? 1 : 0 };
+    setHeld(true);
+  };
+  const move = (e) => {
+    const d = drag.current;
+    if (!d || e.pointerId !== d.id) return;
+    const dx = e.clientX - d.x;
+    if (!dragging && Math.abs(dx) < 3) return;
+    d.at = Math.min(1, Math.max(0, d.from + dx / 11));
+    e.currentTarget.style.setProperty('--x', d.at);
+    if (!dragging) setDragging(true);
+  };
+  const up = (e) => {
+    const d = drag.current;
+    if (!d || e.pointerId !== d.id) return;
+    drag.current = null;
+    setHeld(false);
+    if (dragging) {
+      setDragging(false);
+      skipClick.current = true; // the click that follows a drag doesn't toggle it again
+      const on = d.at >= 0.5;
+      if (on !== checked) onChange(on);
+    }
+  };
   return (
-    <label class="switch">
+    <label class={`switch ${held ? 'held' : ''} ${dragging ? 'dragging' : ''}`}
+           onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+           onClickCapture={(e) => { if (skipClick.current) { skipClick.current = false; e.preventDefault(); } }}>
       <input type="checkbox" role="switch" aria-label={label} checked={checked} disabled={disabled}
              onChange={(e) => onChange(e.currentTarget.checked)} />
       <span />

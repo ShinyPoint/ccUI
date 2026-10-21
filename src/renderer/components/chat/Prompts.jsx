@@ -4,13 +4,14 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../ui.jsx';
 import { Markdown } from './Items.jsx';
 import { answerPermission } from '../../lib/sessions.js';
+import { t, phrase } from '../../lib/i18n.js';
 
 const DESTINATIONS = {
-  session: 'this session',
-  localSettings: 'this project, just for you',
-  projectSettings: 'this project',
-  userSettings: 'all your projects',
-  cliArg: 'this session',
+  session: phrase('this session'),
+  localSettings: phrase('this project, just for you'),
+  projectSettings: phrase('this project'),
+  userSettings: phrase('all your projects'),
+  cliArg: phrase('this session'),
 };
 // Inputs that appear after the page loaded need an explicit focus() call; the autofocus attribute is ignored.
 function FocusedInput(props) {
@@ -19,26 +20,31 @@ function FocusedInput(props) {
   return <input ref={ref} type="text" {...props} />;
 }
 
+// English, as phrases: shown with t() (modeLabel).
 export const MODE_LABELS = {
-  default: 'Ask before acting',
-  acceptEdits: 'Accept edits',
-  plan: 'Plan first',
-  auto: 'Auto',
-  dontAsk: 'Don’t ask',
-  bypassPermissions: 'Bypass permissions',
+  default: phrase('Ask before acting'),
+  acceptEdits: phrase('Accept edits'),
+  plan: phrase('Plan first'),
+  auto: phrase('Auto'),
+  dontAsk: phrase('Don’t ask'),
+  bypassPermissions: phrase('Bypass permissions'),
 };
+export const modeLabel = (mode) => (MODE_LABELS[mode] ? t(MODE_LABELS[mode]) : mode);
 
 function describeSuggestion(u) {
-  const where = DESTINATIONS[u.destination] || u.destination;
+  const where = DESTINATIONS[u.destination] ? t(DESTINATIONS[u.destination]) : u.destination;
   switch (u.type) {
     case 'addRules':
-    case 'replaceRules':
-      return `${u.behavior === 'allow' ? 'Allow' : u.behavior === 'deny' ? 'Deny' : 'Ask for'} ${u.rules
-        .map((r) => (r.ruleContent ? `${r.toolName}(${r.ruleContent})` : r.toolName)).join(', ')} in ${where}`;
+    case 'replaceRules': {
+      const rules = u.rules.map((r) => (r.ruleContent ? `${r.toolName}(${r.ruleContent})` : r.toolName)).join(', ');
+      if (u.behavior === 'allow') return t('Allow {rules} in {where}', { rules, where });
+      if (u.behavior === 'deny') return t('Deny {rules} in {where}', { rules, where });
+      return t('Ask for {rules} in {where}', { rules, where });
+    }
     case 'setMode':
-      return `Switch to “${MODE_LABELS[u.mode] || u.mode}” for ${where}`;
+      return t('Switch to “{mode}” for {where}', { mode: modeLabel(u.mode), where });
     case 'addDirectories':
-      return `Allow access to ${u.directories.join(', ')} in ${where}`;
+      return t('Allow access to {folders} in {where}', { folders: u.directories.join(', '), where });
     default:
       return u.type;
   }
@@ -57,31 +63,31 @@ export function PermissionPrompt({ session, request }) {
       message: reason.trim() ? `The user declined and said: ${reason.trim()}` : 'The user declined this action.',
     });
   };
-  const title = request.title || `Allow Claude to use ${request.displayName || request.toolName}?`;
+  const title = request.title || t('Allow Claude to use {tool}?', { tool: request.displayName || request.toolName });
 
   return (
     <div class="prompt" role="group" aria-label={title}>
       <div class="prompt-title"><Icon name="alert" size={15} />{title}</div>
       {request.description && <p class="prompt-desc">{request.description}</p>}
       {request.decisionReason && <p class="prompt-desc">{request.decisionReason}</p>}
-      {request.blockedPath && <p class="prompt-desc">Outside the project folder: <code>{request.blockedPath}</code></p>}
+      {request.blockedPath && <p class="prompt-desc">{t('Outside the project folder:')} <code>{request.blockedPath}</code></p>}
       {!denying ? (
         <div class="prompt-actions">
-          <button class="primary-btn" onClick={allow}>Allow</button>
+          <button class="primary-btn" onClick={allow}>{t('Allow')}</button>
           {suggestions.length > 0 && (
             <button class="secondary-btn" onClick={allowAlways} title={suggestions.map(describeSuggestion).join('\n')}>
-              Allow and don’t ask again
+              {t('Allow and don’t ask again')}
             </button>
           )}
-          <button class="secondary-btn" onClick={() => setDenying(true)}>Deny…</button>
+          <button class="secondary-btn" onClick={() => setDenying(true)}>{t('Deny…')}</button>
           {suggestions.length > 0 && <span class="prompt-hint">{describeSuggestion(suggestions[0])}</span>}
         </div>
       ) : (
         <form class="prompt-deny" onSubmit={deny}>
           <FocusedInput value={reason} onInput={(e) => setReason(e.currentTarget.value)}
-                        placeholder="Tell Claude what to do instead (optional)" />
-          <button type="submit" class="danger-btn">Deny</button>
-          <button type="button" class="secondary-btn" onClick={() => setDenying(false)}>Back</button>
+                        placeholder={t('Tell Claude what to do instead (optional)')} />
+          <button type="submit" class="danger-btn">{t('Deny')}</button>
+          <button type="button" class="secondary-btn" onClick={() => setDenying(false)}>{t('Back')}</button>
         </form>
       )}
     </div>
@@ -132,9 +138,9 @@ export function QuestionPrompt({ session, request }) {
                          onChange={() => toggle(q, o.label)} />
                   {o.label === '__other' ? (
                     <span class="q-text">
-                      <span class="q-label">Other</span>
+                      <span class="q-label">{t('Other')}</span>
                       {chosen.has('__other') && (
-                        <FocusedInput value={other[q.question] || ''} placeholder="Type your answer"
+                        <FocusedInput value={other[q.question] || ''} placeholder={t('Type your answer')}
                                onInput={(e) => setOther({ ...other, [q.question]: e.currentTarget.value })} />
                       )}
                     </span>
@@ -151,8 +157,8 @@ export function QuestionPrompt({ session, request }) {
         );
       })}
       <div class="prompt-actions">
-        <button type="submit" class="primary-btn" disabled={!complete}>Send answer{questions.length > 1 ? 's' : ''}</button>
-        <button type="button" class="secondary-btn" onClick={skip}>Skip</button>
+        <button type="submit" class="primary-btn" disabled={!complete}>{questions.length > 1 ? t('Send answers') : t('Send answer')}</button>
+        <button type="button" class="secondary-btn" onClick={skip}>{t('Skip')}</button>
       </div>
     </form>
   );
@@ -176,22 +182,22 @@ export function PlanPrompt({ session, request }) {
 
   return (
     <div class="prompt plan">
-      <div class="prompt-title"><Icon name="check" size={15} />Claude has a plan and is ready to start</div>
+      <div class="prompt-title"><Icon name="check" size={15} />{t('Claude has a plan and is ready to start')}</div>
       {plan && <Markdown text={plan} className="plan-text" />}
       {!revising ? (
         <div class="prompt-actions">
-          <button class="primary-btn" onClick={() => approve(false)}>Approve plan</button>
-          <button class="secondary-btn" onClick={() => approve(true)} title="Approve, then let Claude edit files without asking">
-            Approve and accept edits
+          <button class="primary-btn" onClick={() => approve(false)}>{t('Approve plan')}</button>
+          <button class="secondary-btn" onClick={() => approve(true)} title={t('Approve, then let Claude edit files without asking')}>
+            {t('Approve and accept edits')}
           </button>
-          <button class="secondary-btn" onClick={() => setRevising(true)}>Keep planning…</button>
+          <button class="secondary-btn" onClick={() => setRevising(true)}>{t('Keep planning…')}</button>
         </div>
       ) : (
         <form class="prompt-deny" onSubmit={keepPlanning}>
           <FocusedInput value={feedback} onInput={(e) => setFeedback(e.currentTarget.value)}
-                 placeholder="What should change in the plan? (optional)" />
-          <button type="submit" class="primary-btn">Send back</button>
-          <button type="button" class="secondary-btn" onClick={() => setRevising(false)}>Back</button>
+                 placeholder={t('What should change in the plan? (optional)')} />
+          <button type="submit" class="primary-btn">{t('Send back')}</button>
+          <button type="button" class="secondary-btn" onClick={() => setRevising(false)}>{t('Back')}</button>
         </form>
       )}
     </div>

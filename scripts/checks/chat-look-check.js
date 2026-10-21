@@ -1,14 +1,14 @@
-// Visual check of the chat, without API usage: Claude is scripted (intro-video/fakes.js). Sends a few messages,
+// Visual check of the chat, without API usage: Claude is scripted (fakes.js). Sends a few messages,
 // checks that new items animate in and that the view eases down to them instead of jumping, opens the
 // Terminal panel under the chat, and saves screenshots in dark and light.
-// Usage: npx vite build && npx electron scripts/chat-look-check.js   (writes dist/chat-look/*.png)
+// Usage: npx vite build && npx electron scripts/checks/chat-look-check.js   (writes dist/chat-look/*.png)
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { app } = require('electron');
-const { install } = require('./intro-video/fakes');
+const { app, clipboard } = require('electron');
+const { install } = require('./fakes');
 
-const outDir = path.join(__dirname, '..', 'dist', 'chat-look');
+const outDir = path.join(__dirname, '..', '..', 'dist', 'chat-look');
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-look-profile-'));
 const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-look-project-'));
 fs.mkdirSync(outDir, { recursive: true });
@@ -28,7 +28,11 @@ install({
   transcripts: new Map(),
   script: () => async (c, text) => {
     await c.think(300);
-    if (/long/.test(text)) {
+    if (/big file/.test(text)) {
+      // A step that fills the context, then a slow answer: the context ring moves before the turn ends.
+      await c.tool('Read', { file_path: c.file('big.txt') }, { run: 200, result: 'x'.repeat(30000) });
+      await c.say('Read it all, now going through it.', { cps: 10 });
+    } else if (/long/.test(text)) {
       await c.say(Array.from({ length: 40 }, (_, i) => `Line ${i + 1} of a longer answer that streams in word by word.`).join('\n\n'), { cps: 1500 });
     } else {
       await c.tool('Read', { file_path: c.file('notes.md') }, { run: 300, data: { type: 'text', file: { filePath: c.file('notes.md'), content: '# Notes' } } });
@@ -42,7 +46,7 @@ install({
 });
 
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  theme: 'dark', confirmClose: false, notify: false, sidebarGlass: true,
+  language: 'en', theme: 'dark', confirmClose: false, notify: false, sidebarGlass: true, fillEdge: false, // the gaps are measured with it off
   recent: [{ path: project, at: Date.now() }], trustedFolders: [project],
 }));
 app.setPath('userData', profile);
@@ -129,6 +133,17 @@ app.on('browser-window-created', (_e, win) => {
       await until('the reply', `${idle} && /start on it/.test(document.querySelector('.msg-text')?.textContent || '')`);
       await wait(600);
       await shot('1-chat-dark');
+      // Under the answer, at its left: Copy, which takes the answer and not the steps.
+      const foot = JSON.parse(await js(`JSON.stringify((() => { const b = document.querySelector('.turn-foot .answer-actions .icon-btn'); if (!b) return null;
+        const text = [...document.querySelectorAll('.msg-text')].at(-1).getBoundingClientRect(); const icon = b.querySelector('svg').getBoundingClientRect();
+        return { left: Math.round(icon.left - text.left), below: Math.round(b.getBoundingClientRect().top - text.bottom) }; })())`));
+      check('a finished answer has Copy under it, at its left', Boolean(foot) && Math.abs(foot.left) <= 2 && foot.below > -10 && foot.below < 12, JSON.stringify(foot));
+      clipboard.writeText('');
+      await js("document.querySelector('.turn-foot .answer-actions .icon-btn').click(); true");
+      await wait(200);
+      const copiedAnswer = await clipboard.readText();
+      check('Copy takes the answer, without the steps', copiedAnswer === REPLY.trim(), JSON.stringify(copiedAnswer.slice(0, 60)));
+      check('and shows it did', await js("Boolean(document.querySelector('.answer-actions .copied'))"));
 
       // A long reply: the view should ease down, not jump.
       await say('Give me a long answer.');
@@ -180,7 +195,7 @@ app.on('browser-window-created', (_e, win) => {
         await js("document.querySelector('.settings-head .primary-btn').click(); true");
         await wait(400);
       };
-      check('the option is off by default', !(await js("document.documentElement.classList.contains('fill-edge')")));
+      check('the option is off here (this profile)', !(await js("document.documentElement.classList.contains('fill-edge')")));
       await toggleEdge();
       const on = await edge();
       check('turned on, the work area reaches the right edge, rounded at its top-left only', on.right === 0 && on.top === '18px 0px', JSON.stringify(on));
@@ -211,6 +226,18 @@ app.on('browser-window-created', (_e, win) => {
       check('Compact conversation sends /compact', await js("!document.querySelector('.context-pop')"));
       await until('idle again', idle);
 
+      // The ring follows the conversation while Claude works: no click needed, no waiting for the turn to end.
+      const ring = "Number(document.querySelector('.context-meter').textContent.replace('%', ''))";
+      const before = await js(ring);
+      const copies = await js("document.querySelectorAll('.answer-actions').length");
+      await say('Read the big file.');
+      const moved = await until('the ring to move during the turn', `${ring} > ${before} && Boolean(document.querySelector('.send-btn.stop'))`, 3000);
+      check('the context ring updates by itself while Claude works', moved, `${before}% → ${await js(ring)}%`);
+      check('a turn still going has no Copy yet', (await js("document.querySelectorAll('.answer-actions').length")) === copies);
+      await until('idle again', idle);
+      await wait(300);
+      check('every finished answer has its Copy', (await js("document.querySelectorAll('.answer-actions').length")) === copies + 1);
+
       // Terminal panel joined to the chat.
       await js("document.querySelector('.panel-toggle').click(); true");
       await wait(1500);
@@ -237,4 +264,4 @@ app.on('browser-window-created', (_e, win) => {
   });
 });
 
-require('../src/main/main.js');
+require('../../src/main/main.js');

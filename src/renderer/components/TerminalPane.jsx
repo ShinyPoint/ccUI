@@ -7,6 +7,7 @@ import { active, api } from '../lib/store.js';
 import { termStack, fitTerminal } from '../lib/terminal.js';
 import { restartTerminal, closeSession, openInChat, writePty } from '../lib/sessions.js';
 import { quotePath } from '../lib/format.js';
+import { t, phrase } from '../lib/i18n.js';
 
 // Preact never re-renders this; the terminals inside are managed imperatively.
 export class TerminalStack extends Component {
@@ -69,17 +70,19 @@ export function TerminalOverlay({ s }) {
 
   return (
     <div class="term-overlay">
-      {dropping && <div class="drop-hint">Drop to insert file paths</div>}
+      {dropping && <div class="drop-hint">{t('Drop to insert file paths')}</div>}
       {status === 'exited' && (
         <div class="exit-panel">
-          <span class="msg">{isClaude ? 'Claude Code' : 'The shell'} exited{code ? ` with code ${code}` : ''}.</span>
+          <span class="msg">{isClaude
+            ? (code ? t('Claude Code exited with code {code}.', { code }) : t('Claude Code exited.'))
+            : (code ? t('The shell exited with code {code}.', { code }) : t('The shell exited.'))}</span>
           <div class="actions">
-            {isClaude && <button class="primary-btn" onClick={() => restartTerminal(s)}>Continue conversation</button>}
-            {isClaude && <button class="secondary-btn" onClick={() => openInChat(s)}>Open in chat</button>}
+            {isClaude && <button class="primary-btn" onClick={() => restartTerminal(s)}>{t('Continue conversation')}</button>}
+            {isClaude && <button class="secondary-btn" onClick={() => openInChat(s)}>{t('Open in chat')}</button>}
             <button class={isClaude ? 'secondary-btn' : 'primary-btn'} onClick={() => restartTerminal(s, { fresh: true })}>
-              {isClaude ? 'Start fresh' : 'Restart shell'}
+              {isClaude ? t('Start fresh') : t('Restart shell')}
             </button>
-            <button class="secondary-btn" onClick={() => closeSession(s)}>Close</button>
+            <button class="secondary-btn" onClick={() => closeSession(s)}>{t('Close')}</button>
           </div>
         </div>
       )}
@@ -88,8 +91,8 @@ export function TerminalOverlay({ s }) {
 }
 
 const CHIPS = [
-  { label: 'Esc', hint: 'interrupt', send: '\x1b', title: 'Interrupt Claude (Esc)' },
-  { label: '⇧Tab', hint: 'mode', send: '\x1b[Z', title: 'Cycle permission mode (Shift+Tab)' },
+  { label: 'Esc', hint: phrase('interrupt'), send: '\x1b', title: phrase('Interrupt Claude (Esc)') },
+  { label: '⇧Tab', hint: phrase('mode'), send: '\x1b[Z', title: phrase('Cycle permission mode (Shift+Tab)') },
   ...['/compact', '/clear', '/context', '/model', '/resume', '/mcp', '/help'].map((c) => ({ label: c, command: c })),
 ];
 
@@ -148,17 +151,17 @@ export function TerminalComposer({ s }) {
       {isClaude && (
         <div class="chips">
           {CHIPS.map((c) => (
-            <button key={c.label} class={c.send ? 'chip key' : 'chip'} title={c.title || `Run ${c.command}`} onClick={() => runChip(c)}>
-              {c.hint ? `${c.label} ${c.hint}` : c.label}
+            <button key={c.label} class={c.send ? 'chip key' : 'chip'} title={c.title ? t(c.title) : t('Run {command}', { command: c.command })} onClick={() => runChip(c)}>
+              {c.hint ? `${c.label} ${t(c.hint)}` : c.label}
             </button>
           ))}
         </div>
       )}
       <div class="composer-row">
         <textarea ref={input} class="composer-input" rows={1} spellcheck={false} value={text}
-                  placeholder={isClaude ? 'Write a prompt here. Enter sends it to Claude, Shift+Enter adds a line.' : 'Type a command. Enter runs it in the shell.'}
+                  placeholder={isClaude ? t('Write a prompt here. Enter sends it to Claude, Shift+Enter adds a line.') : t('Type a command. Enter runs it in the shell.')}
                   onInput={(e) => setText(e.currentTarget.value)} onKeyDown={onKeyDown} />
-        <button class="send-btn" title="Send to session" disabled={!s.ptyId || !text.trim()} onClick={send}>
+        <button class="send-btn" title={t('Send to session')} disabled={!s.ptyId || !text.trim()} onClick={send}>
           <Icon name="send" size={15} />
         </button>
       </div>

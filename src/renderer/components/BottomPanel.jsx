@@ -7,6 +7,7 @@ import { panelStack, fitTerminal, terminalMode } from '../lib/terminal.js';
 import { showPanel, togglePanel, restartPanel } from '../lib/panel.js';
 import { tildify } from '../lib/format.js';
 import { SHORTCUTS } from '../lib/keyboard.js';
+import { t } from '../lib/i18n.js';
 
 // Preact never re-renders this; the shells inside are managed imperatively.
 class PanelStack extends Component {
@@ -70,21 +71,21 @@ export function BottomPanel({ s }) {
 
   return (
     <section class={`bottom-panel ${terminalMode() === 'dark' && themeMode.value === 'light' ? 'term-dark' : ''}`}
-             hidden={!open} style={{ height: `${height}px` }} aria-label="Terminal">
-      <div class="panel-resize" onMouseDown={startResize} title="Drag to resize" />
+             hidden={!open} style={{ height: `${height}px` }} aria-label={t('Terminal')}>
+      <div class="panel-resize" onMouseDown={startResize} title={t('Drag to resize')} />
       <header class="panel-head">
-        <span class="panel-title"><Icon name="terminal" size={14} />Terminal</span>
+        <span class="panel-title"><Icon name="terminal" size={14} />{t('Terminal')}</span>
         {s && <><span class="panel-sep">·</span><span class="panel-path" title={s.cwd}><bdi>{tildify(s.cwd)}</bdi></span></>}
         <span class="spacer" />
-        <button class="icon-btn" title="Restart the shell" onClick={() => restartPanel(s)}><Icon name="refresh" size={14} /></button>
-        <button class="icon-btn" title={`Hide (${SHORTCUTS.panel})`} onClick={() => togglePanel(s, false)}><Icon name="chevron" size={15} /></button>
+        <button class="icon-btn" title={t('Restart the shell')} onClick={() => restartPanel(s)}><Icon name="refresh" size={14} /></button>
+        <button class="icon-btn" title={t('Hide ({key})', { key: SHORTCUTS.panel })} onClick={() => togglePanel(s, false)}><Icon name="chevron" size={15} /></button>
       </header>
       <div class="panel-body">
         <PanelStack />
         {exited && (
           <div class="panel-exited">
-            The shell exited.
-            <button class="link-btn" onClick={() => restartPanel(s)}>Start a new one</button>
+            {t('The shell exited.')}
+            <button class="link-btn" onClick={() => restartPanel(s)}>{t('Start a new one')}</button>
           </div>
         )}
       </div>

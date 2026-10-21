@@ -9,6 +9,7 @@ const zlib = require('zlib');
 const { Readable } = require('stream');
 const { execFile } = require('child_process');
 const { EXE, VERSION, platformPackage, compareVersions, shipped, builtIn } = require('./claude-binary');
+const { t } = require('./i18n');
 
 const REGISTRY = 'https://registry.npmjs.org';
 const SDK = '@anthropic-ai/claude-agent-sdk';
@@ -60,7 +61,7 @@ async function extractFromTar(chunks, wanted, dest) {
       try {
         for (let left = size; left > 0;) {
           const part = await r.take(Math.min(left, 1 << 20));
-          if (!part.length) throw new Error('The download ended early.');
+          if (!part.length) throw new Error(t('The download ended early.'));
           await fh.write(part);
           left -= part.length;
         }
@@ -116,7 +117,7 @@ class ClaudeUpdater {
 
   async json(url) {
     const res = await this.fetch(url);
-    if (!res.ok) throw new Error(`The npm registry answered ${res.status}.`);
+    if (!res.ok) throw new Error(t('The npm registry answered {status}.', { status: res.status }));
     return res.json();
   }
 
@@ -124,7 +125,7 @@ class ClaudeUpdater {
   async latest() {
     const sdk = await this.json(`${REGISTRY}/${SDK}/latest`);
     const pkgVersion = sdk.optionalDependencies?.[platformPackage()];
-    if (!sdk.claudeCodeVersion || !pkgVersion) throw new Error('No Claude Code build for this computer was found.');
+    if (!sdk.claudeCodeVersion || !pkgVersion) throw new Error(t('No Claude Code build for this computer was found.'));
     const pkg = await this.json(`${REGISTRY}/${platformPackage()}/${pkgVersion}`);
     return { version: sdk.claudeCodeVersion, tarball: pkg.dist?.tarball, integrity: pkg.dist?.integrity, size: pkg.dist?.unpackedSize };
   }
@@ -160,13 +161,13 @@ class ClaudeUpdater {
         this.setStatus({ state: 'up-to-date', latest: latest.version, checkedAt: Date.now() });
         return this.status;
       }
-      if (!VERSION.test(latest.version) || !/^https:\/\//.test(latest.tarball || '')) throw new Error('The registry sent an unexpected answer.');
+      if (!VERSION.test(latest.version) || !/^https:\/\//.test(latest.tarball || '')) throw new Error(t('The registry sent an unexpected answer.'));
 
       fs.mkdirSync(this.dir, { recursive: true });
       tmp = path.join(this.dir, `.download-${latest.version}.tgz`);
       partial = path.join(this.dir, `.partial-${latest.version}`);
       const res = await this.fetch(latest.tarball);
-      if (!res.ok || !res.body) throw new Error(`The download failed (${res.status}).`);
+      if (!res.ok || !res.body) throw new Error(t('The download failed ({status}).', { status: res.status }));
       const total = Number(res.headers.get('content-length')) || null;
       this.setStatus({ state: 'downloading', latest: latest.version, received: 0, total });
       const hash = crypto.createHash('sha512');
@@ -187,7 +188,7 @@ class ClaudeUpdater {
         await new Promise((r) => out.end(r));
       }
       if (!integrityMatches(latest.integrity, hash.digest('base64'))) {
-        throw new Error('The download did not match its published checksum, so it was not used.');
+        throw new Error(t('The download did not match its published checksum, so it was not used.'));
       }
 
       this.setStatus({ state: 'installing', received });
@@ -195,9 +196,9 @@ class ClaudeUpdater {
       fs.mkdirSync(partial);
       const file = path.join(partial, EXE);
       const found = await extractFromTar(fs.createReadStream(tmp).pipe(zlib.createGunzip()), `package/${EXE}`, file);
-      if (!found) throw new Error('The download has no Claude Code in it.');
+      if (!found) throw new Error(t('The download has no Claude Code in it.'));
       const reported = await runVersion(file);
-      if (!reported) throw new Error('The new Claude Code did not start.');
+      if (!reported) throw new Error(t('The new Claude Code did not start.'));
       const final = path.join(this.dir, latest.version);
       fs.rmSync(final, { recursive: true, force: true });
       fs.renameSync(partial, final);

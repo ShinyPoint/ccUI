@@ -1,15 +1,15 @@
-// Check of slash commands in a chat, without API usage (Claude is scripted, see intro-video/fakes.js): the /
+// Check of slash commands in a chat, without API usage (Claude is scripted, see fakes.js): the /
 // list (every command, the CLI-only ones marked), /btw answered beside the conversation, /status (credentials
 // masked), /memory, /mcp, /export, /copy, /rename, /model, /effort, /plan, /theme, /help, an unknown command,
 // and a CLI-only one (asks, then continues in the CLI with the command typed in). Screenshots in dist/commands-check/.
-// Usage: npx vite build && npx electron scripts/commands-check.js   (add --dark for the dark theme)
+// Usage: npx vite build && npx electron scripts/checks/commands-check.js   (add --dark for the dark theme)
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app, dialog, shell, clipboard } = require('electron');
-const { install } = require('./intro-video/fakes');
+const { install } = require('./fakes');
 
-const outDir = path.join(__dirname, '..', 'dist', 'commands-check');
+const outDir = path.join(__dirname, '..', '..', 'dist', 'commands-check');
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-commands-profile-'));
 const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-commands-project-'));
 fs.mkdirSync(outDir, { recursive: true });
@@ -37,7 +37,7 @@ shell.openPath = async (p) => { opened.push(p); return ''; };
 
 const THEME = process.argv.includes('--dark') ? 'dark' : 'light';
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  theme: THEME, confirmClose: false, notify: false, recent: [{ path: project, at: Date.now() }], trustedFolders: [project],
+  language: 'en', theme: THEME, confirmClose: false, notify: false, recent: [{ path: project, at: Date.now() }], trustedFolders: [project],
 }));
 app.setPath('userData', profile);
 
@@ -111,7 +111,7 @@ app.on('browser-window-created', (_e, win) => {
       check('the answer is Markdown', await js("Boolean(document.querySelector('.side-note-a strong'))"));
       await shot('2-btw');
       await js("[...document.querySelectorAll('.side-note-head .icon-btn')].at(-1).click(); true");
-      await wait(200);
+      await wait(500); // it folds away first
       check('✕ closes it', await js("!document.querySelector('.side-notes')"));
       await run('/btw');
       check('/btw with no question says what to add', /Add your question/.test(await js(toasts)));
@@ -222,4 +222,4 @@ app.on('browser-window-created', (_e, win) => {
   });
 });
 
-require('../src/main/main.js');
+require('../../src/main/main.js');

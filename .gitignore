@@ -3,3 +3,6 @@ dist/
 dist-renderer/
 *.log
 .claude/settings.local.json
+# Notes for Claude Code working in this repo: kept local
+CLAUDE.md
+CLAUDE.local.md

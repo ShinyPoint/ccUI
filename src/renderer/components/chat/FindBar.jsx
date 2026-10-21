@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../ui.jsx';
 import { findBar } from '../../lib/store.js';
 import { SHORTCUTS } from '../../lib/keyboard.js';
+import { t } from '../../lib/i18n.js';
 
 let lastQuery = ''; // kept across sessions and reopenings, like a browser's find bar
 
@@ -119,8 +120,8 @@ export function FindBar({ root, scroller }) {
   return (
     <div class="find-bar" role="search">
       <Icon name="search" size={14} />
-      <input ref={input} type="text" value={query} spellcheck={false} placeholder="Find in chat"
-             aria-label={`Find in chat (${SHORTCUTS.find})`}
+      <input ref={input} type="text" value={query} spellcheck={false} placeholder={t('Find in chat')}
+             aria-label={t('Find in chat ({key})', { key: SHORTCUTS.find })}
              onInput={(e) => setQuery(e.currentTarget.value)}
              onKeyDown={(e) => {
                e.stopPropagation();
@@ -128,13 +129,13 @@ export function FindBar({ root, scroller }) {
                if (e.key === 'Escape') { e.preventDefault(); close(); }
              }} />
       <span class={`find-count ${query && !found.count ? 'none' : ''}`} aria-live="polite">
-        {query ? (found.count ? `${found.index + 1}/${found.count}` : 'No results') : ''}
+        {query ? (found.count ? `${found.index + 1}/${found.count}` : t('No results')) : ''}
       </span>
-      <button class="icon-btn find-prev" title="Previous match (Shift+Enter)" disabled={!found.count}
+      <button class="icon-btn find-prev" title={t('Previous match (Shift+Enter)')} disabled={!found.count}
               onClick={() => go(found.index - 1)}><Icon name="chevron" size={14} /></button>
-      <button class="icon-btn" title="Next match (Enter)" disabled={!found.count}
+      <button class="icon-btn" title={t('Next match (Enter)')} disabled={!found.count}
               onClick={() => go(found.index + 1)}><Icon name="chevron" size={14} /></button>
-      <button class="icon-btn" title="Close (Esc)" onClick={close}><Icon name="x" size={13} /></button>
+      <button class="icon-btn" title={t('Close (Esc)')} onClick={close}><Icon name="x" size={13} /></button>
     </div>
   );
 }

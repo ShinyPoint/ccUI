@@ -7,14 +7,14 @@ const os = require('os');
 const path = require('path');
 const { app } = require('electron');
 
-const outDir = path.resolve(process.argv[2] || path.join(__dirname, '..', 'dist', 'smoke'));
+const outDir = path.resolve(process.argv[2] || path.join(__dirname, '..', '..', 'dist', 'smoke'));
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-smoke-profile-'));
 const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-smoke-project-'));
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(project, 'notes.txt'), 'alpha\nbeta\ngamma\n');
 fs.writeFileSync(path.join(project, 'greet.js'), "function greet(name) {\n  return 'Hello ' + name;\n}\n\nmodule.exports = { greet };\n");
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  theme: 'dark',
+  language: 'en', theme: 'dark',
   confirmClose: false,
   notify: false,
   defaultModel: 'haiku',
@@ -131,4 +131,4 @@ app.on('browser-window-created', (_e, win) => {
   });
 });
 
-require('../src/main/main.js');
+require('../../src/main/main.js');
