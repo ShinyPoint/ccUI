@@ -7,7 +7,7 @@ import { reduce, initialChat } from './chat-reducer.js';
 import { createTerminal, fitTerminal } from './terminal.js';
 import { disposePanel } from './panel.js';
 import { basename, samePath, tildify, pluralize } from './format.js';
-import { t } from './i18n.js';
+import { t, phrase } from './i18n.js';
 
 const agents = new Map(); // agent id -> session
 const ptys = new Map(); // pty id -> session
@@ -419,6 +419,24 @@ export async function rewindTo(s, item, { files = false } = {}) {
 }
 
 // Same starting point, but in a new session next to this one, which is left untouched.
+// A copy's title: the original's with one mark ("Fix the login (fork)"), not another one per copy of a copy
+// ("… (fork) (fork) (fork)"). Marks in either language, from forks and branches alike, are taken off first.
+const COPY_MARKS = [phrase('{title} (fork)'), phrase('{title} (branch)')];
+function copyTitle(title, pattern) {
+  const suffixes = COPY_MARKS.flatMap((m) => [m, t(m)]).map((m) => m.replace('{title}', ''));
+  let base = title;
+  for (let found = true; found;) {
+    found = false;
+    for (const suffix of suffixes) {
+      if (suffix && base.endsWith(suffix) && base.length > suffix.length) {
+        base = base.slice(0, -suffix.length);
+        found = true;
+      }
+    }
+  }
+  return t(pattern, { title: base });
+}
+
 export async function forkFrom(s, item) {
   if (item.queued) return;
   const sessionId = s.chat.value.sessionId || s.sessionId;
@@ -427,7 +445,7 @@ export async function forkFrom(s, item) {
   if (!fork.ok) return toast(fork.error, 'error');
   const res = await openSession({
     cwd: s.cwd, kind: 'chat', mode: fork.sessionId ? 'resume' : 'new', resume: fork.sessionId || undefined,
-    title: s.title.value ? t('{title} (fork)', { title: s.title.value }) : '', model: s.selectedModel.value, permissionMode: s.mode.value,
+    title: s.title.value ? copyTitle(s.title.value, phrase('{title} (fork)')) : '', model: s.selectedModel.value, permissionMode: s.mode.value,
   });
   if (res.ok) res.session.restore.value = messageDraft(item);
 }
@@ -440,7 +458,7 @@ export async function branchConversation(s) {
   if (!fork.ok) return toast(fork.error, 'error');
   await openSession({
     cwd: s.cwd, kind: 'chat', mode: 'resume', resume: fork.sessionId,
-    title: s.title.value ? t('{title} (branch)', { title: s.title.value }) : '', model: s.selectedModel.value, permissionMode: s.mode.value,
+    title: s.title.value ? copyTitle(s.title.value, phrase('{title} (branch)')) : '', model: s.selectedModel.value, permissionMode: s.mode.value,
   });
 }
 

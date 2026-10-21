@@ -693,11 +693,10 @@
 .composer-bar { display: flex; align-items: center; gap: 4px; margin-top: 6px; margin-left: -8px; container-type: inline-size; }
 .composer-bar .spacer { flex: 1; }
 /* The bar fits whatever width the chat has (a small window, the Changes panel open), the send button always in
-   view: the permission mode's name shortens first, then the model's; narrower, the mode shows only its mark, the
-   context only its ring, and the menus lose their arrows. */
+   view: the permission mode's name shortens; narrower, the mode shows only its mark, the context only its ring,
+   and the menu loses its arrow. */
 .composer-bar > * { flex-shrink: 0; }
 .composer-bar > .mode-menu { flex-shrink: 8; min-width: 53px; } /* down to its mark and arrow */
-.composer-bar > .model-menu { flex-shrink: 1; min-width: 64px; }
 .composer-bar .menu-button { max-width: 100%; }
 .composer-bar .menu-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 @container (max-width: 400px) {
@@ -706,7 +705,6 @@
 }
 @container (max-width: 250px) {
   .context-meter .menu-text, .composer-bar .menu-button > .icon:last-child { display: none; }
-  .composer-bar > .model-menu { min-width: 44px; }
 }
 .chat-composer .send-btn { width: 32px; height: 32px; }
 .send-btn { transition: background .15s, transform .1s; }

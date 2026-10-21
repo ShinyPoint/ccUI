@@ -518,24 +518,16 @@ body:not(.platform-darwin) #topbar { padding-right: 6px; }
 body.sidebar-collapsed #btn-expand { display: inline-grid; }
 body.sidebar-collapsed.platform-darwin #topbar { padding-left: 84px; }
 .topbar-title { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
-/* The project: folder icon and name, a button that opens the folder (right-click: copy the path). A plain button
-   in the bar like its neighbours (no fill of its own), so it sits as well on glass and on a background image. */
-.project-btn {
-  display: inline-flex; align-items: center; gap: 7px;
-  min-width: 0; max-width: 45%;
-  height: 28px;
-  padding: 0 10px 0 8px;
-  border-radius: var(--r-sm);
-  background: transparent;
-  font-weight: var(--bold);
-  white-space: nowrap;
-  transition: background .15s;
-}
-.project-btn .icon { color: var(--accent); }
-.project-btn span { overflow: hidden; text-overflow: ellipsis; }
-.project-btn:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
-:is(html.glass, html.has-bg) :is(#topbar, .composer) :is(.icon-btn, .text-btn, .chip):hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
-.project-btn:active { transform: translateY(.5px); }
+/* The project's name (it opens the list of project folders, App.jsx) and then the chat's model menu: plain text
+   with an arrow, no fill of their own, so they sit as well on glass and on a background image. Both are written
+   in the bar's text, the same size and color; both shorten before the title does. */
+.topbar-title > .no-drag { display: flex; min-width: 0; flex-shrink: 0; max-width: 40%; }
+.topbar-title > .no-drag + .no-drag { max-width: 30%; }
+#topbar .menu { display: flex; min-width: 0; }
+#topbar .menu-button { max-width: 100%; gap: 4px; padding: 0 6px 0 8px; font-size: 13.5px; color: var(--text); }
+#topbar .menu-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.project-menu .menu-list .menu-hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:is(html.glass, html.has-bg) :is(#topbar, .composer) :is(.icon-btn, .text-btn, .chip, .menu-button):hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
 .top-task {
   min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

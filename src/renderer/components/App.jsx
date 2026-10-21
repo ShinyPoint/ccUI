@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'preact/hooks';
-import { Icon, Toasts, ContextMenu, openContextMenu, ConfirmHost } from './ui.jsx';
+import { Icon, Menu, Toasts, ContextMenu, openContextMenu, ConfirmHost } from './ui.jsx';
 import { Sidebar } from './Sidebar.jsx';
 import { ChatView } from './chat/ChatView.jsx';
+import { ModelMenu } from './chat/ModelMenu.jsx';
 import { TerminalStack, TerminalOverlay, TerminalComposer } from './TerminalPane.jsx';
 import { NewSessionDialog } from './dialogs/NewSessionDialog.jsx';
 import { SettingsDialog } from './dialogs/SettingsDialog.jsx';
@@ -19,7 +20,7 @@ import { BottomPanel } from './BottomPanel.jsx';
 import {
   displayName, openSession, openInTerminal, openInChat, restartTerminal, chooseFolderAndStart,
 } from '../lib/sessions.js';
-import { basename, tildify, formatDuration } from '../lib/format.js';
+import { basename, tildify, formatDuration, samePath, fileManagerLabel } from '../lib/format.js';
 import { t, phrase } from '../lib/i18n.js';
 
 // A CLI or shell session's process, for the title's tooltip: "pid 4868 · 126×19 · up 5s".
@@ -54,6 +55,35 @@ function WindowControls() {
   );
 }
 
+// The project's name in the top bar opens the list of project folders (those with sessions open, then recent
+// ones): choosing one starts a new chat there; the last entry picks another folder. Right-click: open or copy.
+const PICK = '\u0000pick';
+function ProjectMenu({ s, proc }) {
+  const folders = [];
+  for (const p of [s.cwd, ...sessions.value.map((x) => x.cwd), ...(settings.value.recent || []).map((r) => r.path)]) {
+    if (p && !folders.some((f) => samePath(f, p))) folders.push(p);
+  }
+  return (
+    <div class="no-drag" onContextMenu={(e) => openContextMenu(e, [
+      { label: fileManagerLabel(), run: () => api.openPath(s.cwd) },
+      { label: t('Copy path'), run: () => { api.writeClipboard(s.cwd); toast(t('Path copied.')); } },
+    ])}>
+      <Menu
+        className="project-menu"
+        title={`${tildify(s.cwd)}\n${t('Switch project: a new chat in another folder')}${proc ? `\n${proc}` : ''}`}
+        up={false}
+        label={<span class="menu-text">{basename(s.cwd)}</span>}
+        value={s.cwd}
+        options={[
+          ...folders.map((path) => ({ value: path, label: basename(path), hint: tildify(path) })),
+          { value: PICK, label: t('Open folder…') },
+        ]}
+        onSelect={(path) => (path === PICK ? chooseFolderAndStart() : openSession({ cwd: path, kind: 'chat' }))}
+      />
+    </div>
+  );
+}
+
 function Topbar({ s }) {
   const collapsed = settings.value.sidebarCollapsed;
   const kind = s?.kind.value;
@@ -68,17 +98,8 @@ function Topbar({ s }) {
       )}
       {s && (
         <div class="topbar-title">
-          <button class="project-btn no-drag" title={`${tildify(s.cwd)}
-${t('Click to open in the file manager')}${proc ? `
-${proc}` : ''}`}
-                  onClick={() => api.openPath(s.cwd)}
-                  onContextMenu={(e) => openContextMenu(e, [
-                    { label: t('Open in file manager'), run: () => api.openPath(s.cwd) },
-                    { label: t('Copy path'), run: () => { api.writeClipboard(s.cwd); toast(t('Path copied.')); } },
-                  ])}>
-            <Icon name="folder" size={15} />
-            <span>{basename(s.cwd)}</span>
-          </button>
+          <ProjectMenu s={s} proc={proc} />
+          {kind === 'chat' && <div class="no-drag"><ModelMenu s={s} /></div>}
           {s.title.value && <span class="top-task" title={proc || s.title.value}>{s.title.value}</span>}
         </div>
       )}
@@ -96,6 +117,9 @@ ${proc}` : ''}`}
               <Icon name="chat" />{t('Chat')}
             </button>
           )}
+          <button class="icon-btn open-folder" title={`${fileManagerLabel()}: ${tildify(s.cwd)}`} onClick={() => api.openPath(s.cwd)}>
+            <Icon name="folder" />
+          </button>
           {kind === 'chat' && (
             <button class={`icon-btn changes-toggle ${s.side.value.open ? 'on' : ''}`} aria-pressed={s.side.value.open}
                     title={s.side.value.open ? t('Hide the files Claude changed ({key})', { key: SHORTCUTS.changes }) : t('Show the files Claude changed ({key})', { key: SHORTCUTS.changes })}

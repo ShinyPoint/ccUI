@@ -18,6 +18,15 @@ await build({ configFile: path.join(root, 'vite.config.mjs'), logLevel: 'warn' }
 const failed = [];
 for (const name of names) {
   const started = Date.now();
+  // A check that doesn't parse would stop Electron at a modal error dialog until someone closes it: Node reports
+  // it here instead.
+  const parse = spawnSync(process.execPath, ['--check', path.join(root, 'scripts', 'checks', `${name}-check.js`)], { encoding: 'utf8' });
+  if (parse.status !== 0) {
+    failed.push(name);
+    console.log(`FAIL  ${name} (does not parse)`);
+    for (const line of parse.stderr.split(/\r?\n/).filter(Boolean).slice(0, 5)) console.log(`      ${line}`);
+    continue;
+  }
   const run = spawnSync(electron, [path.join(root, 'scripts', 'checks', `${name}-check.js`)], {
     cwd: root,
     env: { ...process.env, VITE_DEV_SERVER_URL: '' }, // the built window, never a dev server

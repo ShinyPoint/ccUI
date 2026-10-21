@@ -1,12 +1,12 @@
 // Message box for chat sessions: slash-command and @file autocomplete, image attachments,
-// permission-mode and model menus (with the effort slider), context meter, send / stop.
+// permission-mode menu, context meter, send / stop. The model menu is in the top bar (ModelMenu.jsx).
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Icon, Menu, Popover } from '../ui.jsx';
 import { modeLabel } from './Prompts.jsx';
 import { api, toast, confirmDialog } from '../../lib/store.js';
-import { sendMessage, interrupt, setMode, setModel, setEffort, refreshContext } from '../../lib/sessions.js';
+import { sendMessage, interrupt, setMode, refreshContext } from '../../lib/sessions.js';
 import { commandList, runCommand } from '../../lib/commands.js';
-import { EffortSlider } from './EffortSlider.jsx';
+import { currentModel } from './ModelMenu.jsx';
 import { formatTokens, formatCost } from '../../lib/format.js';
 import { SHORTCUTS } from '../../lib/keyboard.js';
 import { t, phrase } from '../../lib/i18n.js';
@@ -21,24 +21,6 @@ const MODE_ICONS = {
   auto: 'modeAuto',
   bypassPermissions: 'modeBypass',
 };
-
-// The model menu's entry for the model in use. Ids may carry a context-size suffix the list doesn't (claude-opus-5-5[1m]
-// runs Opus with a 1M window), and the list may name a model by its alias (opus) rather than its id.
-const baseId = (id) => String(id || '').replace(/\[\w+\]$/, '').toLowerCase();
-const FAMILIES = ['opus', 'sonnet', 'haiku', 'fable'];
-function findModel(models, selected, running) {
-  const exact = selected && models.find((m) => m.value === selected);
-  if (exact) return exact;
-  const want = baseId(selected || running);
-  if (!want) return null;
-  // Nothing chosen: the default, when that is what runs.
-  const byDefault = !selected && models.find((m) => m.value === 'default' && m.resolvedModel && baseId(m.resolvedModel) === want);
-  if (byDefault) return byDefault;
-  const named = models.find((m) => m.value !== 'default' && (baseId(m.value) === want || (m.resolvedModel && baseId(m.resolvedModel) === want)));
-  if (named) return named;
-  const family = FAMILIES.find((f) => want.includes(f));
-  return (family && models.find((m) => m.value !== 'default' && (baseId(m.value) === family || m.displayName?.toLowerCase().startsWith(family)))) || null;
-}
 
 function readImage(file) {
   return new Promise((resolve, reject) => {
@@ -139,7 +121,6 @@ function ContextButton({ s, onCompact }) {
 
 export function Composer({ s, prefill }) {
   const chat = s.chat.value;
-  const meta = s.meta.value;
   const [text, setText] = useState(s.draft || '');
   const [images, setImages] = useState(s.draftImages || []);
   const [ac, setAc] = useState(null); // { kind, query, start, items, index }
@@ -176,15 +157,7 @@ export function Composer({ s, prefill }) {
 
   const busy = chat.busy;
   const mode = chat.init?.permissionMode || s.mode.value || 'default';
-  const models = meta.models || [];
-  const currentModel = findModel(models, s.selectedModel.value, chat.init?.model);
-  const longContext = /\[1m\]$/i.test(s.selectedModel.value || chat.init?.model || '');
-  const modelLabel = currentModel ? `${currentModel.displayName}${longContext && !/1m/i.test(currentModel.displayName) ? ' · 1M' : ''}`
-    : chat.init?.model || s.selectedModel.value || t('Default model');
-  const modes = currentModel?.supportsAutoMode ? [...BASE_MODES, 'auto'] : BASE_MODES;
-  // Effort levels come from the running model; before the first turn names it, from Claude Code's default.
-  const effortModel = currentModel || (!s.selectedModel.value && models.find((m) => m.value === 'default'));
-  const effortLevels = effortModel?.supportsEffort ? effortModel.supportedEffortLevels || [] : [];
+  const modes = currentModel(s).current?.supportsAutoMode ? [...BASE_MODES, 'auto'] : BASE_MODES;
 
   async function updateAutocomplete(value, caret) {
     const trigger = findTrigger(value, caret);
@@ -241,7 +214,7 @@ export function Composer({ s, prefill }) {
   // What a command (lib/commands.js) may ask of the message box.
   const ui = {
     openModelMenu: () => {
-      const button = root.current?.querySelector('.model-menu .menu-button');
+      const button = document.querySelector('#topbar .model-menu .menu-button'); // in the top bar (ModelMenu.jsx)
       if (button) button.click();
       else toast(t('The models aren’t loaded yet: send a message first.'));
     },
@@ -417,24 +390,6 @@ export function Composer({ s, prefill }) {
         <input ref={fileInput} type="file" accept="image/*" multiple hidden
                onChange={(e) => { addFiles([...e.currentTarget.files]); e.currentTarget.value = ''; }} />
         <span class="spacer" />
-        {models.length > 0 && (
-          <Menu
-            className="model-menu"
-            title={t('Model and effort')}
-            align="right"
-            label={<span class="menu-text">{modelLabel}</span>}
-            value={currentModel?.value}
-            options={models.map((m) => ({ value: m.value, label: m.displayName, hint: m.description }))}
-            onSelect={(v) => setModel(s, v)}
-            footer={(
-              <EffortSlider
-                levels={effortLevels}
-                value={s.effort.value}
-                onChange={(level) => setEffort(s, level)}
-              />
-            )}
-          />
-        )}
         <ContextButton s={s} onCompact={() => sendMessage(s, { text: '/compact' })} />
         {busy && !canSend ? (
           <button type="button" class="send-btn stop" title={t('Stop ({key})', { key: SHORTCUTS.interrupt })} onClick={() => interrupt(s)}>

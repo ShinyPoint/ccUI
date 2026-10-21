@@ -73,7 +73,7 @@ const SCAN = `((fromClaude) => {
     // Names kept as they are: Claude Code's terms and other products, the language's own name, an example flag.
     'hook', 'hooks', 'Vim', 'GitHub', 'Actions', 'Desktop', 'Shell', 'shell', 'English', 'key', 'value', 'sk-ant', 'ai', 'model', 'sonnet', 'bug', 'Artifacts']);
   const SKIP = '.md, .msg-user-text, code, pre, kbd, .xterm, .term-host, .diff, .file-view, .tool-target, .panel-path, .sf-dir, .sf-name, .wm-cc, .info-value, '
-    + '.project-btn span, .session-name, .folder-name, .intro-project, .ac-label, .diffstat, .shortcut-keys, [data-i18n-skip]';
+    + '.project-menu .menu-text, .project-menu .menu-label, .session-name, .folder-name, .intro-project, .ac-label, .diffstat, .shortcut-keys, [data-i18n-skip]';
   const claude = fromClaude.map((s) => s.trim()).filter(Boolean);
   const isClaude = (s) => claude.some((c) => c === s || c.includes(s) || s.includes(c));
   const clean = (s) => s

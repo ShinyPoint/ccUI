@@ -64,3 +64,7 @@ export function formatBytes(n) {
   if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+// Opening a folder in the system's file manager, named as the system names it.
+export const fileManagerLabel = () => (info.value.platform === 'win32' ? t('Open in File Explorer')
+  : info.value.platform === 'darwin' ? t('Show in Finder') : t('Open in file manager'));

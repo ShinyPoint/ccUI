@@ -10,7 +10,7 @@ import {
   selectSession, endSession, openSession, openConversation, forgetRecent, renameSession,
   openInTerminal, openInChat,
 } from '../lib/sessions.js';
-import { basename, tildify, samePath, relativeTime } from '../lib/format.js';
+import { basename, tildify, samePath, relativeTime, fileManagerLabel } from '../lib/format.js';
 import { SHORTCUTS, searchProjects, focusComposer } from '../lib/keyboard.js';
 import { t, phrase } from '../lib/i18n.js';
 
@@ -220,7 +220,7 @@ function folderMenu(e, path, open) {
     { label: t('Continue latest conversation'), run: () => openSession({ cwd: path, mode: 'continue' }) },
     { label: t('Recents'), hint: t('past conversations'), checked: recentsOpen.value.has(path), run: () => toggleRecents(path) },
     '-',
-    { label: t('Open in file manager'), run: () => api.openPath(path) },
+    { label: fileManagerLabel(), run: () => api.openPath(path) },
     { label: t('Copy path'), run: () => { api.writeClipboard(path); toast(t('Path copied.')); } },
     {
       label: t('Remove from list'),

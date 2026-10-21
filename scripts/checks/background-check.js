@@ -110,10 +110,10 @@ app.on('browser-window-created', (_e, win) => {
       await js("document.querySelector('.panel-toggle').click(); true");
       await wait(3500);
       await shot('2-chat-terminal-dark');
-      // The folder button has no fill of its own, so the image shows through it like the rest of the bar.
-      check('the folder button sits in the bar without a fill', await js("getComputedStyle(document.querySelector('.project-btn')).backgroundColor === 'rgba(0, 0, 0, 0)'"));
+      // The project's name has no fill of its own, so the image shows through it like the rest of the bar.
+      check('the project name sits in the bar without a fill', await js("getComputedStyle(document.querySelector('#topbar .project-menu .menu-button')).backgroundColor === 'rgba(0, 0, 0, 0)'"));
       // Frosted glass is on (the default): menus are see-through and blurred.
-      await js("[...document.querySelectorAll('.composer-bar .menu')].find((m) => !m.classList.contains('mode-menu') && !m.classList.contains('context-menu-wrap')).querySelector('.menu-button').click(); true");
+      await js("document.querySelector('.composer-bar .mode-menu .menu-button').click(); true");
       await wait(400);
       const frost = await js("(() => { const m = document.querySelector('.composer-bar .menu-list'); return m ? getComputedStyle(m).backdropFilter + ' | ' + getComputedStyle(m).backgroundColor : 'no menu'; })()");
       check('menus are frosted', /blur/.test(frost), frost);

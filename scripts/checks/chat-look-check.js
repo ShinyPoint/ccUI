@@ -202,8 +202,16 @@ app.on('browser-window-created', (_e, win) => {
       await toggleEdge();
       const off = await edge();
       check('turned off again, the gap is back', off.right === 8 && off.top === '18px 18px', JSON.stringify(off));
-      check('the context button sits right of the model menu', await js(`{ const bar = [...document.querySelector('.composer-bar').children];
-        bar.indexOf(document.querySelector('.composer-bar .menu:not(.mode-menu):not(.context-menu-wrap)')) < bar.indexOf(document.querySelector('.context-menu-wrap')) }`));
+      // The top bar: the project's name, then the model menu; the folder button next to CLI.
+      const bar = JSON.parse(await js(`JSON.stringify((() => { const r = (q) => document.querySelector(q)?.getBoundingClientRect();
+        const p = r('#topbar .project-menu'); const m = r('#topbar .model-menu'); const f = r('#topbar .open-folder'); const c = r('#topbar .text-btn');
+        return { order: Boolean(p && m && p.right <= m.left), folder: Boolean(f && c && f.left >= c.right - 1), inBox: Boolean(document.querySelector('.composer-bar .model-menu')),
+          weight: getComputedStyle(document.querySelector('#topbar .project-menu .menu-button')).fontWeight,
+          same: (() => { const a = getComputedStyle(document.querySelector('#topbar .project-menu .menu-button')); const b = getComputedStyle(document.querySelector('#topbar .model-menu .menu-button'));
+            return ['fontSize', 'color', 'fontFamily', 'fontWeight'].every((k) => a[k] === b[k]); })() }; })())`));
+      check('the model menu is written like the project name', bar.same, JSON.stringify(bar));
+      check('the top bar has the project, then the model menu, and the folder button by CLI', bar.order && bar.folder && !bar.inBox, JSON.stringify(bar));
+      check('the project name is not bold', bar.weight === '400', bar.weight);
       check('small headings are written as they are, not in capitals', await js("getComputedStyle(document.querySelector('.section-label')).textTransform === 'none'"));
       check('your bubble is plain grey', await js("getComputedStyle(document.querySelector('.msg-user')).backgroundColor === getComputedStyle(document.querySelector('.composer-bar .menu-button')).getPropertyValue('--raise') || getComputedStyle(document.querySelector('.msg-user')).backgroundColor === 'rgb(44, 44, 46)'"));
 
@@ -254,6 +262,17 @@ app.on('browser-window-created', (_e, win) => {
       await js("document.querySelector('.chat-scroll').scrollTop = 0; true");
       await wait(300);
       await shot('4-top-light');
+
+      // The arrow by the project's name lists the project folders; choosing one starts a new chat there.
+      const sessionsBefore = await js("document.querySelectorAll('#sidebar .session').length");
+      await js("document.querySelector('#topbar .project-menu .menu-button').click(); true");
+      await until('the folder list', "Boolean(document.querySelector('#topbar .project-menu .menu-list'))", 3000);
+      const listed = JSON.parse(await js("JSON.stringify([...document.querySelectorAll('#topbar .project-menu .menu-list .menu-label')].map((e) => e.textContent))"));
+      check('the project menu lists the project folders, then Open folder…', listed[0] === path.basename(project) && listed.at(-1) === 'Open folder…', JSON.stringify(listed));
+      await wait(300); // the list fades in
+      await shot('5-project-menu');
+      await js("document.querySelector('#topbar .project-menu .menu-list button').click(); true");
+      check('choosing a folder starts a new chat there', await until('the new chat', `document.querySelectorAll('#sidebar .session').length === ${sessionsBefore + 1}`, 6000));
     } catch (err) {
       console.error('failed:', err);
       failures++;

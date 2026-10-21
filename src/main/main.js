@@ -69,6 +69,9 @@ function boundsOnScreen(b) {
 }
 
 const APP_ID = 'dev.ccui.app'; // = build.appId in package.json
+// Started from source (`electron .`: npm start, npm run dev). Not app.isPackaged, which only looks at the
+// executable's name: from source on Windows the app runs as ccUI.exe too (scripts/launch.mjs).
+const FROM_SOURCE = Boolean(process.defaultApp);
 
 // Frosted glass behind the sidebar: the system's own blurred material (acrylic on Windows 11 22H2+, vibrancy
 // on macOS). The page is transparent where the sidebar is, so the material shows through it.
@@ -117,15 +120,15 @@ function createWindow() {
     },
   });
   if (process.platform === 'win32') {
-    // The taskbar takes its icon and name from the app id's details, not the window icon: without this it shows
-    // electron.exe's icon and "Electron" when running from source. Windows ignores the icon and the name unless a
-    // relaunch command is set too. A packaged build points at its own .exe (it carries the icon, and Windows
-    // cannot read files inside app.asar).
+    // What pinning the taskbar button relaunches, and with which name and icon (Windows ignores the icon and the
+    // name unless a relaunch command is set too). The button itself is named after the executable: from source
+    // it is ccUI.exe (scripts/launch.mjs). A packaged build points at its own .exe (it carries the icon, and
+    // Windows cannot read files inside app.asar).
     win.setAppDetails({
       appId: APP_ID,
-      appIconPath: app.isPackaged ? process.execPath : path.join(__dirname, '..', '..', 'assets', 'icon.ico'),
+      appIconPath: FROM_SOURCE ? path.join(__dirname, '..', '..', 'assets', 'icon.ico') : process.execPath,
       appIconIndex: 0,
-      relaunchCommand: app.isPackaged ? `"${process.execPath}"` : `"${process.execPath}" "${app.getAppPath()}"`,
+      relaunchCommand: FROM_SOURCE ? `"${process.execPath}" "${app.getAppPath()}"` : `"${process.execPath}"`,
       relaunchDisplayName: 'ccUI',
     });
   }
@@ -441,7 +444,7 @@ function registerIpc() {
     win.show();
     win.focus();
   });
-  ipc.on('window:devtools', () => { if (!app.isPackaged) win?.webContents.toggleDevTools(); });
+  ipc.on('window:devtools', () => { if (FROM_SOURCE) win?.webContents.toggleDevTools(); });
   ipc.on('window:badge', (_e, count) => {
     if (isMac) app.dock?.setBadge(count ? String(count) : '');
     else if (win && !win.isFocused() && count) win.flashFrame(true);
@@ -455,7 +458,7 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { role: 'appMenu' },
     { role: 'editMenu' },
-    { label: t('View'), submenu: [{ role: 'reload' }, ...(app.isPackaged ? [] : [{ role: 'toggleDevTools' }]), { type: 'separator' }, { role: 'togglefullscreen' }] },
+    { label: t('View'), submenu: [{ role: 'reload' }, ...(FROM_SOURCE ? [{ role: 'toggleDevTools' }] : []), { type: 'separator' }, { role: 'togglefullscreen' }] },
     { role: 'windowMenu' },
   ]));
 }
