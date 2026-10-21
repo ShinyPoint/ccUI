@@ -8,11 +8,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app } = require('electron');
+const { tempDir } = require('./temp');
 const { install, MODELS } = require('./fakes');
 
 const outDir = path.join(__dirname, '..', '..', 'dist', 'effort-check');
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-effort-profile-'));
-const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-effort-project-'));
+const profile = tempDir('effort-profile');
+const project = tempDir('effort-project');
 fs.mkdirSync(outDir, { recursive: true });
 
 const director = {

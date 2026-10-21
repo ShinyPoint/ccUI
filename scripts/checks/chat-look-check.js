@@ -6,11 +6,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app, clipboard } = require('electron');
+const { tempDir } = require('./temp');
 const { install } = require('./fakes');
 
 const outDir = path.join(__dirname, '..', '..', 'dist', 'chat-look');
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-look-profile-'));
-const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-look-project-'));
+const profile = tempDir('look-profile');
+const project = tempDir('look-project');
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(project, 'notes.md'), '# Notes\n\nShip the rate limiter.\n');
 

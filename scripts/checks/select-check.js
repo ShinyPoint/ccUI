@@ -6,11 +6,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app } = require('electron');
+const { tempDir } = require('./temp');
 const { install } = require('./fakes');
 
 const outDir = path.join(__dirname, '..', '..', 'dist', 'select-check');
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-select-profile-'));
-const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-select-project-'));
+const profile = tempDir('select-profile');
+const project = tempDir('select-project');
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(project, 'notes.md'), '# Notes\n');
 

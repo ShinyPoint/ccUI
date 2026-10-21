@@ -6,10 +6,11 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app } = require('electron');
+const { tempDir } = require('./temp');
 
 const outDir = path.join(__dirname, '..', '..', 'dist', 'message-actions');
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-actions-profile-'));
-const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-actions-project-'));
+const profile = tempDir('actions-profile');
+const project = tempDir('actions-project');
 const notes = path.join(project, 'notes.txt');
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(notes, 'alpha\n');

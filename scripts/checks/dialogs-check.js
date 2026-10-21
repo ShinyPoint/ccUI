@@ -7,12 +7,13 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app, BrowserWindow } = require('electron');
+const { tempDir } = require('./temp');
 const { install } = require('./fakes');
 
 const outDir = path.join(__dirname, '..', '..', 'dist', 'dialogs-check');
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-dialogs-profile-'));
-const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-dialogs-project-'));
-const other = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-dialogs-other-'));
+const profile = tempDir('dialogs-profile');
+const project = tempDir('dialogs-project');
+const other = tempDir('dialogs-other');
 fs.mkdirSync(outDir, { recursive: true });
 
 install({ histories: [], transcripts: new Map(), script: () => null, prompt: () => 'PS ~> ', shell: () => '', cli: () => '' });

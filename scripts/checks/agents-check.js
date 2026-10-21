@@ -8,11 +8,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app } = require('electron');
+const { tempDir } = require('./temp');
 const { install, sleep } = require('./fakes');
 
 const outDir = path.join(__dirname, '..', '..', 'dist', 'agents-check');
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-agents-profile-'));
-const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-agents-project-'));
+const profile = tempDir('agents-profile');
+const project = tempDir('agents-project');
 fs.mkdirSync(outDir, { recursive: true });
 
 const launched = (description) => ({ status: 'async_launched', agentId: description, description, prompt: description, outputFile: '' });

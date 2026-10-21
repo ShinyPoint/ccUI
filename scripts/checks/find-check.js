@@ -5,11 +5,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app } = require('electron');
+const { tempDir } = require('./temp');
 
 const outDir = path.join(__dirname, '..', '..', 'dist', 'find-check');
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-find-profile-'));
-const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-find-project-'));
-const other = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-other-folder-'));
+const profile = tempDir('find-profile');
+const project = tempDir('find-project');
+const other = tempDir('other-folder');
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
   language: 'en', theme: 'dark', confirmClose: false, notify: false, defaultModel: 'haiku', defaultPermissionMode: 'default',

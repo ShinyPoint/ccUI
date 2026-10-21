@@ -7,11 +7,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app, dialog, shell, clipboard } = require('electron');
+const { tempDir } = require('./temp');
 const { install } = require('./fakes');
 
 const outDir = path.join(__dirname, '..', '..', 'dist', 'commands-check');
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-commands-profile-'));
-const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-commands-project-'));
+const profile = tempDir('commands-profile');
+const project = tempDir('commands-project');
 fs.mkdirSync(outDir, { recursive: true });
 
 const ANSWER = 'The rate limiter is the only open item.';

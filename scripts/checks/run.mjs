@@ -3,6 +3,8 @@
 // Usage: npm run check                    every scripted check
 //        npm run check -- changes i18n    only these
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,6 +35,11 @@ for (const name of names) {
     encoding: 'utf8',
     timeout: 5 * 60 * 1000,
   });
+  // Its throwaway folders (temp.js) that its window's helper processes still held when it exited: gone now.
+  for (const name of fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('ccui-'))) {
+    const dir = path.join(os.tmpdir(), name);
+    try { if (fs.statSync(dir).mtimeMs >= started - 1000) fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 }); } catch { /* in use */ }
+  }
   const lines = `${run.stdout || ''}${run.stderr || ''}`.split(/\r?\n/);
   const passed = lines.filter((l) => l.startsWith('PASS')).length;
   const problems = lines.filter((l) => l.startsWith('FAIL') || /^failed:/.test(l));

@@ -6,10 +6,11 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app } = require('electron');
+const { tempDir } = require('./temp');
 
 const outDir = path.resolve(process.argv[2] || path.join(__dirname, '..', '..', 'dist', 'smoke'));
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-smoke-profile-'));
-const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-smoke-project-'));
+const profile = tempDir('smoke-profile');
+const project = tempDir('smoke-project');
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(project, 'notes.txt'), 'alpha\nbeta\ngamma\n');
 fs.writeFileSync(path.join(project, 'greet.js'), "function greet(name) {\n  return 'Hello ' + name;\n}\n\nmodule.exports = { greet };\n");

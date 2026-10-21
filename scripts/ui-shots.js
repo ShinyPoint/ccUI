@@ -5,10 +5,11 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app } = require('electron');
+const { tempDir } = require('./checks/temp');
 
 const outDir = path.resolve(process.argv[2] || path.join(__dirname, '..', 'dist', 'ui-shots'));
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-shots-profile-'));
-const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-shots-project-'));
+const profile = tempDir('shots-profile');
+const project = tempDir('shots-project');
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(project, 'README.md'), '# demo\n');
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({

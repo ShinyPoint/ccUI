@@ -7,10 +7,11 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app } = require('electron');
+const { tempDir } = require('./temp');
 
 const outDir = path.join(__dirname, '..', '..', 'dist', 'skills-check');
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-skills-profile-'));
-const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-skills-project-'));
+const profile = tempDir('skills-profile');
+const project = tempDir('skills-project');
 const local = path.join(project, '.claude', 'settings.local.json');
 fs.mkdirSync(outDir, { recursive: true });
 fs.mkdirSync(path.join(project, '.claude', 'skills', 'release-notes'), { recursive: true });

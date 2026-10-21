@@ -7,11 +7,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app } = require('electron');
+const { tempDir } = require('./temp');
 const { install } = require('./fakes');
 
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-sessions-profile-'));
-const a = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-sessions-a-'));
-const b = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-sessions-b-'));
+const profile = tempDir('sessions-profile');
+const a = tempDir('sessions-a');
+const b = tempDir('sessions-b');
 
 // Two saved conversations, one per folder; the one in B was on screen.
 const msg = (type, text) => ({ type, uuid: `${type}-${Math.random()}`, message: { role: type, content: type === 'user' ? text : [{ type: 'text', text }] } });

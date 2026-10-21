@@ -11,10 +11,11 @@ const os = require('os');
 const path = require('path');
 const { app } = require('electron');
 const { install, applyEdit, MODELS, COMMANDS } = require('./fakes');
+const { tempDir } = require('./temp');
 
 const outDir = path.join(__dirname, '..', '..', 'dist', 'i18n-check');
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-i18n-profile-'));
-const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-i18n-project-'));
+const profile = tempDir('i18n-profile');
+const project = tempDir('i18n-project');
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(project, 'limiter.js'), 'export const LIMIT = 10;\n');
 

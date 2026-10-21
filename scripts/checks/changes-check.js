@@ -5,12 +5,13 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app, clipboard } = require('electron');
+const { tempDir } = require('./temp');
 const { install, applyEdit, applyWrite } = require('./fakes');
 
 const outDir = path.join(__dirname, '..', '..', 'dist', 'changes-check');
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-changes-profile-'));
-const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-changes-project-'));
-const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-changes-elsewhere-'));
+const profile = tempDir('changes-profile');
+const project = tempDir('changes-project');
+const elsewhere = tempDir('changes-elsewhere');
 fs.mkdirSync(outDir, { recursive: true });
 fs.mkdirSync(path.join(project, 'src'));
 const LIMITER = Array.from({ length: 60 }, (_, i) => `// line ${i + 1}`);

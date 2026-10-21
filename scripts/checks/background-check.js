@@ -7,11 +7,12 @@ const os = require('os');
 const path = require('path');
 const zlib = require('zlib');
 const { app } = require('electron');
+const { tempDir } = require('./temp');
 const { Background } = require('../../src/main/background');
 
 const outDir = path.join(__dirname, '..', '..', 'dist', 'background-check');
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-bg-profile-'));
-const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-bg-project-'));
+const profile = tempDir('bg-profile');
+const project = tempDir('bg-project');
 fs.mkdirSync(outDir, { recursive: true });
 
 // A small PNG encoder for the test image: a sunset-like gradient with a few soft discs.
@@ -63,7 +64,7 @@ const check = (label, ok, detail = '') => {
 
 // Choosing and removing, on a separate fake profile.
 {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-bg-unit-'));
+  const dir = tempDir('bg-unit');
   const data = { backgroundImage: '' };
   const fake = { get: () => ({ ...data }), setPrivate: (patch) => Object.assign(data, patch) };
   const bg = new Background(dir, fake);
