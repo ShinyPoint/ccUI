@@ -5,6 +5,7 @@ import { ToolCard, toolIcon } from './ToolCard.jsx';
 import { PermissionPrompt } from './Prompts.jsx';
 import { Composer } from './Composer.jsx';
 import { FindBar } from './FindBar.jsx';
+import { ClaudePreparing } from '../ClaudePreparing.jsx';
 import { UserItem, TextItem, ThinkingItem, NoticeItem, CommandOutputItem, TurnItem, DividerItem, WakeItem, Markdown, localText } from './Items.jsx';
 import { topLevel, childrenOf, currentActivity, groupTurns, backgroundTasks, answerText } from '../../lib/chat-reducer.js';
 import { api, settings, settingsDialog, findBar, toast } from '../../lib/store.js';
@@ -502,6 +503,7 @@ export function ChatView({ s }) {
              }}>
           <div class="timeline" ref={timeline}>
             {s.problem.value && <ProblemCard s={s} />}
+            <ClaudePreparing session={s} />
             {empty && <Intro s={s} onPick={pick} />}
             {groups.map((g) => (g.kind === 'item'
               ? renderItem(g.item)

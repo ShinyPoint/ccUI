@@ -161,7 +161,8 @@ function EmptyState() {
         <p class="empty-lede">
           {t('Choose a project folder to start a session. Each session is a conversation with Claude Code, shown as a chat you can read and steer. Switch any session to Claude Code’s own CLI when you need it.')}
         </p>
-        {check && !check.ok && (
+        {/* Not downloaded yet (just installed) is fine: the first session downloads it. */}
+        {check && !check.ok && !check.missing && (
           <p class="notice">
             {missingBefore}<code>claude</code>{missingAfter}
           </p>

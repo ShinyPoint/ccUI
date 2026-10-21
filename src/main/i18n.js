@@ -45,6 +45,10 @@ const ZH = {
   'The download did not match its published checksum, so it was not used.': '下载的文件与发布的校验值不符，所以没有使用。',
   'The download has no Claude Code in it.': '下载的文件中没有 Claude Code。',
   'The new Claude Code did not start.': '新版本的 Claude Code 无法启动。',
+  'There is no Claude Code {version} on npm for this computer.': 'npm 上没有适用于这台电脑的 Claude Code {version}。',
+  'A version looks like 2.1.300.': '版本号的格式类似 2.1.300。',
+  'Claude Code could not be downloaded: {reason}': '无法下载 Claude Code：{reason}',
+  'unknown error': '未知错误',
 };
 
 let current = 'en';

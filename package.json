@@ -1,6 +1,6 @@
 {
   "name": "ccui",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A desktop app for Claude Code: chat sessions with diffs, permissions and a terminal, side by side",
   "keywords": [
     "claude",
@@ -90,11 +90,16 @@
       "src/preload.js",
       "assets/icon.png",
       "assets/icon.ico",
-      "package.json"
+      "package.json",
+      "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**"
     ],
     "asarUnpack": [
       "node_modules/@lydell/**",
       "node_modules/@anthropic-ai/**"
+    ],
+    "electronLanguages": [
+      "en-US",
+      "zh-CN"
     ],
     "win": {
       "target": [

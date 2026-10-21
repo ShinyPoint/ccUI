@@ -3,6 +3,7 @@
 import { Component, createRef } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from './ui.jsx';
+import { ClaudePreparing } from './ClaudePreparing.jsx';
 import { active, api } from '../lib/store.js';
 import { termStack, fitTerminal } from '../lib/terminal.js';
 import { restartTerminal, closeSession, openInChat, writePty } from '../lib/sessions.js';
@@ -71,6 +72,7 @@ export function TerminalOverlay({ s }) {
   return (
     <div class="term-overlay">
       {dropping && <div class="drop-hint">{t('Drop to insert file paths')}</div>}
+      {isClaude && <ClaudePreparing session={s} />}
       {status === 'exited' && (
         <div class="exit-panel">
           <span class="msg">{isClaude

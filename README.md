@@ -61,7 +61,8 @@ background image, and an interface in English or Simplified Chinese.</td>
 
 ## Getting started
 
-There are no prebuilt releases yet: build it from source.
+Windows installers are on the [Releases](https://github.com/ShinyPoint/ccUI/releases) page. On macOS and Linux,
+build it from source:
 
 ```bash
 git clone https://github.com/ShinyPoint/ccUI.git
@@ -71,8 +72,10 @@ npm start          # builds the window, then opens the app
 ```
 
 Requirements: Node.js 20 or newer. No C++ toolchain is needed: the terminal module (`@lydell/node-pty`) and Claude
-Code come as prebuilt binaries. The Claude Code executable ships with the Agent SDK; Settings → Claude Code →
-Executable can point at another `claude` build instead.
+Code come as prebuilt binaries. Run from source, the app uses the Claude Code executable that comes with the Agent
+SDK. The installers leave it out: an installed ccUI downloads Claude Code from npm the first time a session starts
+(once, about 135 MB), and the session starts when it is in place. Settings → Claude Code → Executable can point at
+another `claude` build instead.
 
 ## Features
 
@@ -122,7 +125,8 @@ Executable can point at another `claude` build instead.
   menus, dialogs and tooltips.
 - English or Simplified Chinese (简体中文), following the system until you pick one in Settings → General.
 - Claude Code stays current without an app update: Settings → Claude Code → Updates fetches the newest build from
-  npm, checks it against its published sha512 and uses it for new sessions.
+  npm, checks it against its published sha512 and uses it for new sessions. Or choose the version yourself, one of
+  the ten most recent or any other typed in (Settings → Claude Code → Version); a chosen version is not updated.
 
 ## Accounts and sign-in
 
@@ -220,10 +224,11 @@ npm run dist:mac      # dmg + zip (build on macOS)
 npm run dist:linux    # AppImage + deb
 ```
 
-Build each platform on that platform: the Claude Code executable comes from an OS-specific npm package that
-`npm install` only fetches for the current OS. Installers are roughly 250 MB, most of it the Claude Code
-executable. Before distributing builds, read Anthropic's terms for Claude Code, which the installers contain:
-<https://code.claude.com/docs/en/legal-and-compliance>.
+The installers leave out the Claude Code executable (it is downloaded on first use, see
+[Getting started](#getting-started)) and keep only the English and Chinese Chromium language files: about
+110 MB on Windows. Build each platform on that platform: the terminal module's prebuilt binary comes from an
+OS-specific npm package that `npm install` only fetches for the current OS. Before distributing builds, read
+Anthropic's terms for Claude Code and the Agent SDK: <https://code.claude.com/docs/en/legal-and-compliance>.
 
 ## Project layout
 
@@ -235,8 +240,8 @@ src/main/             Electron main process
   settings.js         JSON settings; API key encrypted with Electron safeStorage
   trust.js            folder trust before Claude Code starts in a folder
   skills.js           the /skills dialog: listing skills and turning them on or off
-  claude-binary.js    finds the built-in Claude Code executable (shipped or updated), or a custom one
-  claude-update.js    downloads, verifies and installs newer Claude Code builds
+  claude-binary.js    finds the Claude Code to run: the built-in one (the newest, or the version chosen), or a custom one
+  claude-update.js    downloads, verifies and installs Claude Code: the first one, updates, a chosen version
   files.js, background.js, shell-env.js, i18n.js
 src/preload.js        the small bridge the window may use (context isolation + sandbox)
 src/renderer/         the window: Preact + signals, built with Vite
@@ -259,7 +264,7 @@ sessions have no structured events, so their state is inferred from output (abou
 
 ccUI is released under the [MIT License](LICENSE).
 
-It runs, and its installers contain, software that is not covered by that license: Claude Code and the Claude Agent
-SDK are Anthropic's, under [Anthropic's terms](https://code.claude.com/docs/en/legal-and-compliance). The bundled
+It runs software that is not covered by that license: Claude Code (downloaded from npm on first use) and the Claude
+Agent SDK (in the installers) are Anthropic's, under [Anthropic's terms](https://code.claude.com/docs/en/legal-and-compliance). The bundled
 fonts (Instrument Sans, Instrument Serif, JetBrains Mono) are under the SIL Open Font License, and the other
 dependencies under their own licenses (see `node_modules`). "Claude" and "Claude Code" are trademarks of Anthropic.

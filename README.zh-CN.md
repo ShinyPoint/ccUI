@@ -60,7 +60,7 @@ Claude Code 自带的 CLI 一键可达，对话始终是同一个。</p>
 
 ## 快速开始
 
-目前还没有预编译的发行版，请从源码构建。
+Windows 安装包见 [Releases](https://github.com/ShinyPoint/ccUI/releases) 页面。macOS 和 Linux 请从源码构建：
 
 ```bash
 git clone https://github.com/ShinyPoint/ccUI.git
@@ -70,7 +70,9 @@ npm start          # 构建窗口，然后打开应用
 ```
 
 要求：Node.js 20 或更高版本。不需要 C++ 工具链：终端模块（`@lydell/node-pty`）和 Claude Code 都是预编译的二进制文件。
-Claude Code 可执行文件随 Agent SDK 一起提供；也可以在 设置 → Claude Code → 可执行文件 中指定其他 `claude` 版本。
+从源码运行时，使用 Agent SDK 自带的 Claude Code 可执行文件。安装包不包含它：安装后的 ccUI 会在第一次开始会话时从 npm
+下载 Claude Code（只需一次，约 135 MB），下载完成后会话自动开始。也可以在 设置 → Claude Code → 可执行文件 中指定其他
+`claude` 版本。
 
 ## 功能
 
@@ -110,7 +112,8 @@ Claude Code 可执行文件随 Agent SDK 一起提供；也可以在 设置 → 
   自己的背景图片。窗口按钮、菜单、对话框和提示框都由应用自己绘制。
 - 英文或简体中文界面，默认跟随系统，可在 设置 → 通用 中切换。
 - Claude Code 无需更新应用即可保持最新：设置 → Claude Code → 更新 会从 npm 获取最新版本，用其公布的 sha512 校验后
-  用于新会话。
+  用于新会话。也可以自己选择版本：最近的 10 个版本之一，或手动输入任意版本（设置 → Claude Code → 版本），指定的版本
+  不会自动更新。
 
 ## 账户与登录
 
@@ -201,8 +204,9 @@ npm run dist:mac      # dmg + zip（需在 macOS 上构建）
 npm run dist:linux    # AppImage + deb
 ```
 
-每个平台需要在该平台上构建：Claude Code 可执行文件来自按系统区分的 npm 包，`npm install` 只会获取当前系统的版本。安装包约
-250 MB，大部分是 Claude Code 可执行文件。分发构建产物之前，请阅读 Anthropic 关于 Claude Code 的条款（安装包中包含它）：
+安装包不包含 Claude Code 可执行文件（首次使用时下载，见[快速开始](#快速开始)），Chromium 语言文件也只保留中英文：Windows
+安装包约 110 MB。每个平台需要在该平台上构建：终端模块的预编译文件来自按系统区分的 npm 包，`npm install` 只会获取当前
+系统的版本。分发构建产物之前，请阅读 Anthropic 关于 Claude Code 和 Agent SDK 的条款：
 <https://code.claude.com/docs/en/legal-and-compliance>。
 
 ## 项目结构
@@ -215,8 +219,8 @@ src/main/             Electron 主进程
   settings.js         JSON 设置；API 密钥用 Electron safeStorage 加密
   trust.js            在 Claude Code 启动前确认文件夹信任
   skills.js           /skills 对话框：列出技能并启用或停用
-  claude-binary.js    查找内置的 Claude Code 可执行文件（随附或已更新的），或自定义的
-  claude-update.js    下载、校验并安装更新的 Claude Code 版本
+  claude-binary.js    决定使用哪个 Claude Code：内置的（最新版或指定的版本），或自定义的
+  claude-update.js    下载、校验并安装 Claude Code：首次下载、更新、指定的版本
   files.js, background.js, shell-env.js, i18n.js
 src/preload.js        窗口可以使用的小型桥接（上下文隔离 + 沙盒）
 src/renderer/         窗口：Preact + signals，用 Vite 构建
@@ -238,7 +242,8 @@ scripts/intro-video/  介绍视频，使用同一个模拟脚本录制
 
 ccUI 以 [MIT 许可证](LICENSE)发布。
 
-它运行的软件、以及安装包中包含的部分软件不在该许可证范围内：Claude Code 和 Claude Agent SDK 属于 Anthropic，适用
+它运行的部分软件不在该许可证范围内：Claude Code（首次使用时从 npm 下载）和 Claude Agent SDK（包含在安装包中）属于
+Anthropic，适用
 [Anthropic 的条款](https://code.claude.com/docs/en/legal-and-compliance)。随附的字体（Instrument Sans、Instrument Serif、
 JetBrains Mono）采用 SIL Open Font License，其他依赖各自采用其许可证（见 `node_modules`）。"Claude" 和 "Claude Code"
 是 Anthropic 的商标。

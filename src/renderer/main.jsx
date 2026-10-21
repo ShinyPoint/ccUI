@@ -140,7 +140,7 @@ api.claudeUpdate.onState((st) => {
   claudeUpdate.value = st;
   if (st.state === 'ready' && was !== 'ready') {
     api.detectClaude(settings.value.claudePath).then((res) => { claudeCheck.value = res; });
-    toast(t('Claude Code {version} is ready. New sessions use it.', { version: st.latest }));
+    toast(t('Claude Code {version} is ready. New sessions use it.', { version: st.target || st.current }));
   }
 });
 if (settings.value.restoreSessions) restoreSessions();

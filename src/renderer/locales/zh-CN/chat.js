@@ -185,4 +185,16 @@ export default {
   'Open settings': '打开设置',
   'Ask again': '重新询问',
   'Try again': '重试',
+
+  // While a session waits for Claude Code to be downloaded
+  'Getting Claude Code ready': '正在准备 Claude Code',
+  'ccUI downloads Claude Code the first time it is used, once. The session starts as soon as it is here.':
+    'ccUI 首次使用时会下载 Claude Code，只需一次。下载完成后会话自动开始。',
+  'The version chosen in Settings is downloaded first. The session starts as soon as it is here.':
+    '正在下载设置中指定的版本，下载完成后会话自动开始。',
+  'Looking up Claude Code on npm…': '正在 npm 上查找 Claude Code…',
+  'Downloading Claude Code {version}: {received} of {total}': '正在下载 Claude Code {version}：{received} / {total}',
+  'Downloading Claude Code {version}…': '正在下载 Claude Code {version}…',
+  'Unpacking Claude Code {version}…': '正在解压 Claude Code {version}…',
+  'Claude Code {version} is ready.': 'Claude Code {version} 已就绪。',
 };

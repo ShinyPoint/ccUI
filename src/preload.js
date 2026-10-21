@@ -81,6 +81,8 @@ contextBridge.exposeInMainWorld('ccui', {
     state: () => ipcRenderer.invoke('claude-update:state'),
     check: () => ipcRenderer.invoke('claude-update:check'),
     run: () => ipcRenderer.invoke('claude-update:run'),
+    versions: () => ipcRenderer.invoke('claude-update:versions'),
+    use: (version) => ipcRenderer.invoke('claude-update:use', String(version || '')),
     onState: channel('claude-update:state'),
   },
   focusWindow: () => ipcRenderer.send('window:focus'),

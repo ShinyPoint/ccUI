@@ -236,9 +236,25 @@ function guardRequests() {
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === 'notifications');
 }
 
+// The Claude Code sessions start with: the Settings choice (a file of your own, or the built-in one in the
+// version chosen there).
+const currentClaude = () => resolveClaude(settings.get().claudePath, settings.get().claudeVersion);
+
+// Like currentClaude, but when the built-in one isn't downloaded yet, it is first (the first session after
+// installing). { file | command } or { error } when the download failed.
+async function claudeForSession() {
+  if (!currentClaude().missing) return currentClaude();
+  await updater.ensure();
+  const claude = currentClaude();
+  if (!claude.missing) return claude;
+  return { error: t('Claude Code could not be downloaded: {reason}', { reason: updater.status.error || t('unknown error') }) };
+}
+
 async function detectClaude(custom) {
   await shellEnvReady;
-  const claude = resolveClaude(custom);
+  const claude = resolveClaude(custom, settings.get().claudeVersion);
+  // Not downloaded yet: not a problem, it is before the first session (claude-update.js).
+  if (claude.missing) return { ok: false, missing: true };
   const { file, args } = claudeLaunch(claude, ['--version']);
   return new Promise((resolve) => {
     execFile(file, typeof args === 'string' ? [args] : args, {
@@ -264,7 +280,7 @@ function registerIpc() {
     home: os.homedir(),
     version: app.getVersion(),
     windowsBuild: process.platform === 'win32' ? Number(os.release().split('.')[2]) : 0,
-    hasBundledClaude: Boolean(bundledClaude()),
+    hasBundledClaude: Boolean(bundledClaude(settings.get().claudeVersion)),
     glassSupported: GLASS_SUPPORTED,
   }));
   ipc.handle('app:detect-claude', (_e, custom) => detectClaude(custom));
@@ -289,6 +305,8 @@ function registerIpc() {
   ipc.handle('claude-update:state', () => updater.status);
   ipc.handle('claude-update:check', () => updater.check());
   ipc.handle('claude-update:run', () => updater.update());
+  ipc.handle('claude-update:versions', () => updater.recent().then((versions) => ({ ok: true, versions }), (err) => ({ ok: false, error: err.message })));
+  ipc.handle('claude-update:use', (_e, version) => updater.use(version));
   ipc.handle('settings:set-api-key', (_e, key) => {
     try {
       return { ok: true, settings: settings.setApiKey(key) };
@@ -314,7 +332,9 @@ function registerIpc() {
   ipc.handle('pty:create', async (_e, opts) => {
     try {
       await shellEnvReady;
-      const { id, proc } = ptys.create({ ...opts, claude: resolveClaude(settings.get().claudePath) });
+      const claude = opts?.kind === 'shell' ? null : await claudeForSession();
+      if (claude?.error) return { ok: false, error: claude.error };
+      const { id, proc } = ptys.create({ ...opts, claude });
       // ConPTY reports the pid a moment after spawning.
       for (let i = 0; i < 40 && !proc.pid; i++) await new Promise((r) => setTimeout(r, 25));
       return { ok: true, id, pid: proc.pid };
@@ -331,7 +351,8 @@ function registerIpc() {
     if (!opts?.cwd || !fs.existsSync(opts.cwd) || !fs.statSync(opts.cwd).isDirectory()) {
       return { ok: false, code: 'folder', error: t('Folder not found: {path}', { path: opts?.cwd }) };
     }
-    const claude = resolveClaude(settings.get().claudePath);
+    const claude = await claudeForSession();
+    if (claude.error) return { ok: false, code: 'no-binary', error: claude.error };
     if (!claude.file) {
       return {
         ok: false,

@@ -20,8 +20,9 @@ const DEFAULTS = {
   cursorBlink: true,
   copyOnSelect: false,
   scrollback: 10000,
-  claudePath: '', // empty: the Claude Code build bundled with the app
+  claudePath: '', // empty: the built-in Claude Code (the Agent SDK's from source, otherwise downloaded)
   autoUpdateClaude: true, // keep the built-in Claude Code current (claude-update.js)
+  claudeVersion: '', // empty: the newest built-in Claude Code; a version ("2.1.300"): that one, never updated
   defaultKind: 'chat', // 'chat' | 'terminal'
   defaultModel: '', // empty: Claude Code's default
   defaultPermissionMode: 'default',

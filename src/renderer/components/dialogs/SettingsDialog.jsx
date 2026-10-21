@@ -2,13 +2,13 @@
 // as soon as it is made: switches, choices and swatches right away, sliders when let go (previewed while
 // dragging), text fields when they lose focus or on Enter.
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { Dialog, Dropdown, Segmented, Icon, SetGroup as Group, SetRow as Row, Switch } from '../ui.jsx';
+import { Dialog, Dropdown, Segmented, Icon, Collapse, SetGroup as Group, SetRow as Row, Switch } from '../ui.jsx';
 import { MODE_LABELS } from '../chat/Prompts.jsx';
 import { MODEL_CHOICES } from './NewSessionDialog.jsx';
 import { api, info, settings, saveSettings, settingsDialog, claudeCheck, claudeUpdate, toast, themeMode, backgroundUrl } from '../../lib/store.js';
 import { SHORTCUT_LIST } from '../../lib/keyboard.js';
 import { PALETTES } from '../../lib/themes.js';
-import { t, phrase, LANGUAGES, systemLocale } from '../../lib/i18n.js';
+import { t, phrase, locale, LANGUAGES, systemLocale } from '../../lib/i18n.js';
 
 const PERMISSION_MODES = ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'];
 
@@ -179,8 +179,9 @@ function Executable() {
           if (file) save(file);
         }}>{t('Browse…')}</button>
       </div>
-      <p class={`set-note ${check ? (check.ok ? 'ok' : 'bad') : ''}`}>
+      <p class={`set-note ${check ? (check.ok ? 'ok' : check.missing ? '' : 'bad') : ''}`}>
         {!check ? t('Checking…')
+          : check.missing ? t('The built-in Claude Code is downloaded when the first session starts.')
           : !check.ok ? t('Not found. Leave empty to use the built-in Claude Code.')
           : found(check)}
       </p>
@@ -188,39 +189,118 @@ function Executable() {
   );
 }
 
-// Updates of the built-in Claude Code: what the app has, what npm has, and a button for the next step.
+const UPDATE_BUSY = ['checking', 'downloading', 'installing'];
+
+// Updates of the built-in Claude Code: what the app has, what npm has, and a button for the next step; then
+// which version to use.
 function ClaudeUpdates() {
   const u = claudeUpdate.value;
   const own = Boolean((settings.value.claudePath || '').trim());
-  const busy = ['checking', 'downloading', 'installing'].includes(u.state);
+  const pinned = settings.value.claudeVersion || '';
+  const busy = UPDATE_BUSY.includes(u.state);
   const pct = u.total ? Math.min(100, Math.round(((u.received || 0) / u.total) * 100)) : null;
-  const v = { latest: u.latest, current: u.current, pct };
+  const v = { latest: u.latest, current: u.current, target: u.target || u.latest, pct };
   const note = own ? t('Not in use: you chose your own Claude Code above. Update that one yourself.')
     : u.state === 'checking' ? t('Checking for a newer version…')
     : u.state === 'available' ? t('Version {latest} is available. You have {current}.', v)
-    : u.state === 'downloading' ? (pct == null ? t('Downloading {latest}…', v) : t('Downloading {latest}… {pct}%', v))
-    : u.state === 'installing' ? t('Installing {latest}…', v)
+    : u.state === 'pinned' ? t('Version {current}, chosen below. The newest is {latest}.', v)
+    : u.state === 'downloading' ? (pct == null ? t('Downloading {target}…', v) : t('Downloading {target}… {pct}%', v))
+    : u.state === 'installing' ? t('Installing {target}…', v)
     : u.state === 'up-to-date' ? t('Version {current}, the newest.', v)
-    : u.state === 'ready' ? t('Updated to {latest}. New sessions use it; running ones keep their version.', v)
+    : u.state === 'ready' ? t('Version {target} is ready. New sessions use it; running ones keep their version.', v)
     : u.state === 'error' ? u.error
-    : u.current ? t('Version {current}', v) : '';
+    : u.current ? t('Version {current}', v)
+    : t('Not downloaded yet. It is downloaded when the first session starts.');
   const run = (action) => { action().catch(() => {}); };
   return (
     <>
       <Row label={t('Built-in Claude Code')} note={<span class={u.state === 'error' && !own ? 'bad' : ''}>{note}</span>}>
         {u.state === 'available' && !own
           ? <button type="button" class="primary-btn" onClick={() => run(api.claudeUpdate.run)}>{t('Update to {latest}', v)}</button>
-          : <button type="button" class="secondary-btn" disabled={own || busy} onClick={() => run(api.claudeUpdate.check)}>
-              {u.state === 'downloading' || u.state === 'installing' ? t('Updating…') : u.state === 'checking' ? t('Checking…') : t('Check for updates')}
-            </button>}
+          : !u.current && !own && !busy
+            ? <button type="button" class="primary-btn" onClick={() => run(api.claudeUpdate.run)}>{t('Download')}</button>
+            : <button type="button" class="secondary-btn" disabled={own || busy} onClick={() => run(api.claudeUpdate.check)}>
+                {u.state === 'downloading' || u.state === 'installing' ? t('Updating…') : u.state === 'checking' ? t('Checking…') : t('Check for updates')}
+              </button>}
       </Row>
       {u.state === 'downloading' && !own && (
         <div class="set-progress" role="progressbar" aria-label={t('Download')} aria-valuenow={pct ?? undefined}>
           <span style={{ width: `${pct ?? 0}%` }} />
         </div>
       )}
-      <ToggleRow setting="autoUpdateClaude" label={t('Update automatically')} disabled={own}
-                 note={t('Checks when ccUI starts and every 6 hours, and downloads new versions in the background')} />
+      <ClaudeVersion own={own} />
+      <ToggleRow setting="autoUpdateClaude" label={t('Update automatically')} disabled={own || Boolean(pinned)}
+                 value={pinned ? false : undefined}
+                 note={pinned ? t('Off while a version is chosen above')
+                   : t('Checks when ccUI starts and every 6 hours, and downloads new versions in the background')} />
+    </>
+  );
+}
+
+// Which Claude Code version the built-in one is: the newest (kept current), one of the recent ones from npm, or
+// any other typed in. A version not on this computer is downloaded first; the choice is saved once it is here.
+function ClaudeVersion({ own }) {
+  const pinned = settings.value.claudeVersion || '';
+  const current = claudeUpdate.value.current;
+  const [list, setList] = useState(null); // { ok, versions: [{ version, date, here }] } | { ok: false, error }
+  const [other, setOther] = useState(false);
+  const [typed, setTyped] = useState('');
+  const [choosing, setChoosing] = useState(null); // the version being fetched to be used ('' for the newest)
+  // Why the last choice could not be used: shown in the row (a toast would be under this dialog).
+  const [error, setError] = useState('');
+  // Asked again when the version in use changes: the "on this computer" marks follow the downloads.
+  useEffect(() => {
+    let live = true;
+    api.claudeUpdate.versions().then((res) => { if (live) setList(res || { ok: false }); });
+    return () => { live = false; };
+  }, [current]);
+
+  const use = async (version) => {
+    setChoosing(version);
+    setError('');
+    const res = await api.claudeUpdate.use(version);
+    setChoosing(null);
+    if (!res?.ok) return setError(res?.error || t('That version could not be used.'));
+    await saveSettings({ claudeVersion: version });
+    setOther(false);
+    setTyped('');
+  };
+  const day = (iso) => (iso ? new Date(iso).toLocaleDateString(locale.value, { year: 'numeric', month: 'short', day: 'numeric' }) : '');
+  const versions = list?.ok ? list.versions : [];
+  const options = [
+    { value: 'newest', label: t('Newest'), hint: versions[0]?.version || (list ? '' : t('Loading versions…')) },
+    ...versions.map((x) => ({ value: x.version, label: x.version, hint: x.here ? t('{date} · on this computer', { date: day(x.date) }) : day(x.date) })),
+    // A version chosen earlier that is no longer among the recent ones.
+    ...(pinned && !versions.some((x) => x.version === pinned) ? [{ value: pinned, label: pinned }] : []),
+    { value: 'other', label: t('Other version…') },
+  ];
+  const value = other ? 'other' : choosing != null ? (choosing || 'newest') : pinned || 'newest';
+  const valid = /^\d+\.\d+\.\d+$/.test(typed.trim());
+  const pick = (choice) => {
+    if (choice === 'other') return setOther(true);
+    setOther(false);
+    if (choice !== (pinned || 'newest')) use(choice === 'newest' ? '' : choice);
+  };
+  const note = error ? <span class="bad">{error}</span>
+    : list && !list.ok ? t('The list of versions could not be loaded. Another version can still be typed in.')
+    : t('An older version may not support everything chat sessions do. If sessions stop starting, go back to Newest.');
+  return (
+    <>
+      <Row label={t('Version')} note={note}>
+        <Dropdown label={t('Claude Code version')} value={value} options={options} onChange={pick} disabled={own || choosing != null} />
+      </Row>
+      <Collapse open={other && !own}>
+        <div class="set-row set-version-other">
+          <div class="input-row">
+            <input type="text" value={typed} placeholder="2.1.300" spellcheck={false} aria-label={t('Claude Code version')}
+                   onInput={(e) => { setTyped(e.currentTarget.value); setError(''); }}
+                   onKeyDown={(e) => { if (e.key === 'Enter' && valid && choosing == null) { e.preventDefault(); use(typed.trim()); } }} />
+            <button type="button" class="secondary-btn" disabled={!valid || choosing != null} onClick={() => use(typed.trim())}>
+              {choosing ? t('Downloading…') : t('Use')}
+            </button>
+          </div>
+        </div>
+      </Collapse>
     </>
   );
 }

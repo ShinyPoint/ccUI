@@ -1,5 +1,6 @@
 // Finds the Claude Code executable: a user-chosen file, or the built-in one. The built-in one is the newer of
-// the build shipped with the Agent SDK and the newest one downloaded by claude-update.js.
+// the build shipped with the Agent SDK (only when run from source: installers leave it out, see package.json) and
+// the newest one downloaded by claude-update.js, or exactly the version chosen in Settings (claudeVersion).
 const fs = require('fs');
 const path = require('path');
 
@@ -61,28 +62,35 @@ function downloaded(dir = downloadsDir) {
   return found.length ? { file: path.join(dir, found[0], EXE), version: found[0] } : null;
 }
 
-// The built-in Claude Code: { file, version, downloaded }, or null.
-function builtIn() {
+// The built-in Claude Code: { file, version, downloaded }, or null when there is none yet (it is downloaded
+// then, claude-update.js). `pinned`: a version chosen in Settings, used as it is and no other.
+function builtIn(pinned = '') {
   const ship = shipped();
+  if (VERSION.test(pinned || '')) {
+    const file = downloadsDir && path.join(downloadsDir, pinned, EXE);
+    if (file && fs.existsSync(file)) return { file, version: pinned, downloaded: true };
+    return ship?.version === pinned ? { ...ship, downloaded: false } : null;
+  }
   const down = downloaded();
   if (down && (!ship || !ship.version || compareVersions(down.version, ship.version) > 0)) return { ...down, downloaded: true };
   return ship ? { ...ship, downloaded: false } : null;
 }
 
-function bundledClaude() {
-  return builtIn()?.file || null;
+function bundledClaude(pinned = '') {
+  return builtIn(pinned)?.file || null;
 }
 
-// `custom` is the Settings value: empty for the built-in build, otherwise a path or a command name.
-function resolveClaude(custom) {
+// `custom` is the Settings value: empty for the built-in build, otherwise a path or a command name. `pinned`:
+// the version chosen in Settings. With no built-in build yet, `missing` is set: claude-update.js downloads one.
+function resolveClaude(custom, pinned = '') {
   const value = (custom || '').trim();
   // A .cmd/.bat (e.g. npm's claude.cmd shim) cannot be started directly; it runs through cmd.exe instead,
   // which only terminal sessions do.
   if (isWin && /\.(cmd|bat)$/i.test(value) && fs.existsSync(value)) return { command: `"${value}"` };
   if (value && fs.existsSync(value) && fs.statSync(value).isFile()) return { file: value };
   if (value) return { command: value }; // e.g. "claude" on PATH; only usable in terminal sessions
-  const bundled = bundledClaude();
-  return bundled ? { file: bundled, bundled: true } : { command: 'claude' };
+  const bundled = bundledClaude(pinned);
+  return bundled ? { file: bundled, bundled: true } : { command: 'claude', missing: true };
 }
 
 module.exports = { EXE, VERSION, platformPackage, compareVersions, shipped, downloaded, useDownloads, builtIn, bundledClaude, resolveClaude };
