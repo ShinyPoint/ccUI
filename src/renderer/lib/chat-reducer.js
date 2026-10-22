@@ -382,7 +382,9 @@ function apply(d, m, now) {
       return;
     case 'ui/history':
       for (const sm of m.messages) {
-        if (sm.type === 'user' || sm.type === 'assistant') apply(d, { ...sm, replay: true }, now);
+        // Each at the time it was written (main/agent.js reads it from the transcript), so its steps' times and
+        // the time shown on it are its own; with no time known, it is shown without one.
+        if (sm.type === 'user' || sm.type === 'assistant') apply(d, { ...sm, replay: true }, sm.at || now);
       }
       stopStreaming(d, true, now); // tools without a result in the transcript never ran
       if (m.messages.length) add(d, { key: nextKey(d, 'divider'), type: 'divider', text: 'Earlier in this conversation', parent: null });
@@ -429,7 +431,7 @@ function onStream(d, m, now) {
         if (!parent) d.activity = 'thinking';
       } else if (b.type === 'text' || b.type === 'thinking') {
         key = `${b.type}:${stream.msgId}:${ev.index}`;
-        if (!get(d, key)) add(d, { key, type: b.type, msgId: stream.msgId, text: b.text || b.thinking || '', streaming: true, parent, startedAt: now });
+        if (!get(d, key)) add(d, { key, type: b.type, msgId: stream.msgId, text: b.text || b.thinking || '', streaming: true, parent, startedAt: now, at: now });
         const pending = d.unconfirmed[stream.msgId] || { text: [], thinking: [] };
         d.unconfirmed[stream.msgId] = { ...pending, [b.type]: [...pending[b.type], key] };
         if (b.type === 'thinking' && !parent) d.activity = 'thinking';
@@ -483,7 +485,7 @@ function onAssistant(d, m, now) {
         const keep = b.type === 'thinking' && item?.text?.trim();
         set(d, key, { text: keep ? item.text : text, streaming: false, endedAt: item?.endedAt || now });
       } else if (text) {
-        add(d, { key: nextKey(d, b.type), type: b.type, text, streaming: false, parent, startedAt: now, endedAt: now, msgId });
+        add(d, { key: nextKey(d, b.type), type: b.type, text, streaming: false, parent, startedAt: now, endedAt: now, msgId, at: m.replay ? m.at || null : now });
       }
       if (b.type === 'text' && text?.trim() && !parent) d.turnHadText = true;
     } else if (b.id && /tool_use$/.test(b.type)) {
@@ -502,7 +504,7 @@ function onUser(d, m, now) {
   if (typeof content === 'string') {
     if (m.replay && !parent) {
       const shown = replayUserText(d, content);
-      if (shown) add(d, { key: m.uuid || nextKey(d, 'user'), type: 'user', text: shown.text, images: [], parent: null });
+      if (shown) add(d, { key: m.uuid || nextKey(d, 'user'), type: 'user', text: shown.text, images: [], parent: null, at: m.at || null });
     }
     return;
   }
@@ -527,7 +529,7 @@ function onUser(d, m, now) {
   }
   if (m.replay && !parent && (texts.length || images.length)) {
     const shown = texts.length ? replayUserText(d, texts.join('\n')) : { text: '' };
-    if (shown) add(d, { key: m.uuid || nextKey(d, 'user'), type: 'user', text: shown.text, images, parent: null });
+    if (shown) add(d, { key: m.uuid || nextKey(d, 'user'), type: 'user', text: shown.text, images, parent: null, at: m.at || null });
   }
 }
 

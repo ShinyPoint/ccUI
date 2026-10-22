@@ -1,7 +1,8 @@
 // Check of session housekeeping, without API usage (Claude is scripted, see fakes.js): at launch the
 // shown session's folder is open and the others folded; restored chats read their history one at a time; a chat
 // left alone lets its Claude Code go (the clock is moved on) without a notice, and starts again on the same
-// conversation when selected; a crashed window is logged and loads again with its sessions.
+// conversation when selected; a crashed window is logged and loads again with its sessions; a project has one
+// untouched new chat and one untouched new CLI at most.
 // Usage: npx vite build && npx electron scripts/checks/sessions-check.js
 const fs = require('fs');
 const os = require('os');
@@ -110,6 +111,45 @@ app.on('browser-window-created', (_e, win) => {
       const log = fs.existsSync(path.join(profile, 'crash.log')) ? fs.readFileSync(path.join(profile, 'crash.log'), 'utf8') : '';
       check('the crash is noted in crash.log', /window process gone: crashed/.test(log), log.trim().split('\n').at(-1));
       check('the window loads again with its sessions', await js(back));
+
+      // One new session of a kind per project: a second "new chat" in A shows the untouched one; a new CLI can sit
+      // beside it, but not a second one; once the chat is used, a new chat is a new one again.
+      director.script = () => async (c) => { await c.say('Done.', { cps: 600 }); c.finish(0.01); };
+      const count = () => js("document.querySelectorAll('#sidebar .session').length");
+      const addInA = `[...document.querySelectorAll('#sidebar .folder')].find((f) => f.textContent.includes(${JSON.stringify(path.basename(a))})).querySelector('.folder-add').click(); true`;
+      const n0 = await count();
+      await js(addInA);
+      await until('a new chat in A', "Boolean(document.querySelector('.chat.empty .chat-composer'))");
+      await wait(800);
+      const n1 = await count();
+      await js(addInA);
+      await wait(1200);
+      check('a second new chat in the same project shows the untouched one', n1 === n0 + 1 && (await count()) === n1 && await js("Boolean(document.querySelector('.chat.empty'))"),
+        `${n0} → ${n1} → ${await count()}`);
+      const newCli = async () => {
+        await js("document.querySelector('.new-session').click(); true");
+        await until('the New session dialog', "Boolean(document.querySelector('.dialog-new input[name=kind][value=terminal]'))");
+        await js("document.querySelector('.dialog-new input[name=kind][value=terminal]').click(); true");
+        await wait(200);
+        await js("document.querySelector('.dialog-new button[type=submit]').click(); true");
+        await until('the dialog to close', "!document.querySelector('.dialog-new .dialog-body')", 30000); // a CLI takes a moment to start
+        await wait(1500);
+      };
+      await newCli();
+      const n2 = await count();
+      await newCli();
+      check('a new CLI sits beside the new chat, but a second one does not', n2 === n1 + 1 && (await count()) === n2, `${n1} → ${n2} → ${await count()}`);
+      // Back to the new chat, used: the next new chat is another one.
+      await pick('New chat');
+      await until('the new chat', "Boolean(document.querySelector('.chat.empty .composer-input'))");
+      await js(`{ const el = document.querySelector('.chat-composer .composer-input'); el.value = 'hi'; el.dispatchEvent(new Event('input', { bubbles: true })); } true`);
+      await wait(100);
+      await js("document.querySelector('.chat-composer .composer-input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); true");
+      await until('the reply', "/Done/.test(document.querySelector('.timeline')?.textContent || '')");
+      await js(addInA);
+      await until('another new chat', "Boolean(document.querySelector('.chat.empty .chat-composer'))");
+      await wait(800);
+      check('once used, a new chat in the project is a new one', (await count()) === n2 + 1, `${n2} → ${await count()}`);
     } catch (err) {
       console.error('failed:', err);
       failures++;

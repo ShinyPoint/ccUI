@@ -5,8 +5,8 @@ import { Icon, Collapse, openContextMenu } from '../ui.jsx';
 import { api } from '../../lib/store.js';
 import { rewindTo, undoFileChanges, forkFrom } from '../../lib/sessions.js';
 import { renderMarkdown } from '../../lib/markdown.js';
-import { formatCost, formatDuration } from '../../lib/format.js';
-import { t, phrase } from '../../lib/i18n.js';
+import { formatCost, formatDuration, formatClock } from '../../lib/format.js';
+import { t, phrase, locale } from '../../lib/i18n.js';
 
 // What lib/chat-reducer.js writes into the timeline (notices, dividers, a background task ending) and says Claude
 // is doing: it stays English there (pure, and tested as such) and is put in the app's language here, where it is
@@ -91,11 +91,16 @@ function messageMenu(s, item) {
   ];
 }
 
+// When a message was sent or written, shown with its actions on hover; the full date and time in its tooltip.
+export function MessageTime({ at }) {
+  return <time class="msg-time" dateTime={new Date(at).toISOString()} title={new Date(at).toLocaleString(locale.value)}>{formatClock(at)}</time>;
+}
+
 export const UserItem = memo(({ item, s, saved }) => {
   // Only messages saved in the conversation (sent from here or loaded from it) can be a starting point.
   const actionable = s && saved && !item.queued && !item.key.includes(':');
   return (
-    <div class="msg-user-wrap" onContextMenu={actionable ? (e) => openContextMenu(e, messageMenu(s, item)) : undefined}>
+    <div class="msg-user-wrap" data-key={item.key} onContextMenu={actionable ? (e) => openContextMenu(e, messageMenu(s, item)) : undefined}>
       <div class={`msg-user ${item.queued ? 'queued' : ''}`}>
         {item.queued && <span class="msg-queued" title={t('Claude reads this at its next step. Stop cancels it and puts it back in the message box.')}>{t('Queued')}</span>}
         {item.images?.length > 0 && (
@@ -107,11 +112,14 @@ export const UserItem = memo(({ item, s, saved }) => {
         )}
         {item.text && <div class="msg-user-text">{item.text}</div>}
       </div>
-      {actionable && (
+      {(actionable || item.at) && (
         <div class="msg-actions">
-          <button type="button" class="icon-btn" title={t('Copy')} onClick={() => api.writeClipboard(item.text || '')}><Icon name="copy" size={14} /></button>
-          <button type="button" class="icon-btn" title={t('Edit and resend: go back to before this message')} onClick={() => rewindTo(s, item)}><Icon name="edit" size={14} /></button>
-          <button type="button" class="icon-btn" title={t('More')} onClick={(e) => openContextMenu(e, messageMenu(s, item))}><Icon name="more" size={14} /></button>
+          {item.at && <MessageTime at={item.at} />}
+          {actionable && <>
+            <button type="button" class="icon-btn" title={t('Copy')} onClick={() => api.writeClipboard(item.text || '')}><Icon name="copy" size={14} /></button>
+            <button type="button" class="icon-btn" title={t('Edit and resend: go back to before this message')} onClick={() => rewindTo(s, item)}><Icon name="edit" size={14} /></button>
+            <button type="button" class="icon-btn" title={t('More')} onClick={(e) => openContextMenu(e, messageMenu(s, item))}><Icon name="more" size={14} /></button>
+          </>}
         </div>
       )}
     </div>

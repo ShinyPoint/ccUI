@@ -3,8 +3,8 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { signal } from '@preact/signals';
 import { Icon, Collapse, openContextMenu } from './ui.jsx';
 import {
-  api, sessions, activeUid, settings, saveSettings, themeMode, newSessionDialog, settingsDialog, toast, TRACE_LEN,
-  projectSearch,
+  api, sessions, activeUid, active, settings, saveSettings, themeMode, newSessionDialog, settingsDialog, skillsDialog, toast,
+  TRACE_LEN, projectSearch,
 } from '../lib/store.js';
 import {
   selectSession, endSession, openSession, openConversation, forgetRecent, renameSession,
@@ -305,6 +305,22 @@ function ProjectSearch({ first }) {
 
 const includes = (text, q) => Boolean(text) && text.toLowerCase().includes(q);
 
+// Skills (the /skills dialog) from the sidebar. Skills are read and set through a chat's Claude Code, so it opens
+// for the chat on screen, or another open chat (the same project's first) when a CLI session is shown.
+function SkillsButton() {
+  const shown = active.value;
+  const chats = sessions.value.filter((x) => x.kind.value === 'chat');
+  const target = shown?.kind.value === 'chat' ? shown
+    : chats.find((x) => shown && samePath(x.cwd, shown.cwd)) || chats[0];
+  return (
+    <button class="sidebar-link" disabled={!target} onClick={() => { skillsDialog.value = target; }}
+            title={target ? t('Turn skills on or off, see what they cost in context') : t('Skills are managed through a chat session: start one first')}>
+      <Icon name="toolSkill" />
+      <span>{t('Skills')}</span>
+    </button>
+  );
+}
+
 export function Sidebar() {
   const list = sessions.value;
   // Folders: those with open sessions first (in opening order), then recent folders.
@@ -338,6 +354,7 @@ export function Sidebar() {
         <span>{t('New session')}</span>
         <kbd>{SHORTCUTS.newSession}</kbd>
       </button>
+      <SkillsButton />
 
       <div class="sidebar-scroll">
         <h2 class="section-label">

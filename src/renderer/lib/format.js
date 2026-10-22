@@ -58,6 +58,16 @@ export function relativeTime(ms) {
 // "3 files", in the app's language (lib/i18n.js plural).
 export const pluralize = plural;
 
+// When a message was sent: "14:32" today, "Oct 21 14:32" earlier (with the year when it isn't this one).
+export function formatClock(ms) {
+  const d = new Date(ms);
+  const now = new Date();
+  const time = d.toLocaleTimeString(locale.value, { hour: 'numeric', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return time;
+  const day = d.toLocaleDateString(locale.value, { month: 'short', day: 'numeric', ...(d.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }) });
+  return `${day} ${time}`;
+}
+
 export function formatBytes(n) {
   if (!n && n !== 0) return '';
   if (n < 1024) return `${n} B`;

@@ -80,6 +80,7 @@ export function createTerminal(handlers, container = termStack) {
   }
 
   term.onData(handlers.onData);
+  if (handlers.onKey) term.onKey(handlers.onKey);
   term.onResize(({ cols, rows }) => handlers.onResize(cols, rows));
   term.onTitleChange(handlers.onTitle);
   term.onSelectionChange(() => {

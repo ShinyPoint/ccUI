@@ -306,6 +306,20 @@ body.platform-darwin .sidebar-top { padding-left: 84px; }
 }
 .new-session:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 .new-session kbd { margin-left: auto; color: inherit; background: color-mix(in srgb, var(--accent) 14%, transparent); opacity: .85; }
+/* Under New session: a plain line of text with an icon, no fill (Skills). */
+.sidebar-link {
+  display: flex; align-items: center; gap: 8px;
+  margin: -4px 12px 8px;
+  height: 30px;
+  padding: 0 10px 0 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+  transition: color .15s;
+}
+.sidebar-link:hover:not(:disabled) { color: var(--text); }
+.sidebar-link:disabled { opacity: .45; cursor: default; }
+.sidebar-link .icon { color: var(--muted); }
+.sidebar-link:hover:not(:disabled) .icon { color: var(--text-2); }
 
 .sidebar-scroll { flex: 1; overflow-y: auto; padding: 0 8px 12px; }
 /* Small headings, everywhere they appear: the sidebar's Projects, Recent folders, a project's Recent, Settings'

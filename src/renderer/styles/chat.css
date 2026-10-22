@@ -505,7 +505,55 @@
    padding hangs out into the margin); the time and cost, when shown there, at the right. */
 .turn-foot { display: flex; align-items: center; margin: -8px 0 -4px -6px; }
 .turn-foot > .turn-end { margin: 0 0 0 auto; }
-.answer-actions { display: flex; gap: 2px; }
+/* Your messages along the chat's right edge (HistoryRail.jsx): an invisible strip that shows a tick per message
+   and a button for the list while pointed at; the list opens over the chat's edge. */
+.history-rail { position: absolute; top: 0; right: 0; width: 18px; z-index: 6; }
+.history-rail.open { width: auto; }
+.history-open, .history-tick { opacity: 0; transition: opacity .15s, background .15s, width .15s; }
+.history-rail:hover .history-open, .history-rail:hover .history-tick, .history-rail:focus-within .history-open { opacity: 1; }
+.history-open {
+  position: absolute; top: 10px; right: 2px;
+  display: grid; place-items: center; width: 22px; height: 22px;
+  border-radius: var(--r-sm); color: var(--muted);
+}
+.history-open:hover { background: var(--fill); color: var(--text); }
+.history-tick {
+  position: absolute; right: 4px; width: 8px; height: 3px; margin-top: -1px; padding: 0;
+  border-radius: 2px; background: color-mix(in srgb, var(--text) 28%, transparent);
+}
+.history-tick:hover { width: 12px; background: var(--text-2); }
+.history-tick.current { background: var(--accent); }
+.history-panel {
+  position: absolute; top: 10px; right: 10px;
+  width: 260px; max-height: calc(100% - 20px);
+  display: flex; flex-direction: column;
+  border-radius: var(--r-md); background: var(--base); box-shadow: var(--shadow);
+  outline: none;
+  animation: history-in .2s var(--ease);
+}
+@keyframes history-in { from { opacity: 0; transform: translateX(12px); } }
+.history-head { display: flex; align-items: center; gap: 6px; padding: 8px 6px 6px 12px; font-size: 12px; color: var(--muted); }
+.history-head .history-count { font-variant-numeric: tabular-nums; }
+.history-head .icon-btn { margin-left: auto; width: 24px; height: 24px; }
+.history-list { list-style: none; margin: 0; padding: 0 6px 6px; overflow-y: auto; }
+.history-item {
+  display: flex; align-items: baseline; gap: 8px; width: 100%;
+  padding: 6px 8px; border-radius: var(--r-sm);
+  text-align: left; color: var(--text-2); font-size: 12.5px;
+}
+.history-item:hover, .history-item.picked { background: var(--fill); color: var(--text); }
+.history-item.current { color: var(--text); background: var(--accent-soft); }
+.history-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-time { flex-shrink: 0; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* A turn's answer with its foot: spaced like the timeline it sits in. */
+.answer { display: flex; flex-direction: column; gap: 12px; }
+.answer-actions { display: flex; align-items: center; gap: 2px; }
+/* When a message was sent or written: only while pointing at it. */
+.msg-time { padding: 0 6px; font: 11.5px var(--ui); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; cursor: default; }
+.answer-actions .msg-time { opacity: 0; transition: opacity .15s; }
+.answer:hover .answer-actions .msg-time { opacity: 1; }
+.msg-actions { align-items: center; }
 .answer-actions .icon-btn { width: 26px; height: 26px; color: var(--off); }
 .answer-actions .icon-btn:hover { color: var(--text); }
 .answer-actions .icon-btn.copied { color: var(--ok); }

@@ -491,9 +491,11 @@ const cleanTitle = (raw) => {
   return /^claude( code)?$/i.test(t) || /^([a-z]:\\|\/|~)/i.test(t) || /\.exe$/i.test(t) ? '' : t;
 };
 
-export function writePty(s, data) {
+// `auto`: xterm answering Claude Code's queries (cursor position, colors) rather than something the user sent.
+export function writePty(s, data, { auto = false } = {}) {
   if (!s.ptyId) return;
   s.lastInputAt = Date.now();
+  if (!auto) s.typed = true;
   api.pty.write(s.ptyId, data);
 }
 
@@ -504,13 +506,16 @@ export function copySelection(s) {
 
 export async function pasteInto(s) {
   const text = await api.readClipboard();
+  s.typed = true;
   if (text) s.term.paste(text);
   else writePty(s, '\x16'); // no text: let Claude Code try to paste an image itself
 }
 
 function attachTerminal(s) {
   const { term, fit, host } = createTerminal({
-    onData: (data) => writePty(s, data),
+    // Keys and pastes are marked as typed on their own (onKey, pasteInto): onData also carries xterm's replies.
+    onData: (data) => writePty(s, data, { auto: true }),
+    onKey: () => { s.typed = true; },
     onResize: (cols, rows) => {
       s.size.value = `${cols}×${rows}`;
       // Every resize makes Claude Code redraw its whole screen; send only the size the layout settles on.
@@ -774,12 +779,37 @@ export async function openInChat(s) {
 
 // ---------- opening, selecting, closing ----------
 // kind: 'chat' | 'terminal' | 'shell'; mode: 'new' | 'continue' | 'resume' (with `resume` = session id)
+// A new chat or CLI nobody has used yet: no conversation resumed, nothing sent (chat) or typed (CLI).
+function untouched(x, kind, cwd) {
+  if (x.removed || x.dormant || x.sessionId || x.kind.value !== kind || !samePath(x.cwd, cwd)) return false;
+  if (kind === 'chat') return !x.chat.value.busy && !x.chat.value.items.some((i) => i.type === 'user');
+  return !x.typed && x.status.value !== 'exited';
+}
+
 export async function openSession(opts, { activate = true } = {}) {
   const kind = opts.kind || settings.value.defaultKind || 'chat';
   let resume = opts.resume;
   if (opts.mode === 'continue' && !resume && kind !== 'shell') {
     resume = await latestSessionId(opts.cwd);
     if (!resume) toast(t('No earlier conversation in this folder, so a new one was started.'));
+  }
+  // One new session of a kind per project: asking for another new chat (or CLI) where an untouched one is open
+  // shows that one, rather than piling up empty ones. A new chat and a new CLI can sit side by side.
+  // A chat takes the model and permission mode asked for now; a CLI's are part of how it was started, so a CLI
+  // asked for with others is a new one.
+  if (!resume && !opts.lazy && kind !== 'shell') {
+    const sameArgs = (x) => kind === 'chat' || ((opts.model ?? x.selectedModel.value) === x.selectedModel.value
+      && (opts.permissionMode ?? x.mode.value) === x.mode.value && !opts.extraArgs);
+    const same = sessions.value.find((x) => untouched(x, kind, opts.cwd) && sameArgs(x));
+    if (same) {
+      if (activate || !activeUid.value) selectSession(same);
+      if (kind === 'chat') {
+        if (same.starting) await same.starting;
+        if (opts.model != null && opts.model !== same.selectedModel.value) await setModel(same, opts.model || 'default');
+        if (opts.permissionMode && opts.permissionMode !== same.mode.value) await setMode(same, opts.permissionMode);
+      }
+      return { ok: true, session: same };
+    }
   }
   const s = makeSession({ kind, cwd: opts.cwd, name: opts.name, sessionId: resume || null });
   if (resume && opts.title) setTitle(s, opts.title);

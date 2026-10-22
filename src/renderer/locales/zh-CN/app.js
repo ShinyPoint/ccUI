@@ -195,6 +195,8 @@ export default {
   'Off while a version is chosen above': '已在上方指定版本，自动更新暂停',
   Version: '版本',
   'UI scale': '界面缩放',
+  'Turn skills on or off, see what they cost in context': '开启或关闭技能，查看它们占用的上下文',
+  'Skills are managed through a chat session: start one first': '技能需要通过对话会话管理，请先开始一个对话',
   'The size of everything in the window': '窗口中所有内容的大小',
   'Claude Code version': 'Claude Code 版本',
   Newest: '最新版',

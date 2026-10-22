@@ -160,6 +160,9 @@ export default {
 
   // New chat
   'What should Claude do today?': '今天想让 Claude 做什么？',
+  'Your messages': '你的消息',
+  'Your messages in this conversation (Esc Esc)': '本次对话中你发送的消息（Esc Esc）',
+  'Close (Esc)': '关闭（Esc）',
   'How the session is shown': '会话的显示方式',
   'Claude’s work as a conversation you can read and steer.': '以对话形式呈现 Claude 的工作，可随时查看和引导。',
   'Give me a quick tour of this project: what it does and how it is organized.': '带我快速了解一下这个项目：它是做什么的，代码是怎么组织的。',

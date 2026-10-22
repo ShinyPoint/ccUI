@@ -12,6 +12,7 @@ const { install } = require('./fakes');
 const outDir = path.join(__dirname, '..', '..', 'dist', 'chat-look');
 const profile = tempDir('look-profile');
 const project = tempDir('look-project');
+const other = tempDir('look-other'); // a second project, for a second session (one project has one new chat)
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(project, 'notes.md'), '# Notes\n\nShip the rate limiter.\n');
 
@@ -48,7 +49,7 @@ install({
 
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
   language: 'en', uiScale: 100, theme: 'dark', confirmClose: false, notify: false, sidebarGlass: true, fillEdge: false, // the gaps are measured with it off
-  recent: [{ path: project, at: Date.now() }], trustedFolders: [project],
+  recent: [{ path: project, at: Date.now() }, { path: other, at: Date.now() - 1000 }], trustedFolders: [project, other],
 }));
 app.setPath('userData', profile);
 
@@ -111,10 +112,12 @@ app.on('browser-window-created', (_e, win) => {
         const dt = new DataTransfer(); dt.items.add(new File([blob], 'dot.png', { type: 'image/png' }));
         const input = document.querySelector('.chat-composer input[type=file]'); input.files = dt.files; input.dispatchEvent(new Event('change', { bubbles: true })); })(); true`);
       await until('the attached image', "document.querySelectorAll('.chat-composer .attachment').length === 1", 5000);
-      await js("document.querySelector('#sidebar .folder-add').click(); true");
+      await js("document.querySelector('#topbar .project-menu .menu-button').click(); true");
+      await until('the folder list', "Boolean(document.querySelector('#topbar .project-menu .menu-list'))", 3000);
+      await js(`[...document.querySelectorAll('#topbar .project-menu .menu-list button')].find((b) => b.textContent.includes(${JSON.stringify(path.basename(other))})).click(); true`);
       await until('a second session', "document.querySelectorAll('#sidebar .session').length === 2", 10000);
       await wait(800);
-      await js("document.querySelectorAll('#sidebar .session .session-main')[0].click(); true");
+      await js(`[...document.querySelectorAll('#sidebar .folder')].find((f) => f.textContent.includes(${JSON.stringify(path.basename(project))})).querySelector('.session-main').click(); true`);
       await wait(800);
       check('an attached image is still there after switching away and back', await js("document.querySelectorAll('.chat-composer .attachment').length === 1"));
       await js("document.querySelector('.chat-composer .attachment .icon-btn').click(); true");
@@ -153,6 +156,24 @@ app.on('browser-window-created', (_e, win) => {
       check('Copy takes the answer, without the steps', copiedAnswer === REPLY.trim(), JSON.stringify(copiedAnswer.slice(0, 60)));
       check('and shows it did', await js("Boolean(document.querySelector('.answer-actions .copied'))"));
 
+      // Times: your message's and the answer's, each shown only while pointed at.
+      const mouse = (x, y) => win.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(x), y: Math.round(y) });
+      const center = async (sel) => JSON.parse(await js(`JSON.stringify((() => { const r = [...document.querySelectorAll(${JSON.stringify(sel)})].at(-1).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })())`));
+      const timeShown = (sel) => js(`{ const t = [...document.querySelectorAll(${JSON.stringify(sel)})].at(-1); t && /\\d:\\d\\d/.test(t.textContent) ? Number(getComputedStyle(t).opacity) * Number(getComputedStyle(t.parentElement).opacity) : -1 }`);
+      mouse(5, 5);
+      await wait(300);
+      const hidden = [await timeShown('.msg-user-wrap .msg-time'), await timeShown('.answer .msg-time')];
+      mouse(...(await center('.msg-user')));
+      await wait(350);
+      const userTime = await timeShown('.msg-user-wrap .msg-time');
+      mouse(...(await center('.answer .msg-text')));
+      await wait(350);
+      const answerTime = await timeShown('.answer .msg-time');
+      check('your message and the answer have their time, hidden until pointed at', hidden[0] === 0 && hidden[1] === 0 && userTime === 1 && answerTime === 1,
+        `hidden ${hidden}, pointed ${userTime} ${answerTime}`);
+      await shot('1b-answer-time');
+      mouse(5, 5);
+
       // A long reply: the view should ease down, not jump.
       await say('Give me a long answer.');
       console.log('reduced motion:', await js("matchMedia('(prefers-reduced-motion: reduce)').matches"));
@@ -166,6 +187,43 @@ app.on('browser-window-created', (_e, win) => {
       await until('the long reply', `${idle} && /Line 40/.test(document.querySelector('.timeline').textContent)`);
       await wait(800);
       check('it ends at the bottom', await js("{ const el = document.querySelector('.chat-scroll'); el.scrollHeight - el.clientHeight - el.scrollTop < 2 }"));
+
+      // The history rail: pointing at the chat's right edge shows a tick per message of yours and a button; the list
+      // it opens jumps to one; Esc closes it, and Esc Esc in the empty message box opens it.
+      const rail = JSON.parse(await js(`JSON.stringify((() => { const r = document.querySelector('.history-rail')?.getBoundingClientRect(); return r ? [r.right - 6, r.top + r.height / 2] : null; })())`));
+      check('a conversation with two messages of yours has the history rail', Boolean(rail));
+      const ticks = () => js("JSON.stringify([...document.querySelectorAll('.history-tick')].map((t) => getComputedStyle(t).opacity))");
+      const ticksBefore = await ticks();
+      mouse(...rail);
+      await wait(350);
+      const pointed = await ticks();
+      check('its ticks show only while pointed at, one per message', ticksBefore === '["0","0"]' && pointed === '["1","1"]', `${ticksBefore} → ${pointed}`);
+      await js("document.querySelector('.history-open').click(); true");
+      await until('the list', "document.querySelectorAll('.history-item').length === 2", 3000);
+      await wait(300);
+      check('the list has your messages, the one in view marked', (await js("[...document.querySelectorAll('.history-item')].map((b) => b.querySelector('.history-text').textContent).join(' | ')")) === 'What is left in notes.md? | Give me a long answer.'
+        && await js("document.querySelectorAll('.history-item')[1].classList.contains('current')"));
+      await shot('2a-history');
+      await js("document.querySelectorAll('.history-item')[0].click(); true");
+      await wait(1200);
+      const jumped = JSON.parse(await js(`JSON.stringify((() => { const el = document.querySelector('.chat-scroll'); const m = document.querySelector('.msg-user-wrap').getBoundingClientRect();
+        return { offset: Math.round(m.top - el.getBoundingClientRect().top), fromBottom: Math.round(el.scrollHeight - el.clientHeight - el.scrollTop) }; })())`));
+      check('choosing one brings it to the top of the view, and the view stays there', jumped.offset >= 0 && jumped.offset < 60 && jumped.fromBottom > 200, JSON.stringify(jumped));
+      await wait(800);
+      check('(it is not pulled back to the bottom)', Math.round(await js("document.querySelector('.chat-scroll').scrollHeight - document.querySelector('.chat-scroll').clientHeight - document.querySelector('.chat-scroll').scrollTop")) === jumped.fromBottom);
+      await js("document.querySelector('.history-panel').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true");
+      await until('the list to close', "!document.querySelector('.history-panel')", 3000);
+      const esc = "document.querySelector('.chat-composer .composer-input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true";
+      await js(esc);
+      await wait(120);
+      await js(esc);
+      await until('the list from Esc Esc', "Boolean(document.querySelector('.history-panel'))", 3000);
+      check('Esc twice in the empty message box opens the list', await js("Boolean(document.querySelector('.history-panel'))"));
+      await js("document.querySelector('.history-panel .history-head .icon-btn').click(); true");
+      await until('the list to close again', "!document.querySelector('.history-panel')", 3000);
+      mouse(5, 5);
+      await js("{ const el = document.querySelector('.chat-scroll'); el.scrollTop = el.scrollHeight; } true");
+      await wait(400);
 
       // No status bar; the chat card runs down to the window's edge, rounded at the top only, 8px in on both sides.
       check('there is no status bar', await js("!document.querySelector('#statusbar')"));

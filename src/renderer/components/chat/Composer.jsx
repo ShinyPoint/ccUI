@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Icon, Menu, Popover } from '../ui.jsx';
 import { modeLabel } from './Prompts.jsx';
-import { api, toast, confirmDialog } from '../../lib/store.js';
+import { api, toast, confirmDialog, historyRail } from '../../lib/store.js';
 import { sendMessage, interrupt, setMode, refreshContext } from '../../lib/sessions.js';
 import { commandList, runCommand } from '../../lib/commands.js';
 import { currentModel } from './ModelMenu.jsx';
@@ -128,6 +128,7 @@ export function Composer({ s, prefill }) {
   const root = useRef(null);
   const acList = useRef(null);
   const fileInput = useRef(null);
+  const lastEsc = useRef(0); // when Esc was last pressed with nothing typed (Esc Esc opens the history rail)
   const files = useRef(null);
   const historyIndex = useRef(-1);
 
@@ -305,6 +306,13 @@ export function Composer({ s, prefill }) {
     } else if (e.key === 'Escape' && busy) {
       e.preventDefault();
       interrupt(s);
+    } else if (e.key === 'Escape' && !text) {
+      // Esc twice, with nothing typed and Claude idle: the list of your messages (as in Claude Code).
+      if (Date.now() - (lastEsc.current || 0) < 600) {
+        e.preventDefault();
+        lastEsc.current = 0;
+        historyRail.value = !historyRail.value;
+      } else lastEsc.current = Date.now();
     } else if (e.key === 'Tab' && e.shiftKey) {
       e.preventDefault();
       cycleMode();

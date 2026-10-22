@@ -2,7 +2,9 @@
 // SDK messages are forwarded to the window in small batches; permission requests become
 // round-trips to the UI.
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const readline = require('readline');
 const { randomUUID } = require('crypto');
 const { shellEnvReady, childEnv } = require('./shell-env');
 const skills = require('./skills');
@@ -431,10 +433,34 @@ async function listHistory(cwd) {
   return sdk.listSessions({ dir: cwd, limit: 60 });
 }
 
+// When each message of a saved conversation was written: Map uuid → ms. Read from Claude Code's transcript
+// (<config>/projects/<folder>/<session>.jsonl), since getSessionMessages leaves the timestamps out. Empty when
+// the file isn't where Claude Code keeps it.
+async function transcriptTimes(sessionId) {
+  const times = new Map();
+  if (!/^[\w-]+$/.test(sessionId || '')) return times;
+  const base = path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'projects');
+  let file = null;
+  for (const dir of await fs.promises.readdir(base).catch(() => [])) {
+    const candidate = path.join(base, dir, `${sessionId}.jsonl`);
+    if (fs.existsSync(candidate)) { file = candidate; break; }
+  }
+  if (!file) return times;
+  const lines = readline.createInterface({ input: fs.createReadStream(file, 'utf8'), crlfDelay: Infinity });
+  for await (const line of lines) {
+    try {
+      const entry = JSON.parse(line);
+      const at = Date.parse(entry.timestamp);
+      if (entry.uuid && at) times.set(entry.uuid, at);
+    } catch { /* a line cut off while it was written */ }
+  }
+  return times;
+}
+
 async function loadHistory(sessionId, cwd) {
   const sdk = await loadSdk();
-  const messages = await sdk.getSessionMessages(sessionId, { dir: cwd });
-  return messages.map((m) => slim({ ...m, message: m.message }));
+  const [messages, times] = await Promise.all([sdk.getSessionMessages(sessionId, { dir: cwd }), transcriptTimes(sessionId).catch(() => new Map())]);
+  return messages.map((m) => slim({ ...m, message: m.message, at: times.get(m.uuid) }));
 }
 
 // A copy of the conversation that ends just before the user's message `uuid` (the original is kept), or a

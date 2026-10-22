@@ -25,6 +25,8 @@ export const infoDialog = signal(null);
 export const findBar = signal(0);
 export const backgroundUrl = signal(''); // blob: URL of the background image (Settings → Appearance), or ''
 export const projectSearch = signal(0);
+// The list of your messages at the chat's right edge (chat/HistoryRail.jsx): open or not.
+export const historyRail = signal(false);
 export const toasts = signal([]);
 export const windowFocused = signal(document.hasFocus());
 
@@ -68,6 +70,7 @@ export function makeSession({ kind, cwd, name = null, sessionId = null }) {
     size: signal(''),
     lastOutputAt: 0,
     lastInputAt: 0,
+    typed: false, // the user has typed or pasted into the CLI (not only the terminal's own answers to it)
     lastResizeAt: 0,
     // bottom Terminal panel: a shell in the session's folder (see lib/panel.js)
     panel: { open: signal(false), exited: signal(false), term: null, fit: null, host: null, ptyId: null },

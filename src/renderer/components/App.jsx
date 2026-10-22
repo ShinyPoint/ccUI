@@ -185,7 +185,7 @@ export function App() {
           <TerminalStack />
           {s && kind !== 'chat' && <TerminalOverlay s={s} />}
           {s && kind === 'chat' && <ChatView key={s.uid} s={s} />}
-          {s && kind === 'chat' && <SidePanel key={s.uid} s={s} />}
+          {s && kind === 'chat' && <SidePanel key={`side-${s.uid}`} s={s} />}
           {!s && <EmptyState />}
         </div>
         {s && kind !== 'chat' && <TerminalComposer key={s.uid} s={s} />}

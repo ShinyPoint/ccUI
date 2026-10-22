@@ -7,7 +7,8 @@ import { Composer } from './Composer.jsx';
 import { FindBar } from './FindBar.jsx';
 import { ClaudePreparing } from '../ClaudePreparing.jsx';
 import { ProjectMenu } from '../ProjectMenu.jsx';
-import { UserItem, TextItem, ThinkingItem, NoticeItem, CommandOutputItem, TurnItem, DividerItem, WakeItem, Markdown, localText } from './Items.jsx';
+import { HistoryRail } from './HistoryRail.jsx';
+import { UserItem, TextItem, ThinkingItem, NoticeItem, CommandOutputItem, TurnItem, DividerItem, WakeItem, Markdown, localText, MessageTime } from './Items.jsx';
 import { topLevel, childrenOf, currentActivity, groupTurns, backgroundTasks, answerText } from '../../lib/chat-reducer.js';
 import { api, settings, settingsDialog, findBar, toast } from '../../lib/store.js';
 import { openInTerminal, retryChat, stopTask, stopAllTasks, dismissSideNote } from '../../lib/sessions.js';
@@ -298,8 +299,8 @@ function Turn({ g, s, renderItem }) {
   const answer = g.live ? '' : answerText(g);
   if (!foldable) {
     // The answer's Copy and the turn's time and cost share the line under it.
-    const foot = answer ? <div class="turn-foot"><AnswerActions text={answer} />{g.end && renderItem(g.end)}</div> : g.end && renderItem(g.end);
-    return <>{renderItem(g.user)}{g.work.map(renderItem)}{g.errors.map(renderItem)}{g.answer.map(renderItem)}{foot}</>;
+    const foot = answer ? <div class="turn-foot"><AnswerActions text={answer} at={answerTime(g)} />{g.end && renderItem(g.end)}</div> : g.end && renderItem(g.end);
+    return <>{renderItem(g.user)}{g.work.map(renderItem)}{g.errors.map(renderItem)}<Answer g={g} renderItem={renderItem}>{foot}</Answer></>;
   }
   const changes = turnChanges(s.chat.value, g);
   const added = changes.reduce((n, c) => n + c.add, 0);
@@ -333,15 +334,23 @@ function Turn({ g, s, renderItem }) {
       </div>
       <Collapse open={open}><div class="work-steps">{g.work.map(renderItem)}</div></Collapse>
       {g.errors.map(renderItem)}
-      {g.answer.map(renderItem)}
-      {answer && <div class="turn-foot"><AnswerActions text={answer} /></div>}
+      <Answer g={g} renderItem={renderItem}>{answer && <div class="turn-foot"><AnswerActions text={answer} at={answerTime(g)} /></div>}</Answer>
     </>
   );
 }
 
+// A turn's answer and the line under it, together, so pointing anywhere on the answer shows its time.
+function Answer({ g, renderItem, children }) {
+  if (!g.answer.length && !children) return null;
+  return <div class="answer">{g.answer.map(renderItem)}{children}</div>;
+}
+
+// When the answer was written: its last part's time.
+const answerTime = (g) => g.answer.filter((i) => i.type === 'text' && i.at).at(-1)?.at || null;
+
 // Under a finished turn's answer, at its left: Copy takes the answer (as Claude wrote it, in Markdown), not the
-// steps Claude took on the way.
-function AnswerActions({ text }) {
+// steps Claude took on the way; then the time it was written, shown on hover.
+function AnswerActions({ text, at }) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (!copied) return undefined;
@@ -354,6 +363,7 @@ function AnswerActions({ text }) {
               onClick={() => { api.writeClipboard(text); setCopied(true); }}>
         <Icon name={copied ? 'check' : 'copy'} size={14} />
       </button>
+      {at && <MessageTime at={at} />}
     </div>
   );
 }
@@ -479,6 +489,21 @@ export function ChatView({ s }) {
     };
   }, []);
 
+  // One of your messages, from the history rail: brought to the top of the view (a little below its edge), and the
+  // chat stops following the bottom, as when you scroll up yourself.
+  const jumpTo = (key) => {
+    const el = scroller.current;
+    const node = el?.querySelector(`.msg-user-wrap[data-key="${CSS.escape(key)}"]`);
+    if (!node) return;
+    cancelAnimationFrame(el.glide);
+    el.glide = 0;
+    stopFollowing(el);
+    stick.current = false;
+    const top = node.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop - 16;
+    el.scrollTo({ top: Math.max(0, top), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    node.animate([{ filter: 'brightness(1)' }, { filter: 'brightness(.9)' }, { filter: 'brightness(1)' }], { duration: 700, delay: 250 });
+  };
+
   const onScroll = () => {
     const el = scroller.current;
     const before = el.lastTop ?? el.scrollTop;
@@ -536,6 +561,7 @@ export function ChatView({ s }) {
             <Activity s={s} chat={chat} />
           </div>
         </div>
+        {!empty && <HistoryRail chat={chat} scroller={scroller} onJump={jumpTo} />}
         <div class="chat-bottom" ref={bottom}>
           {showJump && (
             <button class="jump-latest" onClick={() => {
