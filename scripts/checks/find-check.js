@@ -13,7 +13,7 @@ const project = tempDir('find-project');
 const other = tempDir('other-folder');
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  language: 'en', theme: 'dark', confirmClose: false, notify: false, defaultModel: 'haiku', defaultPermissionMode: 'default',
+  language: 'en', uiScale: 100, theme: 'dark', confirmClose: false, notify: false, defaultModel: 'haiku', defaultPermissionMode: 'default',
   recent: [{ path: project, at: Date.now() }, { path: other, at: Date.now() - 1000 }],
   trustedFolders: [project],
 }));

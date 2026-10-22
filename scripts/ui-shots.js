@@ -13,7 +13,7 @@ const project = tempDir('shots-project');
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(project, 'README.md'), '# demo\n');
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  language: 'en', theme: 'dark', confirmClose: false, notify: false, recent: [{ path: project, at: Date.now() }],
+  language: 'en', uiScale: 100, theme: 'dark', confirmClose: false, notify: false, recent: [{ path: project, at: Date.now() }],
   trustedFolders: [project], // a throwaway folder: skip the trust prompt
 }));
 app.setPath('userData', profile);

@@ -85,7 +85,7 @@ const check = (label, ok, detail = '') => {
 fs.mkdirSync(path.join(profile, 'backgrounds'));
 fs.writeFileSync(path.join(profile, 'backgrounds', 'background-1.png'), image);
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  language: 'en', theme: 'dark', confirmClose: false, notify: false, recent: [{ path: project, at: Date.now() }],
+  language: 'en', uiScale: 100, theme: 'dark', confirmClose: false, notify: false, recent: [{ path: project, at: Date.now() }],
   trustedFolders: [project], backgroundImage: 'background-1.png',
 }));
 app.setPath('userData', profile);

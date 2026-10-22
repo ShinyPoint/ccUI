@@ -45,7 +45,7 @@ const saved = (key) => {
   return { kind: 'chat', cwd: projects[h.project], title: h.title, sessionId: `0000${key}-demo` };
 };
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  language: 'en', theme: 'dark', confirmClose: false, notify: false, sidebarGlass: false, settingsVersion: 2,
+  language: 'en', uiScale: 100, theme: 'dark', confirmClose: false, notify: false, sidebarGlass: false, settingsVersion: 2,
   recent: Object.values(projects).map((p) => ({ path: p, at: Date.now() })),
   trustedFolders: Object.values(projects),
   lastSessions: [saved('tests'), { kind: 'chat', cwd: projects['atlas-web'], active: true }, saved('notes')],

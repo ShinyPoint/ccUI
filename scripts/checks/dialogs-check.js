@@ -21,7 +21,7 @@ install({ histories: [], transcripts: new Map(), script: () => null, prompt: () 
 const THEME = process.argv.includes('--dark') ? 'dark' : 'light';
 // Not trusted yet, and quitting with sessions running asks first.
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  language: 'en', theme: THEME, confirmClose: true, notify: false,
+  language: 'en', uiScale: 100, theme: THEME, confirmClose: true, notify: false,
   recent: [{ path: project, at: Date.now() }, { path: other, at: Date.now() - 1000 }],
   folders: { [project]: { collapsed: false } },
 }));

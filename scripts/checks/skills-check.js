@@ -18,7 +18,7 @@ fs.mkdirSync(path.join(project, '.claude', 'skills', 'release-notes'), { recursi
 fs.writeFileSync(path.join(project, '.claude', 'skills', 'release-notes', 'SKILL.md'),
   '---\nname: release-notes\ndescription: Write release notes from the commits since the last tag.\n---\n\nRead git log, group by type, write NOTES.md.\n');
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  language: 'en', theme: 'light', confirmClose: false, notify: false, sidebarGlass: false,
+  language: 'en', uiScale: 100, theme: 'light', confirmClose: false, notify: false, sidebarGlass: false,
   recent: [{ path: project, at: Date.now() }], trustedFolders: [project],
 }));
 app.setPath('userData', profile);

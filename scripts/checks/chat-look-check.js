@@ -47,7 +47,7 @@ install({
 });
 
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  language: 'en', theme: 'dark', confirmClose: false, notify: false, sidebarGlass: true, fillEdge: false, // the gaps are measured with it off
+  language: 'en', uiScale: 100, theme: 'dark', confirmClose: false, notify: false, sidebarGlass: true, fillEdge: false, // the gaps are measured with it off
   recent: [{ path: project, at: Date.now() }], trustedFolders: [project],
 }));
 app.setPath('userData', profile);

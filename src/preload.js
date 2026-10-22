@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer, webUtils } = require('electron');
+const { contextBridge, ipcRenderer, webUtils, webFrame } = require('electron');
 
 // One ipcRenderer listener per channel, fanned out to page subscribers.
 function channel(name) {
@@ -72,6 +72,8 @@ contextBridge.exposeInMainWorld('ccui', {
     onMaximized: channel('window:maximized'),
   },
   setGlass: (on) => ipcRenderer.send('window:glass', on),
+  // The UI scale: the whole page drawn larger or smaller, like the browser's zoom (1 = 100%).
+  setZoom: (factor) => webFrame.setZoomFactor(Math.min(1.5, Math.max(0.8, Number(factor) || 1))),
   onGlassAvailable: channel('window:glass-available'),
   background: {
     pick: () => ipcRenderer.invoke('background:pick'),

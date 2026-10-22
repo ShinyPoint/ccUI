@@ -194,6 +194,8 @@ export default {
   'Checks when ccUI starts and every 6 hours, and downloads new versions in the background': 'ccUI 启动时及每隔 6 小时检查一次，并在后台下载新版本',
   'Off while a version is chosen above': '已在上方指定版本，自动更新暂停',
   Version: '版本',
+  'UI scale': '界面缩放',
+  'The size of everything in the window': '窗口中所有内容的大小',
   'Claude Code version': 'Claude Code 版本',
   Newest: '最新版',
   '{date} · on this computer': '{date} · 本机已有',

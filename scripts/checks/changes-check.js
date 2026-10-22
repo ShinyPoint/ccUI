@@ -44,7 +44,7 @@ install({
 
 const THEME = process.argv.includes('--dark') ? 'dark' : 'light';
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  language: 'en', theme: THEME, confirmClose: false, notify: false, recent: [{ path: project, at: Date.now() }], trustedFolders: [project],
+  language: 'en', uiScale: 100, theme: THEME, confirmClose: false, notify: false, recent: [{ path: project, at: Date.now() }], trustedFolders: [project],
 }));
 app.setPath('userData', profile);
 

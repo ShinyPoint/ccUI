@@ -15,7 +15,7 @@ const notes = path.join(project, 'notes.txt');
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(notes, 'alpha\n');
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  language: 'en', theme: 'dark', confirmClose: false, notify: false, defaultModel: 'haiku', defaultPermissionMode: 'bypassPermissions',
+  language: 'en', uiScale: 100, theme: 'dark', confirmClose: false, notify: false, defaultModel: 'haiku', defaultPermissionMode: 'bypassPermissions',
   recent: [{ path: project, at: Date.now() }],
   trustedFolders: [project], // a throwaway folder: skip the trust prompt
 }));

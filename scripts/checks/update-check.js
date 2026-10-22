@@ -26,7 +26,7 @@ fs.existsSync = function existsSync(file, ...rest) {
 
 // Automatic updates off, so only what the script does downloads anything (the default, on, is checked below).
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  language: 'en', theme: 'light', confirmClose: false, notify: false, autoUpdateClaude: false,
+  language: 'en', uiScale: 100, theme: 'light', confirmClose: false, notify: false, autoUpdateClaude: false,
   trustedFolders: [project], recent: [{ path: project, at: Date.now() }],
 }));
 app.setPath('userData', profile);

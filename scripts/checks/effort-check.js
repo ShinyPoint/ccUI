@@ -30,7 +30,7 @@ const controls = (action) => (director.controls || []).filter(([a]) => a === act
 
 const THEME = process.argv.includes('--dark') ? 'dark' : 'light';
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  language: 'en', theme: THEME, confirmClose: false, notify: false, trustedFolders: [project], recent: [{ path: project, at: Date.now() }],
+  language: 'en', uiScale: 100, theme: THEME, confirmClose: false, notify: false, trustedFolders: [project], recent: [{ path: project, at: Date.now() }],
   defaultModel: 'claude-opus-5-5[1m]',
 }));
 app.setPath('userData', profile);
@@ -167,6 +167,39 @@ app.on('browser-window-created', (_e, win) => {
       await js("document.querySelector('.swatch input[value=\"black\"]').click(); true");
       await wait(300);
       check('Default brings the neutral greys back', (await colors()).surface === plain.surface);
+
+      // UI scale: 105% unless chosen (this profile pins 100%, like every check's, so the mouse lands where the page
+      // says); dragging only moves the number; let go, the whole window is drawn larger, the smallest window grows
+      // with it, and the scale is kept across a reload.
+      const scaleRow = "[...document.querySelectorAll('.dialog .set-row')].find((r) => r.querySelector('.set-label')?.textContent === 'UI scale')";
+      const width0 = await js('innerWidth');
+      const { Settings } = require('../../src/main/settings');
+      check('the UI scale is 105% by default', new Settings(tempDir('effort-fresh')).get().uiScale === 105);
+      check('this profile is drawn at 100%', (await js(`${scaleRow}.querySelector('output').textContent`)) === '100%' && width0 === win.getContentSize()[0],
+        `${width0} CSS px in ${win.getContentSize()[0]}`);
+      const setScale = (v, ev) => js(`{ const i = ${scaleRow}.querySelector('input[type=range]'); i.value = '${v}'; i.dispatchEvent(new Event('${ev}', { bubbles: true })); } true`);
+      await setScale(125, 'input');
+      await wait(300);
+      check('dragging the UI scale moves the number, not the window', (await js(`${scaleRow}.querySelector('output').textContent`)) === '125%' && (await js('innerWidth')) === width0,
+        `${await js(`${scaleRow}.querySelector('output').textContent`)}, ${width0} → ${await js('innerWidth')}`);
+      await setScale(125, 'change');
+      await wait(600);
+      const width1 = await js('innerWidth');
+      check('let go, the window is drawn at 125%', Math.abs(width1 * 1.25 - width0) <= 2, `${width0} → ${width1} CSS px`);
+      check('and the smallest window grows with it', win.getMinimumSize()[0] === 950, JSON.stringify(win.getMinimumSize()));
+      await shot('5-ui-scale');
+      win.webContents.reload();
+      await new Promise((r) => win.webContents.once('did-finish-load', r));
+      await wait(1200);
+      check('the scale is kept across a reload', Math.abs((await js('innerWidth')) - width1) <= 2, `${await js('innerWidth')}`);
+      await js("document.querySelector('.sidebar-bottom .ghost-btn').click(); true");
+      await until('Settings again', "Boolean(document.querySelector('.settings-nav'))", 3000);
+      await js("[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent.includes('Appearance')).click(); true");
+      await wait(300);
+      await setScale(100, 'input');
+      await setScale(100, 'change');
+      await wait(600);
+      check('back to 100%', (await js('innerWidth')) === width0 && win.getMinimumSize()[0] === 760, `${await js('innerWidth')} ${JSON.stringify(win.getMinimumSize())}`);
     } catch (err) {
       console.error('failed:', err);
       failures++;

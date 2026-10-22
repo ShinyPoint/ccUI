@@ -106,13 +106,25 @@ function logProblem(what) {
   } catch { /* nowhere to write */ }
 }
 
+// The UI scale (Settings → Appearance) is applied by the window itself (preload setZoom); the smallest window
+// grows with it, so the layout keeps the room it was made for.
+const MIN_SIZE = [760, 480];
+const uiScale = () => Math.min(150, Math.max(80, Number(settings.get().uiScale) || 105)) / 100;
+function applyMinSize() {
+  if (!win || win.isDestroyed()) return;
+  const [w, h] = MIN_SIZE.map((n) => Math.round(n * uiScale()));
+  win.setMinimumSize(w, h);
+  const [cw, ch] = win.getSize();
+  if (cw < w || ch < h) win.setSize(Math.max(cw, w), Math.max(ch, h));
+}
+
 function createWindow() {
   const saved = settings.get().bounds;
   const glass = canGlass() && settings.get().sidebarGlass;
   win = new BrowserWindow({
     ...(boundsOnScreen(saved) ? saved : { width: 1320, height: 860 }),
-    minWidth: 760,
-    minHeight: 480,
+    minWidth: Math.round(MIN_SIZE[0] * uiScale()),
+    minHeight: Math.round(MIN_SIZE[1] * uiScale()),
     show: false,
     title: 'ccUI',
     // Taskbar / window icon (scripts/make-icon.js). Windows needs the .ico: its small sizes are drawn separately.
@@ -306,6 +318,7 @@ function registerIpc() {
   ipc.handle('settings:set', (_e, patch) => {
     const next = settings.set(patch);
     updater.configure(); // automatic updates, or a Claude Code of your own, may have been switched
+    if (patch && 'uiScale' in patch) applyMinSize();
     if (patch && 'language' in patch) {
       setLanguage(next.language, app.getLocale());
       buildMenu();

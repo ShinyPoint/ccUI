@@ -37,15 +37,25 @@ function ToggleRow({ setting, label, note, disabled, value }) {
   );
 }
 
-function SliderRow({ setting, label, note, min, max, step, format = String }) {
-  const value = Number(settings.value[setting]);
+// `live`: the change shows while dragging. Off for the UI scale, which would move the slider under the pointer:
+// the number follows the drag and the window changes when the slider is let go. That is the input's own change
+// event, listened to directly: preact/compat (loaded for memo) turns an onChange prop into an input listener.
+function SliderRow({ setting, label, note, min, max, step, format = String, live = true }) {
+  const [dragged, setDragged] = useState(null);
+  const input = useRef(null);
+  const value = dragged ?? Number(settings.value[setting]);
+  useEffect(() => {
+    const el = input.current;
+    const done = () => { setDragged(null); saveSettings({ [setting]: Number(el.value) }); };
+    el.addEventListener('change', done);
+    return () => el.removeEventListener('change', done);
+  }, [setting]);
   return (
     <Row label={label} note={note}>
       <div class="set-slider">
-        <input type="range" min={min} max={max} step={step} value={value} aria-label={label}
+        <input ref={input} type="range" min={min} max={max} step={step} value={value} aria-label={label}
                style={{ '--f': (value - min) / (max - min) }}
-               onInput={(e) => preview({ [setting]: Number(e.currentTarget.value) })}
-               onChange={(e) => saveSettings({ [setting]: Number(e.currentTarget.value) })} />
+               onInput={(e) => (live ? preview({ [setting]: Number(e.currentTarget.value) }) : setDragged(Number(e.currentTarget.value)))} />
         <output>{format(value)}</output>
       </div>
     </Row>
@@ -367,6 +377,8 @@ function Appearance() {
         <Row label={t('Color theme')} note={t(PALETTES[palette].label)}>
           <PalettePicker value={palette} onChange={(v) => saveSettings({ accent: v })} />
         </Row>
+        <SliderRow setting="uiScale" label={t('UI scale')} note={t('The size of everything in the window')} live={false}
+                   min={80} max={150} step={5} format={(v) => `${v}%`} />
         <SliderRow setting="chatFontSize" label={t('Chat text size')} min={11} max={22} step={1} format={(v) => `${v}px`} />
       </Group>
       <Group title={t('Window')}>

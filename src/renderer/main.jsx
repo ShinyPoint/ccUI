@@ -53,6 +53,8 @@ effect(() => {
 effect(() => {
   document.documentElement.style.setProperty('--chat-size', `${settings.value.chatFontSize || 14}px`);
 });
+// UI scale (Settings → Appearance): set before the first paint, so the app never shows at another size first.
+effect(() => { api.setZoom((settings.value.uiScale || 105) / 100); });
 // Background image: loaded as bytes from the main process (the window can't read files itself) into a blob:
 // URL; app.css draws it blurred behind everything and turns the panels see-through.
 const backgroundName = computed(() => settings.value.backgroundImage);

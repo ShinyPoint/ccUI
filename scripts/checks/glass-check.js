@@ -14,7 +14,7 @@ const outDir = path.join(__dirname, '..', '..', 'dist', 'glass-check');
 const profile = tempDir('glass-profile');
 fs.mkdirSync(outDir, { recursive: true });
 // Frosted glass is on, as it is for everyone at first.
-fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({ language: 'en', theme: 'light', confirmClose: false, notify: false, sidebarGlass: true }));
+fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({ language: 'en', uiScale: 100, theme: 'light', confirmClose: false, notify: false, sidebarGlass: true }));
 app.setPath('userData', profile);
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));

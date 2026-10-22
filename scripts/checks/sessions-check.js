@@ -34,7 +34,7 @@ const load = agentModule.loadHistory;
 agentModule.loadHistory = async (id, cwd) => { reads.push(`start:${id}`); await new Promise((r) => setTimeout(r, 300)); reads.push(`end:${id}`); return load(id, cwd); };
 
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  language: 'en', theme: 'light', confirmClose: false, notify: false, trustedFolders: [a, b],
+  language: 'en', uiScale: 100, theme: 'light', confirmClose: false, notify: false, trustedFolders: [a, b],
   recent: [{ path: a, at: Date.now() }, { path: b, at: Date.now() - 1000 }],
   lastSessions: [
     { kind: 'chat', cwd: a, title: 'Chat in A', sessionId: 'conv-a' },

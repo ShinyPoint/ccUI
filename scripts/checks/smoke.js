@@ -15,7 +15,7 @@ fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(project, 'notes.txt'), 'alpha\nbeta\ngamma\n');
 fs.writeFileSync(path.join(project, 'greet.js'), "function greet(name) {\n  return 'Hello ' + name;\n}\n\nmodule.exports = { greet };\n");
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  language: 'en', theme: 'dark',
+  language: 'en', uiScale: 100, theme: 'dark',
   confirmClose: false,
   notify: false,
   defaultModel: 'haiku',

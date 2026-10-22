@@ -11,6 +11,7 @@ const DEFAULTS = {
   lineHeight: 1.2,
   fontFamily: '"JetBrains Mono", Consolas, Menlo, monospace',
   chatFontSize: 14,
+  uiScale: 105, // the whole window's size, percent (Settings → Appearance); a touch larger than the page's own
   accent: 'black', // the color theme, a key of PALETTES in renderer/lib/themes.js
   terminalTheme: 'match', // 'match' (follows the app theme) | 'dark'
   panelHeight: 260, // bottom Terminal panel, px
