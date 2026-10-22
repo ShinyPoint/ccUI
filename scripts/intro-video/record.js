@@ -46,6 +46,7 @@ const saved = (key) => {
 };
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
   language: 'en', uiScale: 100, theme: 'dark', confirmClose: false, notify: false, sidebarGlass: false, settingsVersion: 2,
+  autoUpdateClaude: false, // no real Claude Code download (and its toast) in the middle of the take
   recent: Object.values(projects).map((p) => ({ path: p, at: Date.now() })),
   trustedFolders: Object.values(projects),
   lastSessions: [saved('tests'), { kind: 'chat', cwd: projects['atlas-web'], active: true }, saved('notes')],

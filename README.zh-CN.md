@@ -10,6 +10,7 @@
 Claude Code 自带的 CLI 一键可达，对话始终是同一个。</p>
 
 <p>
+<a href="https://github.com/ShinyPoint/ccUI/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/ShinyPoint/ccUI?style=flat-square&color=D97757&label=release"></a>
 <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-D97757?style=flat-square"></a>
 <img alt="Windows, macOS, Linux" src="https://img.shields.io/badge/platform-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-1D1D1F?style=flat-square">
 <img alt="Electron" src="https://img.shields.io/badge/Electron-44-47848F?style=flat-square&logo=electron&logoColor=white">
@@ -19,7 +20,13 @@ Claude Code 自带的 CLI 一键可达，对话始终是同一个。</p>
 
 <p><a href="README.md">English</a> · <b>简体中文</b></p>
 
-<img src="docs/screenshot.jpg" width="100%" alt="ccUI：一段对话，包含 Claude 的处理步骤、以 diff 显示的编辑和一条被拒绝的命令，侧边栏按项目分组列出会话">
+<p>
+<a href="https://github.com/ShinyPoint/ccUI/releases/latest"><img alt="下载 Windows 版" src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Windows-D97757?style=for-the-badge&logo=windows&logoColor=white"></a>
+<a href="https://github.com/ShinyPoint/ccUI/releases/latest"><img alt="下载 macOS 版" src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-macOS-D97757?style=for-the-badge&logo=apple&logoColor=white"></a>
+<a href="https://github.com/ShinyPoint/ccUI/releases/latest"><img alt="下载 Linux 版" src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Linux-D97757?style=for-the-badge&logo=linux&logoColor=white"></a>
+</p>
+
+<img src="docs/demo.gif" width="100%" alt="ccUI 使用演示：Claude 读取文件并以 diff 形式修改，权限请求以按钮呈现，同一段对话在 CLI 中继续">
 
 </div>
 
@@ -50,17 +57,38 @@ Claude Code 自带的 CLI 一键可达，对话始终是同一个。</p>
 
 - [快速开始](#快速开始)
 - [功能](#功能)
+- [常见问题](#常见问题)
 - [账户与登录](#账户与登录)
 - [安全](#安全)
 - [快捷键](#快捷键)
 - [开发](#开发)
 - [打包](#打包)
 - [项目结构](#项目结构)
+- [反馈与贡献](#反馈与贡献)
 - [许可证](#许可证)
 
 ## 快速开始
 
-Windows 安装包见 [Releases](https://github.com/ShinyPoint/ccUI/releases) 页面。macOS 和 Linux 请从源码构建：
+### 下载
+
+在 [Releases](https://github.com/ShinyPoint/ccUI/releases/latest) 下载最新版本：
+
+| 系统 | 文件 | |
+| --- | --- | --- |
+| Windows 10 / 11（x64） | `ccUI-Setup-<版本>-x64.exe` | 安装版。也可以用 `…-portable.exe`，免安装直接运行 |
+| macOS 12+（Apple 芯片） | `ccUI-<版本>-mac-arm64.dmg` | 打开后把 ccUI 拖进"应用程序" |
+| macOS 12+（Intel） | `ccUI-<版本>-mac-x64.dmg` | |
+| Linux（x64） | `ccUI-<版本>-linux-x86_64.AppImage` 或 `…-linux-amd64.deb` | AppImage：先 `chmod +x` 再运行 |
+
+**第一次开始会话需要等一会儿：** 安装包不包含 Claude Code，ccUI 会在第一次开始会话时从 npm 下载（约 135 MB，只需一次），
+并显示下载进度。之后登录即可，见[账户与登录](#账户与登录)。
+
+安装包暂未签名：
+- **Windows** SmartScreen 可能提示"Windows 已保护你的电脑"：点击**更多信息 → 仍要运行**。
+- **macOS** 第一次打开会提示无法打开 ccUI：打开 **系统设置 → 隐私与安全性**，点击**仍要打开**（或运行一次
+  `xattr -cr /Applications/ccUI.app`）。
+
+### 从源码运行
 
 ```bash
 git clone https://github.com/ShinyPoint/ccUI.git
@@ -111,9 +139,40 @@ npm start          # 构建窗口，然后打开应用
 - 深色和浅色主题，三种配色（中性的默认、粉色，以及陶土色：Claude 桌面版的暖色调），可调文字大小、毛玻璃效果，还可以设置
   自己的背景图片。窗口按钮、菜单、对话框和提示框都由应用自己绘制。
 - 英文或简体中文界面，默认跟随系统，可在 设置 → 通用 中切换。
+- 对话右侧的**消息导航**：鼠标移到右边缘，会显示你发送的每条消息在对话中的位置，点击即可跳转；展开的列表（也可以在
+  空输入框中按 **Esc Esc**，和 Claude Code 一样）列出全部消息及其时间。鼠标移到任意消息上可以看到发送时间。
+- 同一项目同时只保留一个未使用的新对话（以及一个未使用的新 CLI）：再新建时会直接切换到它。
+- **界面缩放**（设置 → 外观），80%–150%，与对话文字大小分开调节。
 - Claude Code 无需更新应用即可保持最新：设置 → Claude Code → 更新 会从 npm 获取最新版本，用其公布的 sha512 校验后
   用于新会话。也可以自己选择版本：最近的 10 个版本之一，或手动输入任意版本（设置 → Claude Code → 版本），指定的版本
   不会自动更新。
+
+## 常见问题
+
+**免费吗？使用要花钱吗？**
+ccUI 免费开源（MIT 许可证）。Claude 本身的费用和 Claude Code 一样：对话会话使用 Anthropic API key（由 Anthropic 按用量
+计费）或云服务；Claude.ai 订阅可在 CLI 视图中使用。见[账户与登录](#账户与登录)。
+
+**能用我的 Claude Pro / Max 订阅吗？**
+CLI 视图可以：它就是 Claude Code 自带的 CLI，使用它自己的登录。对话会话不行：Anthropic 不允许其他应用使用 Claude.ai
+订阅登录。
+
+**为什么第一次开始会话要下载东西？**
+下载的是 Claude Code 本身（来自 Anthropic 的 npm 包，并用其公布的 sha512 校验）。不把它打进安装包，安装包能小一半左右，
+还可以自选 Claude Code 版本（设置 → Claude Code → 版本）。如果你已经装了 Claude Code，也可以在 设置 → Claude Code →
+可执行文件 中指定它。
+
+**ccUI 会把我的数据发到别处吗？**
+不会。应用自身的网络请求只有 npm 仓库，用于下载和更新 Claude Code；没有任何统计上报。你的对话由 Claude Code 发往
+Anthropic 的 API（或你的云服务），并保存在 Claude Code 平常使用的文件夹（`~/.claude`）中，所以 `claude` CLI 也能看到
+同样的会话。
+
+**这是 Anthropic 做的吗？**
+不是，ccUI 是独立项目。它运行 Anthropic 的 Claude Code 和 Agent SDK，适用 Anthropic 的条款。
+
+**遇到问题怎么办？**
+请[提交 issue](https://github.com/ShinyPoint/ccUI/issues)，写明你做了什么、发生了什么、你的系统和 ccUI 版本（设置中可以
+看到），附截图更好。
 
 ## 账户与登录
 
@@ -206,7 +265,11 @@ npm run dist:linux    # AppImage + deb
 
 安装包不包含 Claude Code 可执行文件（首次使用时下载，见[快速开始](#快速开始)），Chromium 语言文件也只保留中英文：Windows
 安装包约 110 MB。每个平台需要在该平台上构建：终端模块的预编译文件来自按系统区分的 npm 包，`npm install` 只会获取当前
-系统的版本。分发构建产物之前，请阅读 Anthropic 关于 Claude Code 和 Agent SDK 的条款：
+系统的版本。
+
+发布流程：Windows 安装包在本地构建，随 Release 一起发布；发布后会触发 `.github/workflows/release.yml`，在 GitHub 的
+服务器上构建 macOS（Apple 芯片和 Intel，使用临时签名，暂无 Apple 开发者证书）和 Linux 安装包，上传到同一个 Release，
+并把它们的校验值加入 `SHA256SUMS.txt`。分发构建产物之前，请阅读 Anthropic 关于 Claude Code 和 Agent SDK 的条款：
 <https://code.claude.com/docs/en/legal-and-compliance>。
 
 ## 项目结构
@@ -237,6 +300,15 @@ scripts/intro-video/  介绍视频，使用同一个模拟脚本录制
 
 对话会话的状态来自 SDK 事件：正在进行的一轮是*处理中*，有待处理的权限请求或问题是*等待你回复*，你还没看过的已完成一轮是
 *待查看*。终端会话没有结构化事件，状态根据输出推断（约 1.6 秒没有输出即视为在等待）。
+
+## 反馈与贡献
+
+- **问题和建议：** [Issues](https://github.com/ShinyPoint/ccUI/issues)。欢迎提功能建议，最好说明你想完成什么，而不只是
+  要加什么。
+- **更新内容：** 每个版本的说明见 [Releases](https://github.com/ShinyPoint/ccUI/releases)。
+- **Pull request：** 欢迎。每个 pull request 只做一件事，提交前运行 `npm test` 和 `npm run check`（它们用脚本模拟
+  Claude，不产生费用），新增的界面文字要补上简体中文（见[翻译](#翻译)）。较大的改动请先开 issue 讨论方案。
+- 如果 ccUI 对你有用，点个 ⭐ 能让更多人看到它。
 
 ## 许可证
 

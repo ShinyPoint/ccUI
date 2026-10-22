@@ -10,6 +10,7 @@
 and Claude Code's own CLI one click away, on the same conversation.</p>
 
 <p>
+<a href="https://github.com/ShinyPoint/ccUI/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/ShinyPoint/ccUI?style=flat-square&color=D97757&label=release"></a>
 <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-D97757?style=flat-square"></a>
 <img alt="Windows, macOS, Linux" src="https://img.shields.io/badge/platform-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-1D1D1F?style=flat-square">
 <img alt="Electron" src="https://img.shields.io/badge/Electron-44-47848F?style=flat-square&logo=electron&logoColor=white">
@@ -19,7 +20,13 @@ and Claude Code's own CLI one click away, on the same conversation.</p>
 
 <p><b>English</b> · <a href="README.zh-CN.md">简体中文</a></p>
 
-<img src="docs/screenshot.jpg" width="100%" alt="ccUI: a chat with Claude's steps, an edit as a diff and a denied command, sessions grouped by project in the sidebar">
+<p>
+<a href="https://github.com/ShinyPoint/ccUI/releases/latest"><img alt="Download for Windows" src="https://img.shields.io/badge/Download-Windows-D97757?style=for-the-badge&logo=windows&logoColor=white"></a>
+<a href="https://github.com/ShinyPoint/ccUI/releases/latest"><img alt="Download for macOS" src="https://img.shields.io/badge/Download-macOS-D97757?style=for-the-badge&logo=apple&logoColor=white"></a>
+<a href="https://github.com/ShinyPoint/ccUI/releases/latest"><img alt="Download for Linux" src="https://img.shields.io/badge/Download-Linux-D97757?style=for-the-badge&logo=linux&logoColor=white"></a>
+</p>
+
+<img src="docs/demo.gif" width="100%" alt="ccUI in use: a chat where Claude reads files and edits them as diffs, a permission asked as buttons, and the same conversation continued in the CLI">
 
 </div>
 
@@ -51,18 +58,39 @@ background image, and an interface in English or Simplified Chinese.</td>
 
 - [Getting started](#getting-started)
 - [Features](#features)
+- [FAQ](#faq)
 - [Accounts and sign-in](#accounts-and-sign-in)
 - [Safety](#safety)
 - [Keyboard](#keyboard)
 - [Development](#development)
 - [Packaging](#packaging)
 - [Project layout](#project-layout)
+- [Feedback and contributing](#feedback-and-contributing)
 - [License](#license)
 
 ## Getting started
 
-Windows installers are on the [Releases](https://github.com/ShinyPoint/ccUI/releases) page. On macOS and Linux,
-build it from source:
+### Download
+
+Get the newest build from [Releases](https://github.com/ShinyPoint/ccUI/releases/latest):
+
+| System | File | |
+| --- | --- | --- |
+| Windows 10 / 11 (x64) | `ccUI-Setup-<version>-x64.exe` | Installer. Or `…-portable.exe`, which runs without installing |
+| macOS 12+ (Apple Silicon) | `ccUI-<version>-mac-arm64.dmg` | Open it and drag ccUI into Applications |
+| macOS 12+ (Intel) | `ccUI-<version>-mac-x64.dmg` | |
+| Linux (x64) | `ccUI-<version>-linux-x86_64.AppImage` or `…-linux-amd64.deb` | AppImage: `chmod +x`, then run it |
+
+**The first session takes a minute:** the installers don't include Claude Code, so ccUI downloads it from npm the
+first time a session starts (about 135 MB, once) and shows how far along it is. Then sign in: see
+[Accounts and sign-in](#accounts-and-sign-in).
+
+The builds are not code-signed yet:
+- **Windows** SmartScreen may say "Windows protected your PC": choose **More info → Run anyway**.
+- **macOS** says ccUI "cannot be opened" the first time: open **System Settings → Privacy & Security** and choose
+  **Open Anyway** (or run `xattr -cr /Applications/ccUI.app` once).
+
+### From source
 
 ```bash
 git clone https://github.com/ShinyPoint/ccUI.git
@@ -124,9 +152,42 @@ another `claude` build instead.
   adjustable text sizes, frosted glass, and a background image of your own. The app draws its own window buttons,
   menus, dialogs and tooltips.
 - English or Simplified Chinese (简体中文), following the system until you pick one in Settings → General.
+- **Your messages** along the chat's right edge: point there for a mark per message, where it sits in the
+  conversation, and click one to jump to it; the list (also **Esc Esc** in the empty message box, as in Claude Code)
+  shows them all with their times. Point at any message to see when it was sent.
+- A project keeps one unused new chat (and one unused new CLI) at a time: asking for another shows that one.
+- **UI scale** (Settings → Appearance), 80–150%, besides the chat's text size.
 - Claude Code stays current without an app update: Settings → Claude Code → Updates fetches the newest build from
   npm, checks it against its published sha512 and uses it for new sessions. Or choose the version yourself, one of
   the ten most recent or any other typed in (Settings → Claude Code → Version); a chosen version is not updated.
+
+## FAQ
+
+**Is it free? What does it cost to use?**
+ccUI is free and open source (MIT). Claude itself is paid the way Claude Code is: chat sessions use an Anthropic API
+key (billed by Anthropic per use) or a cloud provider; Claude.ai subscriptions work in the CLI view. See
+[Accounts and sign-in](#accounts-and-sign-in).
+
+**Can I use my Claude Pro / Max subscription?**
+In the CLI view, yes: it is Claude Code's own CLI with its own login. Chat sessions can't: Anthropic doesn't allow
+other apps to use a Claude.ai subscription login.
+
+**Why does the first session download something?**
+That is Claude Code itself (from Anthropic's npm package, checked against its published sha512). Leaving it out of
+the installers makes them about half the size, and lets you choose its version (Settings → Claude Code → Version).
+If you already have Claude Code installed, Settings → Claude Code → Executable can point at it instead.
+
+**Does ccUI send my data anywhere?**
+No. The app's own network traffic is the npm registry, to download and update Claude Code; there is no telemetry.
+Your conversations go where Claude Code sends them (Anthropic's API, or your cloud provider) and stay in Claude
+Code's usual folders (`~/.claude`), so the `claude` CLI sees the same sessions.
+
+**Is this made by Anthropic?**
+No, ccUI is an independent project. It runs Anthropic's Claude Code and Agent SDK, under Anthropic's terms.
+
+**Something doesn't work.**
+Please [open an issue](https://github.com/ShinyPoint/ccUI/issues) with what you did, what happened, your system
+and the ccUI version (Settings shows it). A screenshot helps.
 
 ## Accounts and sign-in
 
@@ -227,8 +288,13 @@ npm run dist:linux    # AppImage + deb
 The installers leave out the Claude Code executable (it is downloaded on first use, see
 [Getting started](#getting-started)) and keep only the English and Chinese Chromium language files: about
 110 MB on Windows. Build each platform on that platform: the terminal module's prebuilt binary comes from an
-OS-specific npm package that `npm install` only fetches for the current OS. Before distributing builds, read
-Anthropic's terms for Claude Code and the Agent SDK: <https://code.claude.com/docs/en/legal-and-compliance>.
+OS-specific npm package that `npm install` only fetches for the current OS.
+
+Releases: the Windows installers are built locally and published with the release; publishing it starts
+`.github/workflows/release.yml`, which builds the macOS (Apple Silicon and Intel, signed ad-hoc: there is no Apple
+Developer ID yet) and Linux installers on GitHub's runners, uploads them to the same release and adds their
+checksums to its `SHA256SUMS.txt`. Before distributing builds, read Anthropic's terms for Claude Code and the Agent
+SDK: <https://code.claude.com/docs/en/legal-and-compliance>.
 
 ## Project layout
 
@@ -259,6 +325,16 @@ scripts/intro-video/  the intro video, recorded with the same stand-in
 A chat session's state comes from SDK events: a turn in progress means *Working*, an open permission request or
 question means *Needs your answer*, and a finished turn you haven't looked at means *Waiting for you*. Terminal
 sessions have no structured events, so their state is inferred from output (about 1.6 s of quiet means waiting).
+
+## Feedback and contributing
+
+- **Bugs and ideas:** [Issues](https://github.com/ShinyPoint/ccUI/issues). Feature requests are welcome; tell what
+  you were trying to do, not only what to add.
+- **What changed:** each version's notes are on [Releases](https://github.com/ShinyPoint/ccUI/releases).
+- **Pull requests:** welcome. Keep one change per pull request, run `npm test` and `npm run check` (they use a
+  scripted stand-in for Claude, so they cost nothing), and add the Simplified Chinese for any new text (see
+  [Translations](#translations)). For anything large, open an issue first so we can agree on the approach.
+- If ccUI is useful to you, a ⭐ helps others find it.
 
 ## License
 

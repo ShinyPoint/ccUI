@@ -113,14 +113,19 @@
         "dmg",
         "zip"
       ],
-      "category": "public.app-category.developer-tools"
+      "category": "public.app-category.developer-tools",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
     },
     "linux": {
       "target": [
         "AppImage",
         "deb"
       ],
-      "category": "Development"
+      "category": "Development",
+      "maintainer": "ShinyPoint <242611159+ShinyPoint@users.noreply.github.com>",
+      "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,

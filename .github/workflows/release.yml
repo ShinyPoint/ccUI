@@ -1,0 +1,84 @@
+# macOS and Linux installers for a GitHub release. Windows builds are made locally (npm run dist:win) and uploaded
+# with the release; this adds the rest to it, and their checksums to its SHA256SUMS.txt.
+# Runs when a release is published, or by hand for an existing tag (Actions → Release builds → Run workflow).
+name: Release builds
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build and upload to (for example v0.1.3)
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  TAG: ${{ github.event.release.tag_name || inputs.tag }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, platform: mac, arch: arm64 }
+          - { os: macos-latest, platform: mac, arch: x64 }
+          - { os: ubuntu-latest, platform: linux, arch: x64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # npm installs the terminal module's prebuilt binary for this runner's own architecture only: an Intel build
+      # made on an Apple Silicon runner needs the Intel one as well.
+      - if: matrix.platform == 'mac' && matrix.arch == 'x64'
+        run: npm install --no-save --force "@lydell/node-pty-darwin-x64@$(node -p "require('@lydell/node-pty/package.json').version")"
+      - run: npx vite build
+      - run: npx electron-builder --${{ matrix.platform }} --${{ matrix.arch }} --publish never
+      - name: Checksums
+        shell: bash
+        run: |
+          cd dist
+          shopt -s nullglob
+          files=(*.dmg *.zip *.AppImage *.deb)
+          sha256sum "${files[@]}" > "SHA256SUMS-${{ matrix.platform }}-${{ matrix.arch }}.txt" 2>/dev/null || shasum -a 256 "${files[@]}" > "SHA256SUMS-${{ matrix.platform }}-${{ matrix.arch }}.txt"
+          cat "SHA256SUMS-${{ matrix.platform }}-${{ matrix.arch }}.txt"
+      - name: Upload to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          shopt -s nullglob
+          gh release upload "$TAG" *.dmg *.zip *.AppImage *.deb --clobber --repo "$GITHUB_REPOSITORY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sums-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist/SHA256SUMS-*.txt
+
+  checksums:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: sums-*
+          merge-multiple: true
+      - name: Add them to the release's SHA256SUMS.txt
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$TAG" --pattern SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" || touch SHA256SUMS.txt
+          cat SHA256SUMS-*.txt >> SHA256SUMS.txt
+          # One line per file, the newest checksum for each.
+          tac SHA256SUMS.txt | awk '!seen[$2]++' | tac > merged.txt && mv merged.txt SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          gh release upload "$TAG" SHA256SUMS.txt --clobber --repo "$GITHUB_REPOSITORY"
