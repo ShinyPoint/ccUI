@@ -39,8 +39,12 @@ jobs:
       - run: npm ci
       # npm installs the terminal module's prebuilt binary for this runner's own architecture only: an Intel build
       # made on an Apple Silicon runner needs the Intel one as well.
+      # (Its version is read from the file: the package doesn't export package.json to require().)
       - if: matrix.platform == 'mac' && matrix.arch == 'x64'
-        run: npm install --no-save --force "@lydell/node-pty-darwin-x64@$(node -p "require('@lydell/node-pty/package.json').version")"
+        run: |
+          version=$(node -p "require('./node_modules/@lydell/node-pty/package.json').version")
+          npm install --no-save --force "@lydell/node-pty-darwin-x64@$version"
+          test "$(node -p "require('./node_modules/@lydell/node-pty-darwin-x64/package.json').version")" = "$version"
       - run: npx vite build
       - run: npx electron-builder --${{ matrix.platform }} --${{ matrix.arch }} --publish never
       - name: Checksums
