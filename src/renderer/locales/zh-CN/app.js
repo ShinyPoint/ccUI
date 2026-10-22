@@ -117,6 +117,8 @@ export default {
   'Chat text size': '对话字号',
   Window: '窗口',
   'Frosted glass': '毛玻璃效果',
+  'Menus and pop-ups are frosted. The window itself needs graphics acceleration, which isn’t available on this computer':
+    '菜单和弹出窗口使用毛玻璃效果。窗口本身的毛玻璃需要显卡加速，这台电脑上不可用',
   'Menus and pop-ups are frosted. The window itself needs Windows 11 (22H2 or later) or macOS':
     '菜单和弹出面板使用毛玻璃效果。窗口本身的效果需要 Windows 11（22H2 及以上）或 macOS',
   'Menus and pop-ups are frosted; the background image takes the window’s place': '菜单和弹出面板使用毛玻璃效果；已设置背景图片，窗口不再透明',

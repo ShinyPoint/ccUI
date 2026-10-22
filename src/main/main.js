@@ -76,10 +76,21 @@ const FROM_SOURCE = Boolean(process.defaultApp);
 // Frosted glass behind the sidebar: the system's own blurred material (acrylic on Windows 11 22H2+, vibrancy
 // on macOS). The page is transparent where the sidebar is, so the material shows through it.
 const GLASS_SUPPORTED = isMac || (process.platform === 'win32' && Number(os.release().split('.')[2]) >= 22621);
+// The glass also needs the GPU to put the page on it: without hardware compositing (no graphics driver, a virtual
+// machine, Remote Desktop, a GPU process that crashed) the window shows the material and nothing else.
+const canGlass = () => GLASS_SUPPORTED && app.getGPUFeatureStatus().gpu_compositing === 'enabled';
+// Whether the GPU composites is known a moment after start (gpu-info-update, about 0.2 s): the window waits for
+// it, 2 s at most. Listened for from the start, as it can come before `ready`.
+const gpuKnown = new Promise((resolve) => {
+  app.once('gpu-info-update', resolve);
+  setTimeout(resolve, 2000);
+});
+let glassAvailable = null;
 const solidBackground = () => (nativeTheme.shouldUseDarkColors ? '#1A1A1C' : '#F9FAFB'); // = --chrome (app.css)
 
 function applyGlass(on) {
   if (!win || win.isDestroyed() || !GLASS_SUPPORTED) return;
+  on = on && canGlass();
   win.setBackgroundColor(on ? '#00000000' : solidBackground());
   if (isMac) win.setVibrancy(on ? 'sidebar' : null);
   else win.setBackgroundMaterial(on ? 'acrylic' : 'none');
@@ -97,7 +108,7 @@ function logProblem(what) {
 
 function createWindow() {
   const saved = settings.get().bounds;
-  const glass = GLASS_SUPPORTED && settings.get().sidebarGlass;
+  const glass = canGlass() && settings.get().sidebarGlass;
   win = new BrowserWindow({
     ...(boundsOnScreen(saved) ? saved : { width: 1320, height: 860 }),
     minWidth: 760,
@@ -282,6 +293,7 @@ function registerIpc() {
     windowsBuild: process.platform === 'win32' ? Number(os.release().split('.')[2]) : 0,
     hasBundledClaude: Boolean(bundledClaude(settings.get().claudeVersion)),
     glassSupported: GLASS_SUPPORTED,
+    glassAvailable: canGlass(),
   }));
   ipc.handle('app:detect-claude', (_e, custom) => detectClaude(custom));
   ipc.on('app:answer', (_e, id, value) => {
@@ -486,7 +498,7 @@ function buildMenu() {
 
 app.setAppUserModelId(APP_ID);
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   if (!primaryInstance) return;
   settings = new Settings(app.getPath('userData'));
   setLanguage(settings.get().language, app.getLocale()); // before the menu and any dialog
@@ -498,6 +510,16 @@ app.whenReady().then(() => {
   guardRequests();
   registerIpc();
   buildMenu();
+  await gpuKnown;
+  glassAvailable = canGlass();
+  // Hardware compositing can also go later (the GPU process crashed too often): the window turns solid and the
+  // page stops leaving the frame see-through.
+  app.on('gpu-info-update', () => {
+    if (canGlass() === glassAvailable) return;
+    glassAvailable = canGlass();
+    if (!glassAvailable) applyGlass(false);
+    send('window:glass-available', glassAvailable);
+  });
   createWindow();
   app.on('activate', () => { if (!win) createWindow(); });
 });

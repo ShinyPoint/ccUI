@@ -72,6 +72,7 @@ contextBridge.exposeInMainWorld('ccui', {
     onMaximized: channel('window:maximized'),
   },
   setGlass: (on) => ipcRenderer.send('window:glass', on),
+  onGlassAvailable: channel('window:glass-available'),
   background: {
     pick: () => ipcRenderer.invoke('background:pick'),
     clear: () => ipcRenderer.invoke('background:clear'),

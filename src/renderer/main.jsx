@@ -37,7 +37,9 @@ effect(() => { themeMode.value = resolveTheme(); });
 effect(() => { api.setThemeSource(settings.value.theme); });
 // Frosted glass: the window gets the system material and the frame around the work area turns see-through.
 // A background image takes its place.
-const glass = computed(() => Boolean(info.value.glassSupported && settings.value.sidebarGlass && !backgroundUrl.value));
+// Only where the window can be glass (glassAvailable: the system can, and the GPU composites the page onto it).
+const glass = computed(() => Boolean(info.value.glassAvailable && settings.value.sidebarGlass && !backgroundUrl.value));
+api.onGlassAvailable((on) => { info.value = { ...info.value, glassAvailable: on }; });
 effect(() => {
   document.documentElement.dataset.theme = themeMode.value;
 });

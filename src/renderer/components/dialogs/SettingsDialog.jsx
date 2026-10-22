@@ -353,7 +353,7 @@ function General() {
 function Appearance() {
   const s = settings.value;
   const palette = PALETTES[s.accent] ? s.accent : 'black';
-  const glassSupported = info.value.glassSupported;
+  const { glassSupported, glassAvailable } = info.value;
   return (
     <>
       <Group>
@@ -372,6 +372,7 @@ function Appearance() {
       <Group title={t('Window')}>
         <ToggleRow setting="sidebarGlass" label={t('Frosted glass')}
                    note={!glassSupported ? t('Menus and pop-ups are frosted. The window itself needs Windows 11 (22H2 or later) or macOS')
+                     : !glassAvailable ? t('Menus and pop-ups are frosted. The window itself needs graphics acceleration, which isn’t available on this computer')
                      : backgroundUrl.value ? t('Menus and pop-ups are frosted; the background image takes the window’s place')
                      : t('The desktop shows through the sidebar and top bar, and menus and pop-ups are frosted')} />
         <ToggleRow setting="fillEdge" label={t('Work area to the window’s edge')} note={t('No gap to the right of the chat and CLI')} />
