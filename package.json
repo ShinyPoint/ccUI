@@ -1,6 +1,6 @@
 {
   "name": "ccui",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "A desktop app for Claude Code: chat sessions with diffs, permissions and a terminal, side by side",
   "keywords": [
     "claude",
