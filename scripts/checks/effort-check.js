@@ -29,8 +29,9 @@ install(director);
 const controls = (action) => (director.controls || []).filter(([a]) => a === action);
 
 const THEME = process.argv.includes('--dark') ? 'dark' : 'light';
+// Default colors (accent: 'black'), to see Clay change them.
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  language: 'en', uiScale: 100, theme: THEME, confirmClose: false, notify: false, trustedFolders: [project], recent: [{ path: project, at: Date.now() }],
+  language: 'en', uiScale: 100, accent: 'black', theme: THEME, confirmClose: false, notify: false, trustedFolders: [project], recent: [{ path: project, at: Date.now() }],
   defaultModel: 'claude-opus-5-5[1m]',
 }));
 app.setPath('userData', profile);
@@ -174,7 +175,9 @@ app.on('browser-window-created', (_e, win) => {
       const scaleRow = "[...document.querySelectorAll('.dialog .set-row')].find((r) => r.querySelector('.set-label')?.textContent === 'UI scale')";
       const width0 = await js('innerWidth');
       const { Settings } = require('../../src/main/settings');
-      check('the UI scale is 105% by default', new Settings(tempDir('effort-fresh')).get().uiScale === 105);
+      const fresh = new Settings(tempDir('effort-fresh')).get();
+      check('the UI scale is 105% by default', fresh.uiScale === 105);
+      check('and the color theme is Clay', fresh.accent === 'ember', fresh.accent);
       check('this profile is drawn at 100%', (await js(`${scaleRow}.querySelector('output').textContent`)) === '100%' && width0 === win.getContentSize()[0],
         `${width0} CSS px in ${win.getContentSize()[0]}`);
       const setScale = (v, ev) => js(`{ const i = ${scaleRow}.querySelector('input[type=range]'); i.value = '${v}'; i.dispatchEvent(new Event('${ev}', { bubbles: true })); } true`);
