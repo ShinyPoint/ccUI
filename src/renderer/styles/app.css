@@ -38,7 +38,6 @@
 /* …and titles aren't stretched: the stretch widens Instrument Serif's condensed Latin letters, but Chinese
    characters are drawn square, and stretched they look flattened. */
 :root:lang(zh) { --display-stretch: none; --display-fit: 100%; }
-:root:lang(zh) .chat-intro { --intro-stretch: none; --intro-fit: 100%; }
 
 /* Backgrounds and text are one neutral grey, with no blue or warm cast (Apple's system greys); only the accent
    and the status colors carry hue. */

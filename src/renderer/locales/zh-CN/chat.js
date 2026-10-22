@@ -159,7 +159,9 @@ export default {
   'Show what this turn changed': '查看本轮的改动',
 
   // New chat
-  'What should we do in': '想在这个项目里做些什么？',
+  'What should Claude do today?': '今天想让 Claude 做什么？',
+  'How the session is shown': '会话的显示方式',
+  'Claude’s work as a conversation you can read and steer.': '以对话形式呈现 Claude 的工作，可随时查看和引导。',
   'Give me a quick tour of this project: what it does and how it is organized.': '带我快速了解一下这个项目：它是做什么的，代码是怎么组织的。',
   'Find the most likely bug in this code and explain it before fixing anything.': '找出这份代码里最可能存在的 bug，先解释清楚，再动手修复。',
   'Add tests for the least-tested part of this project.': '为这个项目里测试最薄弱的部分补充测试。',

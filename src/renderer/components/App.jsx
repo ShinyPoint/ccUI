@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'preact/hooks';
-import { Icon, Menu, Toasts, ContextMenu, openContextMenu, ConfirmHost } from './ui.jsx';
+import { Icon, Toasts, ContextMenu, ConfirmHost } from './ui.jsx';
 import { Sidebar } from './Sidebar.jsx';
 import { ChatView } from './chat/ChatView.jsx';
 import { ModelMenu } from './chat/ModelMenu.jsx';
+import { ProjectMenu } from './ProjectMenu.jsx';
 import { TerminalStack, TerminalOverlay, TerminalComposer } from './TerminalPane.jsx';
 import { NewSessionDialog } from './dialogs/NewSessionDialog.jsx';
 import { SettingsDialog } from './dialogs/SettingsDialog.jsx';
@@ -11,7 +12,7 @@ import { InfoDialog } from './dialogs/InfoDialog.jsx';
 import { SidePanel } from './SidePanel.jsx';
 import { toggleChanges } from '../lib/side.js';
 import {
-  api, active, sessions, settings, saveSettings, claudeCheck, info, newSessionDialog, themeMode, toast,
+  api, active, sessions, settings, saveSettings, claudeCheck, info, newSessionDialog, themeMode,
 } from '../lib/store.js';
 import { terminalMode } from '../lib/terminal.js';
 import { togglePanel } from '../lib/panel.js';
@@ -20,7 +21,7 @@ import { BottomPanel } from './BottomPanel.jsx';
 import {
   displayName, openSession, openInTerminal, openInChat, restartTerminal, chooseFolderAndStart,
 } from '../lib/sessions.js';
-import { basename, tildify, formatDuration, samePath, fileManagerLabel } from '../lib/format.js';
+import { basename, tildify, formatDuration, fileManagerLabel } from '../lib/format.js';
 import { t, phrase } from '../lib/i18n.js';
 
 // A CLI or shell session's process, for the title's tooltip: "pid 4868 · 126×19 · up 5s".
@@ -51,35 +52,6 @@ function WindowControls() {
       <button class="win-btn close" title={t('Close')} onClick={() => api.windowControls.close()}>
         <Icon name="x" size={15} />
       </button>
-    </div>
-  );
-}
-
-// The project's name in the top bar opens the list of project folders (those with sessions open, then recent
-// ones): choosing one starts a new chat there; the last entry picks another folder. Right-click: open or copy.
-const PICK = '\u0000pick';
-function ProjectMenu({ s, proc }) {
-  const folders = [];
-  for (const p of [s.cwd, ...sessions.value.map((x) => x.cwd), ...(settings.value.recent || []).map((r) => r.path)]) {
-    if (p && !folders.some((f) => samePath(f, p))) folders.push(p);
-  }
-  return (
-    <div class="no-drag" onContextMenu={(e) => openContextMenu(e, [
-      { label: fileManagerLabel(), run: () => api.openPath(s.cwd) },
-      { label: t('Copy path'), run: () => { api.writeClipboard(s.cwd); toast(t('Path copied.')); } },
-    ])}>
-      <Menu
-        className="project-menu"
-        title={`${tildify(s.cwd)}\n${t('Switch project: a new chat in another folder')}${proc ? `\n${proc}` : ''}`}
-        up={false}
-        label={<span class="menu-text">{basename(s.cwd)}</span>}
-        value={s.cwd}
-        options={[
-          ...folders.map((path) => ({ value: path, label: basename(path), hint: tildify(path) })),
-          { value: PICK, label: t('Open folder…') },
-        ]}
-        onSelect={(path) => (path === PICK ? chooseFolderAndStart() : openSession({ cwd: path, kind: 'chat' }))}
-      />
     </div>
   );
 }

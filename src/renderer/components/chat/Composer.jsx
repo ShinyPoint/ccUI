@@ -371,6 +371,11 @@ export function Composer({ s, prefill }) {
         }}
       />
       <div class="composer-bar">
+        <button type="button" class="icon-btn" title={t('Attach images')} onClick={() => fileInput.current.click()}>
+          <Icon name="clip" />
+        </button>
+        <input ref={fileInput} type="file" accept="image/*" multiple hidden
+               onChange={(e) => { addFiles([...e.currentTarget.files]); e.currentTarget.value = ''; }} />
         <Menu
           className="mode-menu"
           title={t('Permission mode ({key} to switch)', { key: SHORTCUTS.mode })}
@@ -384,11 +389,6 @@ export function Composer({ s, prefill }) {
             setMode(s, m);
           }}
         />
-        <button type="button" class="icon-btn" title={t('Attach images')} onClick={() => fileInput.current.click()}>
-          <Icon name="clip" />
-        </button>
-        <input ref={fileInput} type="file" accept="image/*" multiple hidden
-               onChange={(e) => { addFiles([...e.currentTarget.files]); e.currentTarget.value = ''; }} />
         <span class="spacer" />
         <ContextButton s={s} onCompact={() => sendMessage(s, { text: '/compact' })} />
         {busy && !canSend ? (

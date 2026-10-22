@@ -90,14 +90,21 @@ app.on('browser-window-created', (_e, win) => {
       check('the model label has no effort in it', !(await js("document.querySelector('.composer-bar').textContent")).includes('·'));
       check('the message box has no border', await js("getComputedStyle(document.querySelector('.chat-composer')).borderTopWidth === '0px'"));
 
-      // A new chat: the question right above the message box, the two together in the middle; no glow on the name.
+      // A new chat: the question right above the message box, the two together in the middle; the question in
+      // plain UI type, without the app's mark; the project and Chat as chips over the message box; the paperclip
+      // first in the message box's bar, left of the permission mode.
       const intro = JSON.parse(await js(`JSON.stringify((() => { const chat = document.querySelector('.chat').getBoundingClientRect();
-        const box = document.querySelector('.chat-composer').getBoundingClientRect(); const name = document.querySelector('.intro-project');
-        const h = document.querySelector('.chat-intro h2').getBoundingClientRect();
-        return { boxMid: Math.round(box.top + box.height / 2 - chat.top), chatH: Math.round(chat.height), gap: Math.round(box.top - name.getBoundingClientRect().bottom),
-          title: Math.round(h.height), shadow: getComputedStyle(name).textShadow }; })())`));
-      check('a new chat has the message box in the middle, the question right above it', Math.abs(intro.boxMid - intro.chatH / 2) < intro.chatH * 0.2 && intro.gap >= 0 && intro.gap < 60, JSON.stringify(intro));
-      check('the question is smaller, the folder name has no glow', intro.title < 45 && intro.shadow === 'none', JSON.stringify(intro));
+        const box = document.querySelector('.chat-composer').getBoundingClientRect(); const h2 = document.querySelector('.chat-intro h2');
+        const h = h2.getBoundingClientRect(); const bar = document.querySelector('.composer-bar');
+        const chips = [...document.querySelectorAll('.intro-chips .menu-text')].map((c) => c.textContent);
+        return { boxMid: Math.round(box.top + box.height / 2 - chat.top), chatH: Math.round(chat.height), gap: Math.round(box.top - h.bottom),
+          title: Math.round(h.height), mark: Boolean(document.querySelector('.chat-intro .intro-mark, .chat-intro img')),
+          clipFirst: (([first, second]) => Boolean(first?.matches('.icon-btn') && second?.classList.contains('mode-menu')))([...bar.children].filter((e) => !e.hidden)),
+          font: getComputedStyle(h2).fontFamily.split(',')[0], weight: getComputedStyle(h2).fontWeight, chips }; })())`));
+      check('a new chat has the message box in the middle, the question right above it', Math.abs(intro.boxMid - intro.chatH / 2) < intro.chatH * 0.2 && intro.gap >= 0 && intro.gap < 90, JSON.stringify(intro));
+      check('the question is plain UI type, regular weight, with no mark', intro.title < 50 && !intro.mark && !/Serif/.test(intro.font) && intro.weight === '400', JSON.stringify(intro));
+      check('the paperclip comes first in the message box, left of the permission mode', intro.clipFirst, JSON.stringify(intro));
+      check('over the message box: the project and Chat as chips', intro.chips.length === 2 && intro.chips[0] === path.basename(project) && intro.chips[1] === 'Chat', JSON.stringify(intro.chips));
       await shot('0-new-chat-dark');
       // An image attached in the message box stays there while another session is shown.
       await js(`(async () => { const c = document.createElement('canvas'); c.width = c.height = 8; const blob = await new Promise((r) => c.toBlob(r, 'image/png'));

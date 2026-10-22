@@ -1,15 +1,16 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { Icon, Collapse, usePresence } from '../ui.jsx';
+import { Icon, Collapse, Menu, usePresence } from '../ui.jsx';
 import { ChatContext } from './context.js';
 import { ToolCard, toolIcon } from './ToolCard.jsx';
 import { PermissionPrompt } from './Prompts.jsx';
 import { Composer } from './Composer.jsx';
 import { FindBar } from './FindBar.jsx';
 import { ClaudePreparing } from '../ClaudePreparing.jsx';
+import { ProjectMenu } from '../ProjectMenu.jsx';
 import { UserItem, TextItem, ThinkingItem, NoticeItem, CommandOutputItem, TurnItem, DividerItem, WakeItem, Markdown, localText } from './Items.jsx';
 import { topLevel, childrenOf, currentActivity, groupTurns, backgroundTasks, answerText } from '../../lib/chat-reducer.js';
 import { api, settings, settingsDialog, findBar, toast } from '../../lib/store.js';
-import { openInTerminal, retryChat, displayName, stopTask, stopAllTasks, dismissSideNote } from '../../lib/sessions.js';
+import { openInTerminal, retryChat, stopTask, stopAllTasks, dismissSideNote } from '../../lib/sessions.js';
 import { formatCost, formatDuration, pluralize } from '../../lib/format.js';
 import { turnChanges } from '../../lib/diff.js';
 import { openChanges } from '../../lib/side.js';
@@ -183,21 +184,36 @@ function ProblemCard({ s }) {
   );
 }
 
-// The intro is centered in the chat area (the space above the message box): the question and the project
-// name alone, or together with the suggested prompts when those are turned on (Settings). On short windows
-// it moves up just enough to fit.
-// A new chat: the question, right above the message box; the two sit together in the middle (.chat.empty).
-function Intro({ s, onPick }) {
+// A new chat: a question right above the message box; the two sit together in the middle (.chat.empty), with the
+// suggested prompts under the question when those are on (Settings). The project is in the chips over the message
+// box (IntroChips).
+function Intro({ onPick }) {
   const starters = Boolean(settings.value.showStarters);
   return (
     <div class="chat-intro">
-      <h2>{t('What should we do in')}</h2>
-      <div class="intro-project" title={s.cwd}>{displayName(s)}</div>
+      <h2>{t('What should Claude do today?')}</h2>
       {starters && (
         <div class="starters">
           {STARTERS.map((text) => <button key={text} class="starter" onClick={() => onPick(t(text))}>{t(text)}</button>)}
         </div>
       )}
+    </div>
+  );
+}
+
+// Over the message box of a new chat: the project (choosing another starts a new chat there) and how the
+// session is shown (choosing CLI continues it in Claude Code's own CLI).
+function IntroChips({ s }) {
+  return (
+    <div class="intro-chips">
+      <ProjectMenu s={s} chip />
+      <Menu className="intro-chip" title={t('How the session is shown')} up={false} value="chat"
+            label={<><Icon name="chat" size={15} /><span class="menu-text">{t('Chat')}</span></>}
+            options={[
+              { value: 'chat', label: t('Chat'), hint: t('Claude’s work as a conversation you can read and steer.') },
+              { value: 'terminal', label: 'CLI', hint: t('Claude Code’s own command-line interface.') },
+            ]}
+            onSelect={(kind) => { if (kind === 'terminal') openInTerminal(s); }} />
     </div>
   );
 }
@@ -504,7 +520,7 @@ export function ChatView({ s }) {
           <div class="timeline" ref={timeline}>
             {s.problem.value && <ProblemCard s={s} />}
             <ClaudePreparing session={s} />
-            {empty && <Intro s={s} onPick={pick} />}
+            {empty && <Intro onPick={pick} />}
             {groups.map((g) => (g.kind === 'item'
               ? renderItem(g.item)
               : <Turn key={g.key} g={g} s={s} renderItem={renderItem} />))}
@@ -534,6 +550,7 @@ export function ChatView({ s }) {
           <SideNotes s={s} />
           <AgentStrip s={s} chat={chat} />
           <TaskStrip tasks={chat.tasks} busy={chat.busy} />
+          {empty && <IntroChips s={s} />}
           <Composer key={s.uid} s={s} prefill={prefill} />
         </div>
       </div>

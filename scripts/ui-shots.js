@@ -30,13 +30,13 @@ const LAYOUT = `{ const box = (el) => { if (!el) return null; const r = el.getBo
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Where the new-chat intro sits: the middle of its centered part (the two lines, or the lines plus the
+// Where the new-chat intro sits: the middle of its centered part (the question, or the question plus the
 // suggested prompts) against the middle of the chat area.
 const MEASURE = `{ const area = document.querySelector('.chat-scroll').getBoundingClientRect();
-  const top = document.querySelector('.chat-intro h2').getBoundingClientRect().top;
-  const name = document.querySelector('.intro-project');
+  const h2 = document.querySelector('.chat-intro h2').getBoundingClientRect();
+  const top = h2.top;
   const starters = document.querySelector('.starters');
-  const bottom = starters ? starters.getBoundingClientRect().bottom : name.getBoundingClientRect().bottom - 26;
+  const bottom = starters ? starters.getBoundingClientRect().bottom : h2.bottom;
   'block middle ' + Math.round((top + bottom) / 2) + ', area middle ' + Math.round((area.top + area.bottom) / 2) }`;
 
 app.on('browser-window-created', (_e, win) => {

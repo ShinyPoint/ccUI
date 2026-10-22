@@ -527,30 +527,28 @@
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* A new chat (.chat.empty): the question and the message box sit together in the middle of the chat, a little
-   above it; the question in upright serif, the project under it in the accent color. */
+   above it. The question is plain UI type in the regular weight. */
 .chat.empty { justify-content: center; padding-bottom: 6vh; }
 .chat.empty .chat-scroll { flex: 0 1 auto; }
 .chat.empty .timeline { padding-bottom: 18px; }
 .chat.empty .chat-bottom::before { display: none; }
-.chat-intro {
-  --intro-stretch: scaleX(1.3); /* wider than other titles */
-  --intro-fit: 76%; /* ≈ 1 / 1.3 */
-  text-align: center;
-}
+.chat-intro { text-align: center; }
 .chat-intro h2 {
-  width: fit-content; max-width: var(--intro-fit);
-  margin: 0 auto 4px;
-  font: 400 30px/1.2 var(--display); letter-spacing: var(--display-tracking);
-  transform: var(--intro-stretch); /* centered, so it widens evenly both ways */
+  margin: 0 auto 10px;
+  font: 400 26px/1.3 var(--ui); letter-spacing: -0.01em;
+  color: var(--text);
 }
-.intro-project {
-  width: fit-content; max-width: var(--intro-fit);
-  margin: 0 auto;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font: 400 24px/1.3 var(--display); letter-spacing: var(--display-tracking);
-  transform: var(--intro-stretch);
-  color: var(--accent);
+/* The chips over the message box: borderless, quiet until pointed at. */
+.intro-chips { display: flex; align-items: center; gap: 6px; margin: 0 0 8px 6px; }
+.intro-chip > .menu-button {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 28px; padding: 0 8px;
+  border-radius: var(--r-sm);
+  font: 13px var(--ui); color: var(--text-2);
 }
+.intro-chip > .menu-button:hover, .intro-chip > .menu-button[aria-expanded="true"] { background: var(--fill); color: var(--text); }
+.intro-chip > .menu-button .icon { color: var(--muted); }
+.intro-chip .menu-text { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-intro .starters { margin-top: 18px; }
 .chat-intro .starters { text-align: left; }
 .starters { display: flex; flex-direction: column; gap: 8px; }
