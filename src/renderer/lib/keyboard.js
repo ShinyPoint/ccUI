@@ -1,7 +1,7 @@
 // App-wide keyboard shortcuts. Handled in the capture phase so the terminal never sees them.
 // On Windows/Linux they use Ctrl+Shift where plain Ctrl+letter means something to Claude Code.
-import { sessions, active, settings, saveSettings, newSessionDialog, settingsDialog, findBar, projectSearch } from './store.js';
-import { selectSession, endSession, copySelection, pasteInto, writePty } from './sessions.js';
+import { sessions, active, settings, saveSettings, settingsDialog, findBar, projectSearch } from './store.js';
+import { selectSession, endSession, copySelection, pasteInto, writePty, newChat } from './sessions.js';
 import { togglePanel, copyFromPanel, pasteIntoPanel } from './panel.js';
 import { toggleChanges } from './side.js';
 import { t, phrase } from './i18n.js';
@@ -132,7 +132,7 @@ function onKeyDown(e) {
   }
 
   const appMod = isMac ? e.metaKey : e.ctrlKey && e.shiftKey;
-  if (appMod && key === 't') { handled(); newSessionDialog.value = {}; return; }
+  if (appMod && key === 't') { handled(); newChat(); return; }
   if (appMod && key === 'w') { handled(); if (s) endSession(s); return; }
   if (appMod && key === 'b') { handled(); saveSettings({ sidebarCollapsed: !settings.value.sidebarCollapsed }); return; }
   if (appMod && key === 'k') { handled(); focusComposer(); return; }

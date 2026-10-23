@@ -1,7 +1,7 @@
 // Session lifecycle for chat (Agent SDK) and terminal (pty) sessions, and the glue between
 // main-process events and the per-session signals the components read.
 import {
-  api, sessions, activeUid, settings, saveSettings, toast, confirmDialog, makeSession, TRACE_LEN,
+  api, info, sessions, activeUid, settings, saveSettings, toast, confirmDialog, makeSession,
 } from './store.js';
 import { reduce, initialChat } from './chat-reducer.js';
 import { createTerminal, fitTerminal } from './terminal.js';
@@ -125,19 +125,9 @@ function lastModelIn(messages) {
   return '';
 }
 
-function activityOf(batch) {
-  let n = 0;
-  for (const m of batch) {
-    if (m.type === 'stream_event') n += m.event?.delta?.text?.length || m.event?.delta?.thinking?.length || m.event?.delta?.partial_json?.length || 0;
-    else if (m.type === 'user' || m.type === 'tool_progress') n += 300;
-  }
-  return n;
-}
-
 api.agent.onEvents((id, batch) => {
   const s = agents.get(id);
   if (!s || s.removed) return;
-  s.bucket += activityOf(batch);
   dispatch(s, batch);
   if (batch.some(fillsContext)) contextChanged(s);
 });
@@ -491,6 +481,28 @@ const cleanTitle = (raw) => {
   return /^claude( code)?$/i.test(t) || /^([a-z]:\\|\/|~)/i.test(t) || /\.exe$/i.test(t) ? '' : t;
 };
 
+// Claude Code says what it is doing when the terminal answers its probe for that (OSC 7501: `?` asks, then
+// `state=working|blocked|done|idle|error|clear` follows, with `kind=permission|question|auth` when it waits for an
+// answer, and `id=` on a background agent's own line). Once it does, that is the session's status; output silence
+// (below) stands in only for Claude Code versions that don't.
+function programStatus(s, data) {
+  if (data.startsWith('?')) return writePty(s, '\x1b]7501;?\x1b\\', { auto: true });
+  const fields = Object.fromEntries(data.split(':').map((f) => {
+    const i = f.indexOf('=');
+    return i < 0 ? [f, ''] : [f.slice(0, i), f.slice(i + 1)];
+  }));
+  if (fields.id !== undefined) return; // a background agent's line, not the session's
+  if (fields.state === 'clear') {
+    s.reports = false;
+    return;
+  }
+  s.reports = true;
+  if (fields.state === 'working') setStatus(s, 'working');
+  else if (fields.state === 'blocked' && fields.kind) setStatus(s, 'needs-you');
+  else if (fields.state === 'done' || fields.state === 'error') setStatus(s, isSeen(s) ? 'idle' : 'attention');
+  else if (s.status.value !== 'attention') setStatus(s, 'idle'); // idle, or a dialog of its own open
+}
+
 // `auto`: xterm answering Claude Code's queries (cursor position, colors) rather than something the user sent.
 export function writePty(s, data, { auto = false } = {}) {
   if (!s.ptyId) return;
@@ -531,6 +543,7 @@ function attachTerminal(s) {
       if (clean) s.title.value = clean;
     },
     onContextMenu: () => (s.term.hasSelection() ? copySelection(s) : pasteInto(s)),
+    onProgramStatus: (data) => programStatus(s, data),
   });
   Object.assign(s, { term, fit, host });
   host.classList.toggle('active', s.uid === activeUid.value);
@@ -580,6 +593,7 @@ async function startTerminalNow(s, { resume, extraArgs } = {}) {
   s.ptyId = res.id;
   s.pid.value = res.pid;
   s.exitCode.value = null;
+  s.reports = false;
   s.startedAt.value = Date.now();
   s.lastOutputAt = 0;
   if (resume) {
@@ -607,8 +621,8 @@ api.pty.onData((id, data) => {
   }
   const now = Date.now();
   if (now - s.lastInputAt < ECHO_WINDOW || now - s.lastResizeAt < ECHO_WINDOW) return;
-  s.bucket += data.length;
   s.lastOutputAt = now;
+  if (s.reports) return; // Claude Code says itself what it is doing
   const status = s.status.value;
   if (status === 'idle' || status === 'attention') setStatus(s, 'working');
   else if (status === 'starting' && now - s.startedAt.value > STARTUP_GRACE) setStatus(s, 'working');
@@ -627,11 +641,11 @@ api.pty.onExit((id, { exitCode }) => {
   setStatus(s, 'exited');
 });
 
-// Output silence decides when a terminal session is waiting (the TUI has no structured events).
+// Output silence decides when a terminal session is waiting, unless Claude Code says so itself (programStatus).
 setInterval(() => {
   const now = Date.now();
   for (const s of sessions.value) {
-    if (s.kind.value === 'chat') continue;
+    if (s.kind.value === 'chat' || s.reports) continue;
     const status = s.status.value;
     if (status !== 'working' && status !== 'starting') continue;
     if (now - s.lastOutputAt < IDLE_AFTER || now - s.startedAt.value < 800) continue;
@@ -640,14 +654,8 @@ setInterval(() => {
   }
 }, 250);
 
-// Sidebar activity traces: one bucket per second.
 setInterval(() => {
-  for (const s of sessions.value) {
-    s.activity.push(s.bucket);
-    if (s.activity.length > TRACE_LEN) s.activity.shift();
-    s.bucket = 0;
-    s.traceTick.value++;
-  }
+  for (const s of sessions.value) s.tick.value++;
 }, 1000);
 
 // A chat you haven't looked at for a while lets its Claude Code go (each one holds a few hundred MB, and with many
@@ -729,8 +737,17 @@ export async function confirmLeaving(s, action) {
 }
 
 // Ends a session after asking, if it would leave work behind (see confirmLeaving).
+// Asks first: about the work it would stop when Claude is busy (confirmLeaving), otherwise plainly.
 export async function endSession(s) {
-  if (await confirmLeaving(s, 'end')) closeSession(s);
+  const busy = s.kind.value === 'chat' && (s.chat.value.busy || runningTasks(s).length > 0);
+  const ok = busy ? await confirmLeaving(s, 'end') : await confirmDialog({
+    title: t('End this session?'),
+    message: s.kind.value === 'shell' ? t('The shell and anything running in it stop.')
+      : t('The conversation is saved: you can continue it later from the project’s earlier conversations.'),
+    confirm: t('End session'),
+    danger: true,
+  });
+  if (ok) closeSession(s);
 }
 
 // `input`: typed into the CLI once it has started and gone quiet (not run: Enter is left to you).
@@ -784,6 +801,34 @@ function untouched(x, kind, cwd) {
   if (x.removed || x.dormant || x.sessionId || x.kind.value !== kind || !samePath(x.cwd, cwd)) return false;
   if (kind === 'chat') return !x.chat.value.busy && !x.chat.value.items.some((i) => i.type === 'user');
   return !x.typed && x.status.value !== 'exited';
+}
+
+// Sessions without a project (New session) run in a folder of the app's own, ~/ccUI unless chosen in Settings; the
+// sidebar lists them on their own, not as a project (Sidebar.jsx).
+export function chatsFolder() {
+  if (settings.value.chatsFolder) return settings.value.chatsFolder;
+  if (!info.value) return '';
+  return `${info.value.home}${info.value.platform === 'win32' ? '\\' : '/'}ccUI`;
+}
+export const isLoose = (cwd) => Boolean(cwd) && samePath(cwd, chatsFolder());
+
+// New session: a new chat without a project, its page asking what Claude should do (the untouched one if there is);
+// or a CLI or shell without a project.
+export async function newChat(kind = 'chat') {
+  const res = await api.chatsFolder();
+  if (!res.ok) {
+    toast(res.error, 'error');
+    return res;
+  }
+  return openSession({ cwd: res.path, kind });
+}
+
+// Another project chosen for a chat: a new chat there; this one goes if nothing was said, typed or attached in it.
+export async function startChatIn(s, cwd) {
+  const unused = s.kind.value === 'chat' && untouched(s, 'chat', s.cwd) && !s.draft.trim() && !s.draftImages.length;
+  const res = await openSession({ cwd, kind: 'chat' });
+  if (res.ok && unused && res.session !== s) closeSession(s);
+  return res;
 }
 
 export async function openSession(opts, { activate = true } = {}) {
@@ -1023,6 +1068,7 @@ export function renameSession(s, name) {
 
 // ---------- recent folders ----------
 export function addRecent(path) {
+  if (isLoose(path)) return; // not a project
   const recent = [{ path, at: Date.now() }, ...(settings.value.recent || []).filter((r) => !samePath(r.path, path))].slice(0, 12);
   saveSettings({ recent });
 }

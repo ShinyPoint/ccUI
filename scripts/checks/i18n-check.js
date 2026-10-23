@@ -183,6 +183,8 @@ app.on('browser-window-created', (_e, win) => {
       await wait(200);
       await js("document.querySelector('.prompt.question .primary-btn')?.click(); true");
       await until('the permission prompt', "Boolean(document.querySelector('.prompt:not(.question):not(.plan)'))", 8000);
+      check('the permission prompt floats with a glow', (await js("getComputedStyle(document.querySelector('.prompt:not(.question):not(.plan)')).boxShadow")) !== 'none');
+      check('so do a tool’s diff and its command', await js("[document.querySelector('.diff'), document.querySelector('.bash')].every((el) => el && getComputedStyle(el).boxShadow !== 'none')"));
       await wait(400);
       await scan('a permission prompt');
       await shot('3-permission');
@@ -264,7 +266,10 @@ app.on('browser-window-created', (_e, win) => {
       await wait(400);
 
       // New session.
-      await js("document.querySelector('#sidebar button.new-session').click(); true");
+      // New session starts a chat; its menu (right-click) has the full dialog.
+      await js("{ const b = document.querySelector('#sidebar button.new-session'); const r = b.getBoundingClientRect(); b.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.left + 20, clientY: r.top + 10 })); } true");
+      await wait(200);
+      await js("[...document.querySelectorAll('.context-menu button')].find((x) => /More options|更多选项/.test(x.textContent)).click(); true");
       await until('New session', "Boolean(document.querySelector('.dialog-new[open]'))", 4000);
       await wait(300);
       await scan('New session');

@@ -72,7 +72,10 @@ app.on('browser-window-created', (_e, win) => {
         await js("JSON.stringify([...document.querySelectorAll('#sidebar .folder')].map((f) => f.className))"));
 
       // New session
-      await js("document.querySelector('#sidebar button.new-session').click(); true");
+      // New session starts a chat; its menu (right-click) has the full dialog.
+      await js("{ const b = document.querySelector('#sidebar button.new-session'); const r = b.getBoundingClientRect(); b.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.left + 20, clientY: r.top + 10 })); } true");
+      await wait(200);
+      await js("[...document.querySelectorAll('.context-menu button')].find((x) => /More options/.test(x.textContent)).click(); true");
       await until('New session', "Boolean(document.querySelector('.dialog-new[open] .ns-recent'))");
       await wait(400);
       const look = JSON.parse(await js(`JSON.stringify({

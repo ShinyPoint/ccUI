@@ -13,6 +13,7 @@ const outDir = path.join(__dirname, '..', '..', 'dist', 'chat-look');
 const profile = tempDir('look-profile');
 const project = tempDir('look-project');
 const other = tempDir('look-other'); // a second project, for a second session (one project has one new chat)
+const chats = tempDir('look-chats'); // where New session's chats without a project go (not the real ~/ccUI)
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(project, 'notes.md'), '# Notes\n\nShip the rate limiter.\n');
 
@@ -34,6 +35,14 @@ install({
       // A step that fills the context, then a slow answer: the context ring moves before the turn ends.
       await c.tool('Read', { file_path: c.file('big.txt') }, { run: 200, result: 'x'.repeat(30000) });
       await c.say('Read it all, now going through it.', { cps: 10 });
+    } else if (/templates/.test(text)) {
+      // The answer, then a little tidying up (a note in memory) and a last line: the answer stays the answer.
+      await c.say('## Binary search\n\nThe condition must be monotonic:\n\n```\nF F F T T T\n```\n\n- first true\n- last true\n- on the answer', { cps: 1500 });
+      await c.tool('Edit', { file_path: c.file('memory.md'), old_string: 'a', new_string: 'b' }, { run: 150, result: 'ok' });
+      await c.think(150);
+      await c.say('I also noted that templates get comments.', { cps: 600 });
+    } else if (/code block/.test(text)) {
+      await c.say('Compile it with:\n\n```\ng++ "{source_file}" -std=c++17 -o "{file_name}"\n```', { cps: 600 });
     } else if (/long/.test(text)) {
       await c.say(Array.from({ length: 40 }, (_, i) => `Line ${i + 1} of a longer answer that streams in word by word.`).join('\n\n'), { cps: 1500 });
     } else {
@@ -50,6 +59,7 @@ install({
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
   language: 'en', uiScale: 100, theme: 'dark', confirmClose: false, notify: false, sidebarGlass: true, fillEdge: false, // the gaps are measured with it off
   recent: [{ path: project, at: Date.now() }, { path: other, at: Date.now() - 1000 }], trustedFolders: [project, other],
+  chatsFolder: chats,
 }));
 app.setPath('userData', profile);
 
@@ -176,6 +186,26 @@ app.on('browser-window-created', (_e, win) => {
 
       // A long reply: the view should ease down, not jump.
       await say('Give me a long answer.');
+      await wait(300);
+      const row = JSON.parse(await js(`JSON.stringify((() => { const r = document.querySelector('#sidebar .session[aria-current="true"]');
+        const icon = r.querySelector('.session-icon').getBoundingClientRect(); const name = r.querySelector('.session-name').getBoundingClientRect();
+        const label = document.querySelector('#sidebar .section-label');
+        const range = document.createRange(); range.selectNodeContents(label.firstChild);
+        // Where the ink starts: the icon's strokes (their geometry less half the stroke), the heading's first letter.
+        const ink = (svg) => { const k = svg.getBoundingClientRect().width / 24;
+          return Math.min(...[...svg.children].map((c) => c.getBoundingClientRect().left)) - Number(svg.getAttribute('stroke-width')) / 2 * k; };
+        const ctx = document.createElement('canvas').getContext('2d'); const ls = getComputedStyle(label);
+        ctx.font = ls.fontWeight + ' ' + ls.fontSize + ' ' + ls.fontFamily;
+        const labelInk = range.getBoundingClientRect().left - ctx.measureText(label.firstChild.textContent.trim()[0]).actualBoundingBoxLeft;
+        const off = (sel) => Math.round((ink(document.querySelector(sel)) - labelInk) * 10) / 10;
+        return { spin: Boolean(r.querySelector('.session-spin')), onIcon: r.querySelector('.session-icon').children.length, iconH: Math.round(icon.height),
+          middle: Math.abs((icon.top + icon.bottom) / 2 - (name.top + name.bottom) / 2) < 2, words: Boolean(r.querySelector('.state-word, .session-sub')),
+          newSession: off('.new-session .icon'), skills: off('.sidebar-link .icon'), newWeight: getComputedStyle(document.querySelector('.new-session')).fontWeight,
+          newFill: getComputedStyle(document.querySelector('.new-session')).backgroundColor, counts: document.querySelectorAll('.folder-row .count').length }; })())`));
+      check('a working session shows a spinner at the right, and nothing on its icon or in words', row.spin && row.onIcon === 1 && !row.words, JSON.stringify(row));
+      check('its icon is the text’s size, beside it', row.iconH <= 16 && row.middle, JSON.stringify(row));
+      check('New session: no fill, regular weight; its icon and Skills’ start where Projects does', Math.abs(row.newSession) <= .6 && Math.abs(row.skills) <= .6 && row.newWeight === '400' && /rgba\(0, 0, 0, 0\)|transparent/.test(row.newFill), JSON.stringify(row));
+      check('project folders show no session count', row.counts === 0);
       console.log('reduced motion:', await js("matchMedia('(prefers-reduced-motion: reduce)').matches"));
       // How far from the bottom the view is on each frame, for 3 s.
       const positions = await js(`new Promise((done) => {
@@ -224,6 +254,49 @@ app.on('browser-window-created', (_e, win) => {
       mouse(5, 5);
       await js("{ const el = document.querySelector('.chat-scroll'); el.scrollTop = el.scrollHeight; } true");
       await wait(400);
+
+      // A code block without a language says Plain text; its head is the body's color; a glow lifts it.
+      await say('Show me a code block.');
+      await until('the code block', `${idle} && Boolean([...document.querySelectorAll('.code-block')].at(-1)?.textContent.includes('g++'))`);
+      const block = JSON.parse(await js(`JSON.stringify((() => { const b = [...document.querySelectorAll('.code-block')].at(-1); const h = b.querySelector('.code-head');
+        return { label: h.querySelector('span').textContent, head: getComputedStyle(h).backgroundColor, body: getComputedStyle(b).backgroundColor, shadow: getComputedStyle(b).boxShadow,
+          weight: getComputedStyle(h).fontWeight }; })())`));
+      check('a code block without a language is labeled Plain text', block.label === 'Plain text', block.label);
+      check('its head is the color of the code under it, with a glow around the block', /rgba\(0, 0, 0, 0\)|transparent/.test(block.head) && block.shadow !== 'none' && Number(block.weight) <= 500, JSON.stringify(block));
+      await shot('2c-code-block');
+
+      await say('Binary search templates?');
+      await until('the answer', `${idle} && /noted that templates/.test(document.querySelector('.timeline').textContent)`);
+      const tidy = JSON.parse(await js(`JSON.stringify((() => { const h = [...document.querySelectorAll('.timeline h2')].find((x) => x.textContent === 'Binary search');
+        return { shown: Boolean(h && h.getClientRects().length), inWork: Boolean(h?.closest('.work-steps')) }; })())`));
+      check('an answer followed by a note in memory stays the answer, not one of the steps', tidy.shown && !tidy.inWork, JSON.stringify(tidy));
+
+      // A long paste stands in the message box as a placeholder; the whole text is what is sent.
+      const long = Array.from({ length: 30 }, (_, i) => `Line ${i + 1} of a long log that was pasted in.`).join('\n');
+      await js(`{ const el = document.querySelector('.chat-composer .composer-input'); el.focus(); const dt = new DataTransfer(); dt.setData('text/plain', ${JSON.stringify(long)});
+        el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); } true`);
+      await wait(300);
+      const boxText = await js("document.querySelector('.chat-composer .composer-input').value");
+      check('a long paste shows as [Pasted text #1 · N chars]', boxText === `[Pasted text #1 · ${long.length.toLocaleString()} chars]`, boxText);
+      const chip = JSON.parse(await js(`JSON.stringify((() => { const m = document.querySelector('.composer-marks .paste-chip'); if (!m) return null;
+        const cs = getComputedStyle(m); const box = document.querySelector('.chat-composer .composer-input').getBoundingClientRect();
+        const r = m.getClientRects()[0]; const layer = m.parentElement.getBoundingClientRect();
+        return { text: m.textContent, bg: cs.backgroundColor, glow: cs.boxShadow.split(/,(?![^(]*\\))/).length,
+          dx: Math.round((r.left - box.left) * 10) / 10, room: Math.round(Math.min(r.left - layer.left, r.top - layer.top)) }; })())`));
+      check('drawn as one chip, with a background and a glow', Boolean(chip) && chip.text === boxText && !/rgba\(0, 0, 0, 0\)/.test(chip.bg) && chip.glow >= 3, JSON.stringify(chip));
+      check('under the textarea’s own text, with room round it for the glow', Boolean(chip) && Math.abs(chip.dx) < .5 && chip.room >= 14, JSON.stringify(chip));
+      await shot('2d-pasted');
+      const backspace = "{ const el = document.querySelector('.chat-composer .composer-input'); el.focus(); el.selectionStart = el.selectionEnd = el.value.length; el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true })); } true";
+      await js(backspace);
+      await wait(200);
+      check('Backspace removes the whole chip at once', (await js("document.querySelector('.chat-composer .composer-input').value")) === '' && !(await js("Boolean(document.querySelector('.paste-chip'))")));
+      await js(`{ const el = document.querySelector('.chat-composer .composer-input'); el.focus(); const dt = new DataTransfer(); dt.setData('text/plain', ${JSON.stringify(long)});
+        el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); } true`);
+      await wait(300);
+      await js("document.querySelector('.chat-composer .composer-input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); true");
+      await until('the pasted message', `[...document.querySelectorAll('.msg-user-text')].some((m) => m.textContent.includes('Line 30 of a long log'))`);
+      check('and the whole text is sent', (await js("[...document.querySelectorAll('.msg-user-text')].at(-1).textContent")) === long);
+      await until('its reply', idle);
 
       // No status bar; the chat card runs down to the window's edge, rounded at the top only, 8px in on both sides.
       check('there is no status bar', await js("!document.querySelector('#statusbar')"));
@@ -307,6 +380,12 @@ app.on('browser-window-created', (_e, win) => {
       await say('Read the big file.');
       const moved = await until('the ring to move during the turn', `${ring} > ${before} && Boolean(document.querySelector('.send-btn.stop'))`, 3000);
       check('the context ring updates by itself while Claude works', moved, `${before}% → ${await js(ring)}%`);
+      const word = "document.querySelector('.activity > span:nth-child(2)')?.textContent";
+      const act = JSON.parse(await js(`JSON.stringify({ word: ${word}, star: getComputedStyle(document.querySelector('.activity-mark'), '::before').animationName })`));
+      await wait(900);
+      const later = await js(word);
+      check('meanwhile one of Claude Code’s words, the same through the turn, by a star that changes', /^[A-Z][\w' -]+…$/.test(act.word || '') && later === act.word && act.star === 'activity-star',
+        JSON.stringify({ ...act, later }));
       check('a turn still going has no Copy yet', (await js("document.querySelectorAll('.answer-actions').length")) === copies);
       await until('idle again', idle);
       await wait(300);
@@ -318,8 +397,9 @@ app.on('browser-window-created', (_e, win) => {
       const seam = await js(`{ const s = document.querySelector('#stage').getBoundingClientRect();
         const p = document.querySelector('.bottom-panel').getBoundingClientRect();
         JSON.stringify({ gap: Math.round(p.top - s.bottom), radius: getComputedStyle(document.querySelector('#stage')).borderBottomLeftRadius }) }`);
-      check('opening it keeps the chat at the bottom', await js(`{ const el = document.querySelector('.chat-scroll');
-        el.scrollHeight - el.clientHeight - el.scrollTop < 2 && !document.querySelector('.jump-latest') }`));
+      const bottom = JSON.parse(await js(`JSON.stringify((() => { const el = document.querySelector('.chat-scroll');
+        return { off: Math.round(el.scrollHeight - el.clientHeight - el.scrollTop), jump: Boolean(document.querySelector('.jump-latest')) }; })())`));
+      check('opening it keeps the chat at the bottom', bottom.off < 2 && !bottom.jump, JSON.stringify(bottom));
       check('the Terminal panel is joined to the chat', JSON.parse(seam).gap === 0 && JSON.parse(seam).radius === '0px', seam);
       await shot('2-chat-terminal-dark');
       await js("document.querySelector('.sidebar-bottom .icon-btn').click(); true");
@@ -339,6 +419,35 @@ app.on('browser-window-created', (_e, win) => {
       await shot('5-project-menu');
       await js("document.querySelector('#topbar .project-menu .menu-list button').click(); true");
       check('choosing a folder starts a new chat there', await until('the new chat', `document.querySelectorAll('#sidebar .session').length === ${sessionsBefore + 1}`, 6000));
+
+      // New session: a new chat without a project, right away, listed on its own above the projects and lined up
+      // with New session (the icon's stroke under its +, the name under its label).
+      const listedBefore = await js("document.querySelectorAll('#sidebar .session').length");
+      await js("document.querySelector('#sidebar button.new-session').click(); true");
+      await until('the chat without a project', `Boolean(document.querySelector('#sidebar .loose .session[aria-current="true"]')) && Boolean(document.querySelector('.chat.empty .chat-intro'))`, 8000);
+      await wait(600);
+      const loose = JSON.parse(await js(`JSON.stringify((() => {
+        const ink = (svg) => { const k = svg.getBoundingClientRect().width / 24; return Math.min(...[...svg.children].map((c) => c.getBoundingClientRect().left)) - Number(svg.getAttribute('stroke-width')) / 2 * k; };
+        const row = document.querySelector('#sidebar .loose .session');
+        const label = document.querySelector('.new-session span').getBoundingClientRect().left;
+        return { heading: document.querySelector('#sidebar .loose .section-label').firstChild.textContent, rows: document.querySelectorAll('#sidebar .loose .session').length,
+          icon: Math.round((ink(row.querySelector('.session-icon svg')) - ink(document.querySelector('.new-session .icon'))) * 10) / 10,
+          name: Math.round((row.querySelector('.session-name').getBoundingClientRect().left - label) * 10) / 10,
+          chip: document.querySelector('.intro-chips .project-menu .menu-text')?.textContent,
+          projects: [...document.querySelectorAll('#sidebar .folder-name')].map((f) => f.textContent) }; })())`));
+      check('New session opens a new chat at once, with no project', loose.rows === 1 && loose.heading === 'Sessions' && loose.chip === 'No project', JSON.stringify(loose));
+      check('it is listed on its own, not as a project', !loose.projects.includes(path.basename(chats)), JSON.stringify(loose.projects));
+      check('its icon and name line up with New session’s', Math.abs(loose.icon) <= 1 && Math.abs(loose.name) <= 1, JSON.stringify(loose));
+      await shot('6-new-session');
+      await js("document.querySelector('#sidebar button.new-session').click(); true");
+      await wait(700);
+      check('New session again shows that same unused chat', (await js("document.querySelectorAll('#sidebar .loose .session').length")) === 1
+        && (await js("document.querySelectorAll('#sidebar .session').length")) === listedBefore + 1);
+      await js("document.querySelector('.intro-chips .project-menu .menu-button').click(); true");
+      await until('the chip’s folder list', "Boolean(document.querySelector('.intro-chips .project-menu .menu-list'))", 3000);
+      await js(`[...document.querySelectorAll('.intro-chips .project-menu .menu-list button')].find((b) => b.textContent.includes(${JSON.stringify(path.basename(other))})).click(); true`);
+      const inProject = `!document.querySelector('#sidebar .loose') && [...document.querySelectorAll('#sidebar .folder')].some((f) => f.textContent.includes(${JSON.stringify(path.basename(other))}) && f.querySelector('.session[aria-current="true"]'))`;
+      check('given a project in its chip, the unused chat moves there', await until('the chat in the project', inProject, 6000));
     } catch (err) {
       console.error('failed:', err);
       failures++;

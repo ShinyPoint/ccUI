@@ -9,6 +9,7 @@ import { NewSessionDialog } from './dialogs/NewSessionDialog.jsx';
 import { SettingsDialog } from './dialogs/SettingsDialog.jsx';
 import { SkillsDialog } from './dialogs/SkillsDialog.jsx';
 import { InfoDialog } from './dialogs/InfoDialog.jsx';
+import { TaskDialog } from './dialogs/TaskDialog.jsx';
 import { SidePanel } from './SidePanel.jsx';
 import { toggleChanges } from '../lib/side.js';
 import {
@@ -26,7 +27,7 @@ import { t, phrase } from '../lib/i18n.js';
 
 // A CLI or shell session's process, for the title's tooltip: "pid 4868 · 126×19 · up 5s".
 function processInfo(s) {
-  s.traceTick.value; // uptime moves every second
+  s.tick.value; // uptime moves every second
   if (!s.pid.value) return '';
   return [t('pid {pid}', { pid: s.pid.value }), s.size.value, t('up {time}', { time: formatDuration(Date.now() - s.startedAt.value) })].filter(Boolean).join(' · ');
 }
@@ -195,6 +196,7 @@ export function App() {
       <SettingsDialog />
       <SkillsDialog />
       <InfoDialog />
+      <TaskDialog />
       <Toasts />
       <ContextMenu />
       <ConfirmHost />

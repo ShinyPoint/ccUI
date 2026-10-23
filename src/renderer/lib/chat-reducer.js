@@ -12,7 +12,8 @@ export function initialChat() {
     permissions: [], // pending permission requests from canUseTool
     tasks: [], // [{ id, content, status, activeForm }]
     // Background work Claude Code reports (subagents, background shells): task_id -> { id, toolUseId,
-    // description, kind, subagentType, status, startedAt, endedAt, tokens, toolUses, lastTool, summary, error }
+    // description, kind, subagentType, status, startedAt, endedAt, tokens, toolUses, lastTool, summary, error,
+    // outputFile }
     agents: {},
     busy: false,
     activity: '', // 'requesting' | 'thinking' | 'compacting' | 'tool' | ''
@@ -290,6 +291,7 @@ function onTask(d, m, now) {
     case 'task_notification':
       patchAgent(d, id, {
         ...(m.tool_use_id ? { toolUseId: m.tool_use_id } : {}),
+        ...(m.output_file ? { outputFile: m.output_file } : {}),
         status: TASK_END[m.status] || 'completed',
         summary: m.summary || prev.summary || '',
         tokens: m.usage?.total_tokens ?? prev.tokens ?? 0,
@@ -637,26 +639,43 @@ export function childrenOf(state, toolId) {
 // A turn's answer as Claude wrote it (Markdown), without its steps: what Copy and /copy take.
 export const answerText = (g) => g.answer.filter((i) => i.type === 'text').map((i) => i.text).join('\n\n').trim();
 
+// Text that reads as (part of) an answer rather than a remark on the way ("Let me look at the tests."): long, or
+// laid out with headings, code, a table or a list.
+const readsAsAnswer = (text = '') => {
+  const s = text.trim();
+  return s.length >= 280 || (s.split('\n').length >= 3 && /^(#{1,6}\s|```|\|.*\||\s*([-*+]|\d+\.)\s)/m.test(s));
+};
+// Tool calls an answer may be followed by and still be the answer: tidying up after it (noting something in
+// memory, ticking off the task list), not more work.
+const TIDY_STEPS = 2;
+const isStep = (i) => i.type === 'tool' || i.type === 'thinking';
+
 // Splits top-level items into turns: the prompt, Claude's work (tool calls, thinking, and text between
-// them), the answer (whatever follows the last step), and the turn summary. Items outside any turn are
-// passed through. A turn is `live` while Claude is still busy with it: the last turn, or one followed only
-// by messages sent while it ran (they wait in the queue, so the turn has not ended).
+// them), the answer (whatever follows the last step, or the last text that reads as an answer when no more
+// than a little tidying up follows it: then those steps join the work), and the turn summary. Items outside any
+// turn are passed through. A turn is `live` while Claude is still busy with it: the last turn, or one followed
+// only by messages sent while it ran (they wait in the queue, so the turn has not ended).
 export function groupTurns(items, busy) {
   const out = [];
   let turn = null;
   const close = (live) => {
     if (!turn) return;
     const body = turn.body.filter((i) => i.type !== 'turn');
-    let lastStep = -1;
-    body.forEach((i, n) => { if (i.type === 'tool' || i.type === 'thinking') lastStep = n; });
-    const work = body.slice(0, lastStep + 1);
+    let from = 0;
+    body.forEach((i, n) => { if (isStep(i)) from = n + 1; });
+    for (let n = from - 1; n >= 0; n--) {
+      if (body[n].type !== 'text' || !readsAsAnswer(body[n].text)) continue;
+      if (body.slice(n).filter((i) => i.type === 'tool').length <= TIDY_STEPS) from = n;
+      break;
+    }
+    const work = [...body.slice(0, from), ...body.slice(from).filter(isStep)];
     out.push({
       kind: 'turn',
       key: turn.user.key,
       user: turn.user,
       work: work.filter((i) => !(i.type === 'notice' && i.tone === 'error')),
       errors: work.filter((i) => i.type === 'notice' && i.tone === 'error'),
-      answer: body.slice(lastStep + 1),
+      answer: body.slice(from).filter((i) => !isStep(i)),
       end: turn.body.find((i) => i.type === 'turn') || null,
       live,
     });

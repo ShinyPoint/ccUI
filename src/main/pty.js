@@ -74,14 +74,24 @@ class PtyManager {
     }
     const launch = kind === 'shell' ? defaultShell() : claudeLaunch(claude, [...args, ...splitArgs(extraArgs)]);
 
-    const proc = pty.spawn(launch.file, launch.args, {
+    const options = {
       name: 'xterm-256color',
       cols: Math.max(cols, 20),
       rows: Math.max(rows, 5),
       cwd,
       env: childEnv({ TERM: 'xterm-256color', COLORTERM: 'truecolor' }),
       useConpty: true,
-    });
+    };
+    // On Windows, the ConPTY that comes with node-pty rather than the system's: the system's drops the answers to
+    // Claude Code's queries that it doesn't know (the one that lets Claude Code say what it is doing, see
+    // programStatus in the window). The system's if that one can't start.
+    let proc;
+    try {
+      proc = pty.spawn(launch.file, launch.args, { ...options, useConptyDll: isWin });
+    } catch (err) {
+      if (!isWin) throw err;
+      proc = pty.spawn(launch.file, launch.args, options);
+    }
 
     const id = this.nextId++;
     const session = { id, proc, buffer: '', timer: null };

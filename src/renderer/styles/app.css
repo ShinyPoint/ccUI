@@ -113,7 +113,7 @@ html, body { height: 100%; margin: 0; }
 ::selection { background: color-mix(in srgb, var(--text) 88%, transparent); color: var(--surface); }
 
 /* Numbers that change in place (counts, sizes, timers) keep their width in the proportional UI font. */
-.count, .set-slider output, .field-label output, .find-count, .context-meter, .activity-time, .tasks-count, .ws-details, .ws-cost, .turn-end { font-variant-numeric: tabular-nums; }
+.set-slider output, .field-label output, .find-count, .context-meter, .activity-time, .tasks-count, .ws-details, .ws-cost, .turn-end { font-variant-numeric: tabular-nums; }
 body {
   font: 13.5px/1.45 var(--ui);
   color: var(--text);
@@ -213,7 +213,7 @@ body.sidebar-collapsed #app { grid-template-columns: 0 minmax(0, 1fr); }
 /* Hiding the sidebar: its column eases to 0 while the contents keep their width and are clipped from the
    right, so nothing reflows mid-animation. Once hidden it is out of the tab order. */
 .sidebar-top, .sidebar-scroll { min-width: var(--sidebar-w); }
-.new-session { min-width: calc(var(--sidebar-w) - 24px); }
+.new-session, .sidebar-link { min-width: calc(var(--sidebar-w) - 28px); }
 .sidebar-bottom { min-width: calc(var(--sidebar-w) - 24px); }
 body.sidebar-collapsed #sidebar { visibility: hidden; transition: visibility 0s .22s; }
 /* Frosted glass (html.glass, see main.jsx): the window is backed by the system's blurred material and the whole
@@ -235,11 +235,6 @@ html.glass[data-theme="dark"] #app { background: color-mix(in srgb, var(--chrome
   --pane-fill: color-mix(in srgb, var(--raise) 55%, transparent);
   --pane-shadow: 0 2px 12px -5px rgba(0, 0, 0, .5);
 }
-:is(html.glass, html.has-bg) .new-session {
-  background: color-mix(in srgb, var(--accent) 16%, var(--pane-fill));
-  box-shadow: var(--pane-shadow);
-}
-:is(html.glass, html.has-bg) .new-session:hover { background: color-mix(in srgb, var(--accent) 24%, var(--pane-fill)); }
 :is(html.glass, html.has-bg) .session { --row: transparent; }
 :is(html.glass, html.has-bg) .session:hover { --row: color-mix(in srgb, var(--text) 6%, transparent); background: var(--row); }
 :is(html.glass, html.has-bg) .session[aria-current="true"] {
@@ -292,33 +287,34 @@ body.platform-darwin .sidebar-top { padding-left: 84px; }
 .wm-cc { font: italic 22px/1 "Instrument Serif", Georgia, serif; color: #D97757; } /* always Claude's own orange, whatever the accent */
 .wm-ui { font: 600 12px/1 var(--ui); letter-spacing: .14em; color: var(--text-2); }
 
+/* New session, and Skills under it: lines of text with an icon, no fill, shadow or weight; the icons start where
+   the "Projects" heading does (16px in: the scroll area's 8px and the heading's 8px). Their strokes start a few
+   pixels inside their boxes, so the boxes go that far further out (checked in chat-look). */
 .new-session {
   display: flex; align-items: center; gap: 8px;
-  margin: 6px 12px 10px;
-  height: 36px;
-  padding: 0 10px 0 12px;
-  border-radius: var(--r-sm);
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: var(--bold);
+  margin: 6px 12px 0 16px;
+  height: 32px;
+  padding: 0;
+  color: var(--text-2);
   white-space: nowrap;
-  transition: background .15s;
+  transition: color .15s;
 }
-.new-session:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
-.new-session kbd { margin-left: auto; color: inherit; background: color-mix(in srgb, var(--accent) 14%, transparent); opacity: .85; }
+.new-session:hover { color: var(--text); }
+.new-session .icon { margin-left: -3px; color: var(--muted); transition: color .15s; }
+.new-session:hover .icon { color: var(--text-2); }
 /* Under New session: a plain line of text with an icon, no fill (Skills). */
 .sidebar-link {
   display: flex; align-items: center; gap: 8px;
-  margin: -4px 12px 8px;
+  margin: 0 12px 8px 16px;
   height: 30px;
-  padding: 0 10px 0 12px;
+  padding: 0;
   color: var(--text-2);
   white-space: nowrap;
   transition: color .15s;
 }
 .sidebar-link:hover:not(:disabled) { color: var(--text); }
 .sidebar-link:disabled { opacity: .45; cursor: default; }
-.sidebar-link .icon { color: var(--muted); }
+.sidebar-link .icon { margin-left: -3.5px; color: var(--muted); }
 .sidebar-link:hover:not(:disabled) .icon { color: var(--text-2); }
 
 .sidebar-scroll { flex: 1; overflow-y: auto; padding: 0 8px 12px; }
@@ -336,7 +332,6 @@ body.platform-darwin .sidebar-top { padding-left: 84px; }
   display: flex; align-items: center; gap: 6px;
   margin: 14px 8px 6px;
 }
-.count { font: 500 10.5px var(--ui); letter-spacing: 0; }
 .section-action { width: 22px; height: 22px; margin: -6px -2px -6px auto; }
 
 /* Project search (Ctrl+Shift+F), under the Projects label. */
@@ -357,8 +352,8 @@ body.platform-darwin .sidebar-top { padding-left: 84px; }
 .sidebar-hint { margin: 2px 8px; color: var(--muted); font-size: 12.5px; }
 .session-list, .recent-list { list-style: none; margin: 0; padding: 0; }
 
-/* Session rows: a bare kind icon with a status badge, title over state, and a small live activity
-   sparkline that gives way to the close button on hover. */
+/* Session rows: one line, the kind icon at the text's size and the title; at the right a spinner while Claude
+   works (a dot while it waits for you), giving way to the close button on hover. */
 .session {
   --row: var(--chrome); /* the row's opaque color, for the badge's cut-out ring */
   position: relative;
@@ -370,32 +365,22 @@ body.platform-darwin .sidebar-top { padding-left: 84px; }
 .session[aria-current="true"] { --row: color-mix(in srgb, var(--accent) 13%, var(--chrome)); background: var(--row); }
 .session-main {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) 36px;
+  grid-template-columns: 15px minmax(0, 1fr) auto;
   align-items: center;
-  column-gap: 10px;
+  column-gap: 8px;
   width: 100%;
-  padding: 7px 8px;
+  min-height: 32px;
+  padding: 5px 12px 5px 10px;
   text-align: left;
 }
 .session-icon {
   position: relative;
   display: grid; place-items: center;
-  width: 22px; height: 22px;
+  width: 15px; height: 15px;
   color: var(--text-2);
   transition: color .15s;
 }
 .session[aria-current="true"] .session-icon { color: var(--accent); }
-.status-badge {
-  position: absolute; right: -2px; bottom: -1px;
-  width: 9px; height: 9px;
-  border-radius: 50%;
-  box-shadow: 0 0 0 2px var(--row); /* cut-out ring against the row */
-  transition: box-shadow .15s;
-  background: transparent;
-  visibility: hidden; /* only states that need a signal show a badge (below) */
-}
-.session:not([data-status="idle"]) .status-badge { visibility: visible; }
-.session-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .session-name {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-weight: 500;
@@ -411,12 +396,28 @@ body.platform-darwin .sidebar-top { padding-left: 84px; }
   font-weight: var(--bold);
   outline: none;
 }
-.session-sub {
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: 11.5px;
-  color: var(--muted);
+/* Something under way: a small turning ring, the same wherever it shows (a session at work, a folded project with
+   one, a running step or background task in a chat). */
+.session-spin, .folder-flag.busy, .agents-dot.busy, .agent-list li[data-status="running"] .agent-mark::before,
+.tool:is([data-status="streaming"], [data-status="pending"], [data-status="running"]) .tool-glyph::before {
+  content: '';
+  box-sizing: border-box;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--text) 18%, transparent);
+  border-top-color: var(--text-2);
+  background: none;
+  animation: spin .8s linear infinite;
 }
-.trace { width: 36px; height: 16px; display: block; opacity: .85; transition: opacity .15s; }
+.session-spin { transition: opacity .15s; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.session-wait { width: 7px; height: 7px; border-radius: 50%; background: var(--wait); transition: opacity .15s; }
+/* Between a folder's Chat, CLI and Shell sessions: a hairline, solid in the middle and fading out to both ends. */
+.session-divider {
+  height: 1px;
+  margin: 5px 14px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text) 16%, transparent) 50%, transparent);
+}
 .session-close {
   position: absolute; top: 50%; right: 8px;
   width: 24px; height: 24px;
@@ -424,20 +425,14 @@ body.platform-darwin .sidebar-top { padding-left: 84px; }
   border-radius: var(--r-full);
   opacity: 0;
 }
-.session:hover .trace { opacity: 0; }
+.session:hover :is(.session-spin, .session-wait) { opacity: 0; }
 .session:hover .session-close, .session-close:focus-visible { opacity: 1; }
 
-.session[data-status="working"] .status-badge { background: var(--ok); animation: pulse 1.4s ease-in-out infinite; }
-.session[data-status="working"] .state-word { color: var(--ok); }
-.session[data-status="attention"] .status-badge,
-.session[data-status="needs-you"] .status-badge { background: var(--wait); }
-.session[data-status="attention"] .state-word,
-.session[data-status="needs-you"] .state-word { color: var(--wait); }
-.session[data-status="starting"] .status-badge { background: var(--muted); animation: pulse 1s ease-in-out infinite; }
-.session[data-status="exited"] .status-badge { background: var(--off); }
-.session[data-status="error"] .status-badge { background: var(--danger); }
 .session[data-status="exited"] .session-name { color: var(--muted); }
-@keyframes pulse { 50% { opacity: .35; } }
+/* Sessions without a project, above the projects: their icons and names line up with New session's (the icon's
+   stroke under its +, the name under its label). */
+.loose .session-main { padding-left: 6px; }
+.loose .session-list { margin-bottom: 4px; }
 
 .recent {
   display: flex; align-items: center;

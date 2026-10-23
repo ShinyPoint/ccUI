@@ -25,7 +25,8 @@ const DEFAULTS = {
   claudePath: '', // empty: the built-in Claude Code (the Agent SDK's from source, otherwise downloaded)
   autoUpdateClaude: true, // keep the built-in Claude Code current (claude-update.js)
   claudeVersion: '', // empty: the newest built-in Claude Code; a version ("2.1.300"): that one, never updated
-  defaultKind: 'chat', // 'chat' | 'terminal'
+  defaultKind: 'chat', // what a project's + opens: 'chat' | 'terminal' | 'shell'
+  chatsFolder: '', // where New session's chats (and CLIs) without a project run; empty: ~/ccUI
   defaultModel: '', // empty: Claude Code's default
   defaultPermissionMode: 'default',
   defaultArgs: '', // extra CLI arguments for terminal sessions

@@ -10,7 +10,8 @@ import { ProjectMenu } from '../ProjectMenu.jsx';
 import { HistoryRail } from './HistoryRail.jsx';
 import { UserItem, TextItem, ThinkingItem, NoticeItem, CommandOutputItem, TurnItem, DividerItem, WakeItem, Markdown, localText, MessageTime } from './Items.jsx';
 import { topLevel, childrenOf, currentActivity, groupTurns, backgroundTasks, answerText } from '../../lib/chat-reducer.js';
-import { api, settings, settingsDialog, findBar, toast } from '../../lib/store.js';
+import { api, settings, settingsDialog, findBar, toast, taskDialog } from '../../lib/store.js';
+import { TASK_ICON, taskKindName } from '../dialogs/TaskDialog.jsx';
 import { openInTerminal, retryChat, stopTask, stopAllTasks, dismissSideNote } from '../../lib/sessions.js';
 import { formatCost, formatDuration, pluralize } from '../../lib/format.js';
 import { turnChanges } from '../../lib/diff.js';
@@ -73,7 +74,7 @@ function TaskStrip({ tasks: now, busy }) {
 const ENDED_SHOWN_MS = 5000;
 const ENDED_LABEL = { completed: phrase('Done'), failed: phrase('Failed'), stopped: phrase('Stopped') };
 function AgentStrip({ s, chat }) {
-  s.traceTick.value; // elapsed times, and ended tasks leaving
+  s.tick.value; // elapsed times, and ended tasks leaving
   const [open, setOpen] = useState(true);
   const el = useRef(null);
   const last = useRef([]);
@@ -103,16 +104,20 @@ function AgentStrip({ s, chat }) {
         <ul class="agent-list">
           {shown.map((a) => (
             <li key={a.id} data-status={a.status} class={leaving(a) ? 'leaving' : ''}>
-              <span class="agent-mark">
-                {a.status === 'completed' ? <Icon name="check" size={12} /> : a.status !== 'running' ? <Icon name="x" size={12} /> : null}
-              </span>
-              <span class="agent-type">{a.subagentType || (a.kind === 'local_bash' ? t('Shell') : t('Agent'))}</span>
-              <span class="agent-desc" title={a.summary || a.description}>{a.description || t('Working')}</span>
-              <span class="agent-meta">
-                {a.status === 'running'
-                  ? [formatDuration(now - a.startedAt), a.toolUses ? pluralize(a.toolUses, 'tool') : '', a.lastTool].filter(Boolean).join(' · ')
-                  : ENDED_LABEL[a.status] ? t(ENDED_LABEL[a.status]) : t('Ended')}
-              </span>
+              {/* The row opens the task's details (TaskDialog): a subagent's steps, a shell's output. */}
+              <button type="button" class="agent-open" aria-label={t('Details of {task}', { task: a.description || taskKindName(a) })}
+                      onClick={() => { taskDialog.value = { uid: s.uid, id: a.id }; }}>
+                <span class="agent-mark">
+                  {a.status === 'completed' ? <Icon name="check" size={12} /> : a.status !== 'running' ? <Icon name="x" size={12} /> : null}
+                </span>
+                <span class="agent-kind" title={taskKindName(a)}><Icon name={TASK_ICON[a.kind] || 'toolAgent'} size={14} /></span>
+                <span class="agent-desc" title={a.summary || a.description}>{a.description || t('Working')}</span>
+                <span class="agent-meta">
+                  {a.status === 'running'
+                    ? [formatDuration(now - a.startedAt), a.toolUses ? pluralize(a.toolUses, 'tool') : '', a.lastTool].filter(Boolean).join(' · ')
+                    : ENDED_LABEL[a.status] ? t(ENDED_LABEL[a.status]) : t('Ended')}
+                </span>
+              </button>
               {a.status === 'running'
                 ? <button class="icon-btn agent-stop" title={t('Stop this task')} aria-label={a.description ? t('Stop {task}', { task: a.description }) : t('Stop this task')}
                           onClick={() => stopTask(s, a.id)}><Icon name="stop" size={12} /></button>
@@ -368,16 +373,34 @@ function AnswerActions({ text, at }) {
   );
 }
 
+// How Claude Code says it is at work: one of its playful verbs, the same through a turn and another the next.
+const VERBS = [
+  phrase('Accomplishing…'), phrase('Architecting…'), phrase('Baking…'), phrase('Brewing…'), phrase('Calculating…'),
+  phrase('Cerebrating…'), phrase('Channeling…'), phrase('Choreographing…'), phrase('Churning…'), phrase('Clauding…'),
+  phrase('Coalescing…'), phrase('Cogitating…'), phrase('Composing…'), phrase('Computing…'), phrase('Concocting…'),
+  phrase('Considering…'), phrase('Contemplating…'), phrase('Cooking…'), phrase('Crafting…'), phrase('Crunching…'),
+  phrase('Crystallizing…'), phrase('Deciphering…'), phrase('Deliberating…'), phrase('Doodling…'),
+  phrase('Elucidating…'), phrase('Envisioning…'), phrase('Fermenting…'), phrase('Forging…'), phrase('Hatching…'),
+  phrase('Ideating…'), phrase('Imagining…'), phrase('Improvising…'), phrase('Incubating…'), phrase('Inferring…'),
+  phrase('Kneading…'), phrase('Marinating…'), phrase('Meandering…'), phrase('Moseying…'), phrase('Mulling…'),
+  phrase('Noodling…'), phrase('Orchestrating…'), phrase('Philosophizing…'), phrase('Polishing…'),
+  phrase('Pondering…'), phrase('Puzzling…'), phrase('Ruminating…'), phrase('Simmering…'), phrase('Sketching…'),
+  phrase('Spelunking…'), phrase('Stewing…'), phrase('Synthesizing…'), phrase('Thinking…'), phrase('Tinkering…'),
+  phrase('Unraveling…'), phrase('Vibing…'), phrase('Whisking…'), phrase('Working…'), phrase('Wrangling…'),
+];
+const verbFor = (key) => VERBS[[...String(key)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % VERBS.length];
+
 function Activity({ s, chat }) {
-  s.traceTick.value; // re-render every second for the elapsed time
+  s.tick.value; // re-render every second for the elapsed time
   const label = currentActivity(chat);
   if (!label) return null;
   const lastUser = [...chat.items].reverse().find((i) => i.type === 'user');
   const elapsed = lastUser?.at ? formatDuration(Date.now() - lastUser.at) : '';
+  const generic = label === 'Thinking…' || label === 'Working…';
   return (
     <div class={`activity ${chat.permissions.length ? 'asking' : ''}`} aria-live="polite">
-      <span class="activity-mark">✻</span>
-      <span>{localText(label)}</span>
+      <span class="activity-mark" aria-hidden="true" />
+      <span>{generic ? t(verbFor(lastUser?.key ?? chat.items.length)) : localText(label)}</span>
       {elapsed && <span class="activity-time">{elapsed}</span>}
     </div>
   );

@@ -7,6 +7,8 @@ import { MODE_LABELS } from '../chat/Prompts.jsx';
 import { MODEL_CHOICES } from './NewSessionDialog.jsx';
 import { api, info, settings, saveSettings, settingsDialog, claudeCheck, claudeUpdate, toast, themeMode, backgroundUrl } from '../../lib/store.js';
 import { SHORTCUT_LIST } from '../../lib/keyboard.js';
+import { chatsFolder } from '../../lib/sessions.js';
+import { tildify } from '../../lib/format.js';
 import { PALETTES } from '../../lib/themes.js';
 import { t, phrase, locale, LANGUAGES, systemLocale } from '../../lib/i18n.js';
 
@@ -331,10 +333,11 @@ function General() {
         </Row>
       </Group>
       <Group title={t('New sessions')}>
-        <Row label={t('Open as')} note={t('What New session starts with')}>
+        <Row label={t('Default session')} note={t('What a project’s + opens')}>
           <Segmented name="defaultKind" value={s.defaultKind} onChange={(v) => saveSettings({ defaultKind: v })} options={[
             { value: 'chat', label: t('Chat') },
             { value: 'terminal', label: 'CLI' },
+            { value: 'shell', label: t('Shell') },
           ]} />
         </Row>
         <Row label={t('Model')}>
@@ -344,6 +347,12 @@ function General() {
         <Row label={t('Permissions')}>
           <Dropdown label={t('Permissions')} value={s.defaultPermissionMode} onChange={(v) => saveSettings({ defaultPermissionMode: v })}
                     options={PERMISSION_MODES.map((m) => ({ value: m, label: t(MODE_LABELS[m]) }))} />
+        </Row>
+        <Row label={t('Sessions without a project')} note={t('New session starts them in {folder}', { folder: tildify(chatsFolder()) })}>
+          <button type="button" class="secondary-btn" onClick={async () => {
+            const folder = await api.pickFolder(chatsFolder());
+            if (folder) saveSettings({ chatsFolder: folder });
+          }}>{t('Change…')}</button>
         </Row>
         <Row label={t('CLI arguments')} note={t('Added to every CLI session')}>
           <TextField value={s.defaultArgs} placeholder={t('e.g. --model sonnet')} label={t('CLI arguments')}

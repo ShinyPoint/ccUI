@@ -17,10 +17,41 @@ const project = tempDir('agents-project');
 fs.mkdirSync(outDir, { recursive: true });
 
 const launched = (description) => ({ status: 'async_launched', agentId: description, description, prompt: description, outputFile: '' });
+// Where the fake Claude Code writes a background shell's output (as the real one does: …/claude…/…/tasks/<id>.output).
+const tasksDir = path.join(os.tmpdir(), 'claude', path.basename(tempDir('agents-tasks')), 'tasks');
+fs.mkdirSync(tasksDir, { recursive: true });
+process.on('exit', () => { try { fs.rmSync(path.dirname(tasksDir), { recursive: true, force: true }); } catch { /* still open */ } });
+
 const director = {
   histories: [],
   transcripts: new Map(),
   script: (_c, text) => async (c) => {
+    if (/watch/i.test(text)) {
+      // A shell in the background, its output growing, and an agent with a few steps.
+      const file = path.join(tasksDir, 'shell-w.output');
+      fs.writeFileSync(file, 'watching line 1\n');
+      const sh = await c.tool('Bash', { command: 'npm run watch', description: 'Watch the build', run_in_background: true },
+        { run: 80, result: `Command running in background with ID: shell-w. Output is being written to: ${file}` });
+      c.startTask({ id: 'shell-w', toolUseId: sh.id, description: 'Watch the build', kind: 'local_bash' });
+      const ag = await c.tool('Agent', { description: 'Read the docs', prompt: 'Read every doc and sum them up', subagent_type: 'Explore' },
+        { run: 80, result: 'Async agent launched successfully.', data: launched('Read the docs') });
+      c.startTask({ id: 'task-r', toolUseId: ag.id, description: 'Read the docs', subagentType: 'Explore' });
+      await c.say('Watching the build and reading the docs.', { cps: 600 });
+      c.finish(0.01);
+      (async () => {
+        for (let i = 2; c.tasks.has('shell-w') && i < 400; i++) {
+          await sleep(300);
+          fs.appendFileSync(file, `watching line ${i}\n`);
+        }
+      })().catch(() => {});
+      (async () => {
+        for (let i = 1; c.tasks.has('task-r') && i < 400; i++) {
+          await c.childTool(ag.id, 'Read', { file_path: c.file(`doc${i}.md`) }, { run: 350 });
+          c.taskProgress('task-r', { toolUses: i, lastTool: 'Read' });
+        }
+      })().catch(() => {});
+      return;
+    }
     if (/survey/i.test(text)) {
       await c.think(150);
       const a = await c.tool('Agent', { description: 'Map the modules', prompt: 'Map the modules', subagent_type: 'Explore' },
@@ -138,15 +169,21 @@ app.on('browser-window-created', (_e, win) => {
       // Open the steps: the Agent cards say they run in the background, and their steps are not "Not run".
       await js("document.querySelector('.work-summary')?.click(); true");
       await wait(500);
-      // A step at work: a gray circle of a fixed size that only fades, no glyph.
-      const pulse = [];
-      for (let i = 0; i < 6; i++) {
-        pulse.push(JSON.parse(await js(`JSON.stringify((() => { const g = document.querySelector('.tool.agent[data-status="running"] .tool-glyph');
-          const b = getComputedStyle(g, '::before'); return { w: b.width, h: b.height, o: Number(b.opacity), icon: getComputedStyle(g.querySelector('svg')).display }; })())`)));
-        await wait(230);
+      // A step at work: the spinner the sidebar has (a turning ring of a fixed size), no glyph; so do the strip's
+      // running tasks and its heading.
+      const turns = [];
+      for (let i = 0; i < 4; i++) {
+        turns.push(JSON.parse(await js(`JSON.stringify((() => { const g = document.querySelector('.tool.agent[data-status="running"] .tool-glyph');
+          const b = getComputedStyle(g, '::before'); return { w: b.width, h: b.height, ring: b.borderTopColor !== b.borderRightColor, turn: b.transform, icon: getComputedStyle(g.querySelector('svg')).display }; })())`)));
+        await wait(170);
       }
-      check('a working step is a gray circle of fixed size that fades', pulse.every((p) => p.w === '8px' && p.h === '8px' && p.icon === 'none')
-        && Math.max(...pulse.map((p) => p.o)) - Math.min(...pulse.map((p) => p.o)) > 0.15, JSON.stringify(pulse.map((p) => p.o.toFixed(2))));
+      check('a working step is a turning ring of fixed size, no glyph', turns.every((p) => p.w === '12px' && p.h === '12px' && p.ring && p.icon === 'none')
+        && new Set(turns.map((p) => p.turn)).size > 1, JSON.stringify(turns.map((p) => p.turn)));
+      const strip = JSON.parse(await js(`JSON.stringify((() => { const ring = (el, pseudo) => { const b = getComputedStyle(el, pseudo); return b.animationName === 'spin' && b.borderTopColor !== b.borderRightColor; };
+        const row = document.querySelector('.agent-list li[data-status="running"]');
+        return { head: ring(document.querySelector('.agents-dot')), row: ring(row.querySelector('.agent-mark'), '::before'), words: Boolean(document.querySelector('.agent-type')),
+          icon: Boolean(row.querySelector('.agent-kind svg')), tip: row.querySelector('.agent-kind').title }; })())`));
+      check('the strip spins too, and names a task’s kind with an icon, not a word', strip.head && strip.row && !strip.words && strip.icon && Boolean(strip.tip), JSON.stringify(strip));
       check('the Agent cards say they run in the background', await js("[...document.querySelectorAll('.tool.agent .tool-meta')].every((m) => /In the background/.test(m.textContent))"));
 
       // Stop one of them.
@@ -191,7 +228,7 @@ app.on('browser-window-created', (_e, win) => {
       const full = fold[0];
       const between = [...new Set(fold.filter((h) => h > 2 && h < full - 2))];
       check('the strip folds away, not vanishing', fold.at(-1) === 0 && between.length >= 3, `${full}px → ${between.slice(0, 8).join(' ')} → 0`);
-      check('the session is not left working', await js("!document.querySelector('.session-row.working, .status-badge.working')"));
+      check('the session is not left working', await js("!document.querySelector('#sidebar .session-spin')"));
 
       // Stop during a turn ends it and its agents.
       await say('Do it again');
@@ -203,6 +240,36 @@ app.on('browser-window-created', (_e, win) => {
       await until('the chat to stop working', "!document.querySelector('.send-btn.stop') && !document.querySelector('.activity')", 6000);
       check('Esc ended the turn and its agent', true);
       check('stop-task was sent for the agent you stopped', (director.stopped || []).includes('task-b'), JSON.stringify(director.stopped));
+
+      // A task's row opens its details: a shell's command and its output as it grows; an agent's instructions and steps.
+      await say('Watch the build');
+      await until('the shell and the agent', `${rows}.includes('running:Watch the build') && ${rows}.includes('running:Read the docs')`);
+      const openTask = (name) => js(`[...document.querySelectorAll('.agent-list li')].find((li) => li.textContent.includes(${JSON.stringify(name)})).querySelector('.agent-open').click(); true`);
+      await openTask('Watch the build');
+      await until('the shell’s details', "Boolean(document.querySelector('.dialog-task .task-output pre'))", 5000);
+      await wait(700);
+      const shellFirst = JSON.parse(await js(`JSON.stringify({ cmd: document.querySelector('.dialog-task .bash-cmd')?.textContent, out: document.querySelector('.dialog-task .task-output pre').textContent,
+        title: document.querySelector('.dialog-task h3').textContent })`));
+      await wait(1800);
+      const shellLater = await js("document.querySelector('.dialog-task .task-output pre').textContent");
+      const lines = (text) => (text.match(/watching line \d+/g) || []).length;
+      check('a shell’s details: its command and its output', /npm run watch/.test(shellFirst.cmd || '') && lines(shellFirst.out) >= 1 && shellFirst.title === 'Watch the build', JSON.stringify({ ...shellFirst, out: lines(shellFirst.out) }));
+      check('the output grows while it runs', lines(shellLater) > lines(shellFirst.out), `${lines(shellFirst.out)} → ${lines(shellLater)} lines`);
+      await shot('4-task-shell');
+      await js("document.querySelector('.dialog-task .primary-btn').click(); true");
+      await until('the details to close', "!document.querySelector('.dialog-task[open]')", 3000);
+      await openTask('Read the docs');
+      await until('the agent’s details', "Boolean(document.querySelector('.dialog-task .subagent'))", 5000);
+      await wait(1200);
+      const agent = JSON.parse(await js(`JSON.stringify({ brief: document.querySelector('.dialog-task .subagent-brief summary')?.textContent, steps: document.querySelectorAll('.dialog-task .children .tool').length,
+        meta: document.querySelector('.dialog-task .task-meta').textContent })`));
+      check('an agent’s details: its instructions and its steps so far', agent.brief === 'Instructions' && agent.steps >= 1 && /Explore/.test(agent.meta), JSON.stringify(agent));
+      await shot('5-task-agent');
+      await js("[...document.querySelectorAll('.dialog-task .secondary-btn')].find((b) => /Stop this task/.test(b.textContent)).click(); true");
+      await until('the agent to stop', `${rows}.includes('stopped:Read the docs') || !${rows}.includes('running:Read the docs')`, 5000);
+      check('Stop in the details stops the task', (director.stopped || []).includes('task-r'), JSON.stringify(director.stopped));
+      await js("document.querySelector('.dialog-task .primary-btn')?.click(); true");
+      await js("document.querySelector('.agents-stop-all')?.click(); true");
     } catch (err) {
       console.error('failed:', err);
       failures++;

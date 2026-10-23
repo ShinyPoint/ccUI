@@ -155,9 +155,9 @@
   background: color-mix(in srgb, var(--raise) 70%, transparent);
   font: .88em var(--mono);
 }
-/* Tables are rounded, tinted cards like code blocks (--r-md), with no outline: a stronger tint for the header and
-   faint lines between the rows only. The table itself is the scroll box (display: block), sized to its content up
-   to the column width. */
+/* Tables are rounded cards like code blocks (--r-md): one surface, the header the same color as the rows, faint
+   lines between the rows only, lifted by the floating bars' glow. The table itself is the scroll box (display:
+   block), sized to its content up to the column width. */
 .md table {
   display: block;
   width: max-content; max-width: 100%;
@@ -167,31 +167,34 @@
   border-collapse: separate;
   border-spacing: 0;
   background: var(--base);
+  box-shadow: var(--glow);
   font-size: .94em;
 }
 .md th, .md td { padding: 7px 14px; border: 0 solid var(--hair); text-align: left; vertical-align: top; }
 .md tr:not(:last-child) > td { border-bottom-width: 1px; }
-.md th { background: var(--fill); font-weight: 600; }
+.md th { font-weight: var(--bold); }
+.md tr > th { border-bottom-width: 1px; }
+/* A code block is one surface, its language over the code in the same color, lifted by the floating bars'
+   glow (a hairline edge and a soft shadow) rather than a border. */
 .code-block {
   margin: .5em 0 1em;
   border-radius: var(--r-md);
   overflow: hidden;
   background: var(--base);
+  box-shadow: var(--glow);
 }
 .code-head {
-  /* Like a table's header row (.md th): the same shade, height and text. */
   display: flex; justify-content: space-between; align-items: center;
-  padding: 4px 6px 4px 14px;
-  min-height: 34px;
-  background: var(--fill);
-  font: 600 .94em var(--ui);
-  color: var(--text);
+  padding: 4px 6px 0 14px;
+  min-height: 32px;
+  font: 12px var(--ui);
+  color: var(--muted);
 }
 .code-copy { padding: 2px 8px; border-radius: var(--r-xs); font: 11px var(--ui); color: var(--muted); }
 .code-copy:hover { background: var(--fill-2); color: var(--text); }
 .code-block pre, .code-view pre {
   margin: 0;
-  padding: 10px 14px;
+  padding: 4px 14px 12px;
   overflow: auto;
   font: 12.5px/1.55 var(--mono);
 }
@@ -278,14 +281,7 @@
 .tool[data-status="asking"] .tool-glyph { color: var(--wait); }
 .tool:is([data-status="cancelled"], [data-status="denied"]) .tool-glyph { color: var(--off); }
 .tool:is([data-status="streaming"], [data-status="pending"], [data-status="running"]) .tool-glyph .icon { display: none; }
-.tool:is([data-status="streaming"], [data-status="pending"], [data-status="running"]) .tool-glyph::before {
-  content: "";
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: var(--muted);
-  animation: tool-working 1.4s ease-in-out infinite;
-}
-@keyframes tool-working { 0%, 100% { opacity: .35; } 50% { opacity: .9; } }
+/* While it works, the spinner (app.css) in its place. */
 .tool-target {
   min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -317,10 +313,12 @@
 .tool.nested .tool-head { min-height: 26px; padding-top: 3px; padding-bottom: 3px; }
 .tool.nested .tool-glyph { top: 5.5px; }
 
+/* What a tool shows (its diff, the file, a command and its output) floats with the glow code blocks have. */
 .diff, .code-view, .tool-output, .bash {
   border-radius: var(--r-md);
   background: var(--base);
   overflow: hidden;
+  box-shadow: var(--glow);
 }
 .diff { max-height: 480px; overflow: auto; font: 12.5px/1.5 var(--mono); padding: 4px 0; }
 .hunk { min-width: max-content; }
@@ -348,7 +346,7 @@
   user-select: text;
 }
 .tool-output.error pre { color: var(--danger); }
-.bash .tool-output { border-radius: 0; background: var(--fill); }
+.bash .tool-output { border-radius: 0; background: var(--fill); box-shadow: none; }
 .bash-cmd { display: flex; gap: 10px; padding: 9px 14px; font: 12.5px/1.5 var(--mono); }
 .bash-cmd pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; font: inherit; }
 .prompt-sign { color: var(--accent); user-select: none; }
@@ -362,6 +360,7 @@
   padding: 10px 14px;
   border-radius: var(--r-md);
   background: var(--base);
+  box-shadow: var(--glow);
   max-height: 420px;
   overflow: auto;
   font-size: .95em;
@@ -402,6 +401,7 @@
   padding: 13px 15px;
   border-radius: var(--r-md);
   background: color-mix(in srgb, var(--wait) 10%, var(--base));
+  box-shadow: var(--glow); /* permission prompts, questions and plans float like the message box */
   animation: prompt-in .2s var(--ease);
 }
 @keyframes prompt-in { from { opacity: 0; transform: translateY(4px); } }
@@ -490,6 +490,7 @@
   padding: 12px 16px;
   border-radius: var(--r-md);
   background: var(--base);
+  box-shadow: var(--glow);
   font-size: .95em;
   user-select: text;
 }
@@ -569,10 +570,17 @@
 .wake[data-status="stopped"] .icon { color: var(--muted); }
 
 .activity { display: flex; align-items: center; gap: 8px; padding: 2px 0; color: var(--text-2); font-size: .93em; }
-.activity-mark { display: inline-block; color: var(--accent); animation: spin 2.4s linear infinite; }
-.activity.asking .activity-mark { color: var(--wait); animation: none; }
+/* Claude Code's spinner: a star that grows and shrinks (· ✢ ✳ ✶ ✻ ✽ and back), in the accent. */
+.activity-mark { display: inline-grid; place-items: center; width: 1em; color: var(--accent); }
+.activity-mark::before { content: '✻'; animation: activity-star 1.2s steps(1) infinite; }
+.activity.asking .activity-mark { color: var(--wait); }
+.activity.asking .activity-mark::before { content: '✻'; animation: none; }
+@media (prefers-reduced-motion: reduce) { .activity-mark::before { animation: none; } }
+@keyframes activity-star {
+  0% { content: '·'; } 10% { content: '✢'; } 20% { content: '✳'; } 30% { content: '✶'; } 40% { content: '✻'; }
+  50% { content: '✽'; } 60% { content: '✻'; } 70% { content: '✶'; } 80% { content: '✳'; } 90% { content: '✢'; }
+}
 .activity-time { font: 11.5px var(--ui); color: var(--muted); }
-@keyframes spin { to { transform: rotate(360deg); } }
 
 /* A new chat (.chat.empty): the question and the message box sit together in the middle of the chat, a little
    above it. The question is plain UI type in the regular weight. */
@@ -688,24 +696,32 @@
 .agents-toggle .icon { color: var(--muted); transition: transform .26s var(--ease); }
 .agents.open .agents-toggle .icon { transform: rotate(180deg); }
 .agents-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex-shrink: 0; }
-.agents-dot.busy, .agent-list li[data-status="running"] .agent-mark::before { background: var(--accent); animation: agent-pulse 1.4s ease-in-out infinite; }
-@keyframes agent-pulse { 50% { opacity: .3; } }
+.agents-dot.busy { background: none; }
 .agents-stop-all { padding: 3px 10px; border-radius: var(--r-sm); font-size: 12px; color: var(--text-2); }
 .agents-stop-all:hover { background: var(--fill); color: var(--danger); }
 .agent-list { list-style: none; margin: 0; padding: 0 6px 8px 12px; max-height: 200px; overflow: auto; }
 .agent-list li {
-  display: grid; grid-template-columns: 14px auto minmax(0, 1fr) auto 24px; align-items: center; gap: 8px;
+  display: grid; grid-template-columns: minmax(0, 1fr) 24px; align-items: center; gap: 4px;
   min-height: 28px;
   font-size: 13px;
 }
+/* The row, but its Stop: opens the task's details. */
+.agent-open {
+  display: grid; grid-template-columns: 14px 14px minmax(0, 1fr) auto; align-items: center; gap: 8px;
+  min-width: 0; min-height: 28px;
+  margin-left: -6px; padding: 0 6px;
+  border-radius: var(--r-sm);
+  text-align: left;
+  transition: background .15s;
+}
+.agent-open:hover { background: var(--fill); }
 /* An ended task in its last second, while others stay: it folds out of the list. */
 .agent-list li.leaving { animation: agent-row-out .3s cubic-bezier(.2, .7, .2, 1) forwards; overflow: hidden; }
 @keyframes agent-row-out { to { min-height: 0; height: 0; opacity: 0; } }
 .agent-mark { display: grid; place-items: center; color: var(--muted); }
-.agent-list li[data-status="running"] .agent-mark::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
 .agent-list li[data-status="completed"] .agent-mark { color: var(--ok); }
 .agent-list li[data-status="failed"] .agent-mark { color: var(--danger); }
-.agent-type { padding: 1px 6px; border-radius: var(--r-xs); background: var(--fill); font: 500 11.5px var(--ui); color: var(--text-2); white-space: nowrap; }
+.agent-kind { display: grid; place-items: center; color: var(--muted); }
 .agent-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .agent-list li:not([data-status="running"]) .agent-desc { color: var(--muted); }
 .agent-meta { font: 11.5px var(--ui); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -736,6 +752,34 @@
   user-select: text;
 }
 .chat-composer .composer-input::placeholder { color: var(--muted); }
+/* Paste placeholders as chips: a layer behind the textarea draws them where its text has them (Composer.jsx
+   ChipLayer). Its text sits exactly where the textarea's does, in the same font and wrapping; the layer itself
+   reaches 16px further on every side (its padding takes them back) so the chips' glow isn't cut at the box's
+   edges. The chips grow past their text with a spread shadow, so nothing moves. */
+.composer-field { position: relative; }
+.composer-field .composer-input { position: relative; z-index: 1; }
+.composer-marks {
+  position: absolute; inset: -16px;
+  padding: 18px 16px;
+  overflow-y: auto;
+  font: var(--chat-size, 14px)/1.55 var(--ui);
+  white-space: pre-wrap; overflow-wrap: break-word;
+  color: transparent;
+  pointer-events: none;
+}
+.composer-marks::-webkit-scrollbar-thumb { background: transparent; }
+.composer-marks.scrolls { clip-path: inset(16px 0); }
+/* A chip is one piece: its fill, a hairline round it and a soft halo, all in the accent (a light halo on the dark
+   theme, a shadow on the light one). */
+.paste-chip {
+  --chip: color-mix(in srgb, var(--accent) 11%, var(--base));
+  color: transparent;
+  background: var(--chip);
+  border-radius: 6px;
+  box-shadow: 0 0 0 3px var(--chip), 0 0 0 3.5px color-mix(in srgb, var(--accent) 24%, transparent),
+    0 0 16px 1px color-mix(in srgb, var(--accent) 16%, transparent);
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
 .composer-bar { display: flex; align-items: center; gap: 4px; margin-top: 6px; margin-left: -8px; container-type: inline-size; }
 .composer-bar .spacer { flex: 1; }
 /* The bar fits whatever width the chat has (a small window, the Changes panel open), the send button always in
@@ -957,13 +1001,12 @@
 .folder.collapsed .folder-chevron { transform: rotate(-90deg); }
 .folder-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--bold); color: var(--text-2); }
 .folder.has-active .folder-name { color: var(--text); }
-.folder-row > .count { flex-shrink: 0; min-width: 12px; margin: 0 8px 0 2px; text-align: right; font: 500 10.5px var(--ui); color: var(--muted); pointer-events: none; }
 .folder-flag { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 .folder-flag.wait { background: var(--wait); }
-.folder-flag.busy { background: var(--ok); animation: pulse 1.4s ease-in-out infinite; }
+.folder-flag.busy { width: 10px; height: 10px; }
 .folder-row .icon-btn { width: 24px; height: 24px; opacity: 0; flex-shrink: 0; }
 .folder-row:hover .icon-btn, .folder-row .icon-btn:focus-visible { opacity: 1; }
-.folder-add { margin-right: 0; }
+.folder-add { margin-right: 4px; }
 .folder .session-list { margin: 2px 0 6px 12px; }
 
 .recents { margin: 2px 0 6px 12px; }
@@ -1232,3 +1275,13 @@ html.frost[data-theme="dark"] :is(.menu-list, .context-menu, .autocomplete) { bo
 :is(.side-file-body, .side-panel .menu-list):hover::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, var(--text) 28%, transparent); }
 .side-file-body { user-select: text; }
 .side-file-body :is(.ln, .sign, .hunk-head, .more, .side-note) { user-select: none; }
+
+/* A background task's details (TaskDialog). */
+.dialog-task { width: min(760px, calc(100vw - 48px)); }
+.dialog-task .dialog-body { display: flex; flex-direction: column; max-height: calc(100vh - 64px); }
+.task-head { display: flex; align-items: center; gap: 10px; margin: 0 -6px 4px 0; }
+.task-head h3 { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-kind { display: grid; place-items: center; width: 26px; height: 26px; flex-shrink: 0; border-radius: var(--r-sm); background: var(--fill); color: var(--text-2); }
+.task-meta { margin: 0 0 14px 36px; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.task-body { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: auto; margin: 0 -8px; padding: 4px 8px 12px; }
+.task-output pre { max-height: none; min-height: 120px; height: min(46vh, 420px); }

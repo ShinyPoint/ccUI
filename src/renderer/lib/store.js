@@ -15,6 +15,7 @@ export const sessions = signal([]);
 export const activeUid = signal(null);
 export const active = computed(() => sessions.value.find((s) => s.uid === activeUid.value) || null);
 export const newSessionDialog = signal(null); // null when closed, else prefill object
+export const taskDialog = signal(null); // a background task's details: { uid (its session), id (the task) }
 export const settingsDialog = signal(false);
 export const skillsDialog = signal(null); // the chat session whose skills are being managed, or null
 // A small read-only dialog for what some commands show (/status, /memory, /mcp; InfoDialog.jsx):
@@ -30,7 +31,6 @@ export const historyRail = signal(false);
 export const toasts = signal([]);
 export const windowFocused = signal(document.hasFocus());
 
-export const TRACE_LEN = 60;
 let nextUid = 1;
 
 // kind: 'chat' | 'terminal' (Claude Code TUI) | 'shell'
@@ -54,6 +54,7 @@ export function makeSession({ kind, cwd, name = null, sessionId = null }) {
     problem: signal(null), // { code, text } when the chat cannot run
     draft: '',
     draftImages: [], // images attached in the message box, not sent yet
+    pastes: new Map(), // long pastes in the message box: their placeholder → the text it stands for
     restore: signal(null), // { text, images }: cancelled queued messages on their way back to the message box
     sideNotes: signal([]), // /btw side questions: [{ id, question, answer, state: 'asking' | 'done' | 'error' }]
     pendingInput: null, // text to type into the CLI once it has started (a command it alone can run)
@@ -76,10 +77,8 @@ export function makeSession({ kind, cwd, name = null, sessionId = null }) {
     panel: { open: signal(false), exited: signal(false), term: null, fit: null, host: null, ptyId: null },
     // the Changes panel at the right of a chat (components/SidePanel.jsx): which turn and file it shows
     side: signal({ open: false, turnKey: null, toolId: null, path: null, tab: 'diff' }),
-    // activity trace for the sidebar
-    activity: new Array(TRACE_LEN).fill(0),
-    bucket: 0,
-    traceTick: signal(0),
+    // counts up once a second, for what shows a time going by (elapsed times, uptime)
+    tick: signal(0),
   };
 }
 

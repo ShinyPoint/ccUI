@@ -4,10 +4,10 @@ import { signal } from '@preact/signals';
 import { Icon, Collapse, openContextMenu } from './ui.jsx';
 import {
   api, sessions, activeUid, active, settings, saveSettings, themeMode, newSessionDialog, settingsDialog, skillsDialog, toast,
-  TRACE_LEN, projectSearch,
+  projectSearch,
 } from '../lib/store.js';
 import {
-  selectSession, endSession, openSession, openConversation, forgetRecent, renameSession,
+  selectSession, endSession, openSession, openConversation, forgetRecent, renameSession, newChat, chatsFolder, isLoose,
   openInTerminal, openInChat,
 } from '../lib/sessions.js';
 import { basename, tildify, samePath, relativeTime, fileManagerLabel } from '../lib/format.js';
@@ -28,46 +28,6 @@ export const STATE_WORDS = {
 const renamingUid = signal(null);
 const recentsOpen = signal(new Set()); // folder paths whose past conversations are listed
 const query = signal(''); // the project search box's text
-
-function readColors() {
-  const css = getComputedStyle(document.documentElement);
-  return Object.fromEntries(['ok', 'wait', 'muted', 'off'].map((k) => [k, css.getPropertyValue(`--${k}`).trim()]));
-}
-
-function drawTrace(canvas, values, status) {
-  const dpr = devicePixelRatio || 1;
-  const w = canvas.clientWidth;
-  const h = canvas.clientHeight;
-  if (!w || !h) return;
-  canvas.width = Math.round(w * dpr);
-  canvas.height = Math.round(h * dpr);
-  const ctx = canvas.getContext('2d');
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  if (values.every((v) => !v)) return; // nothing happened in the last minute: no trace, no stray line
-  const colors = readColors();
-  const color = status === 'working' ? colors.ok
-    : status === 'attention' || status === 'needs-you' ? colors.wait
-    : status === 'exited' || status === 'error' ? colors.off : colors.muted;
-  const ceiling = Math.log1p(8000);
-  const points = values.map((v, i) => [(i / (TRACE_LEN - 1)) * w, h - 1.5 - Math.min(1, Math.log1p(v) / ceiling) * (h - 4)]);
-  const path = () => {
-    ctx.beginPath();
-    points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-  };
-  path();
-  ctx.lineTo(w, h);
-  ctx.lineTo(0, h);
-  ctx.closePath();
-  ctx.globalAlpha = 0.16;
-  ctx.fillStyle = color;
-  ctx.fill();
-  path();
-  ctx.globalAlpha = status === 'exited' ? 0.5 : 0.9;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1.25;
-  ctx.lineJoin = 'round';
-  ctx.stroke();
-}
 
 function RenameInput({ value, onDone }) {
   const ref = useRef(null);
@@ -97,6 +57,20 @@ const KIND_LABEL = { chat: phrase('New chat'), terminal: phrase('CLI session'), 
 const KIND_ICON = { chat: 'chat', terminal: 'terminal', shell: 'dollar' };
 const sessionLabel = (s) => s.name.value || s.title.value || t(KIND_LABEL[s.kind.value]);
 
+// A folder's sessions by kind, Chat, then CLI, then Shell, with a line between the kinds present.
+const KIND_ORDER = ['chat', 'terminal', 'shell'];
+function byKind(list) {
+  const rows = [];
+  let i = 0;
+  for (const kind of KIND_ORDER) {
+    const group = list.filter((s) => s.kind.value === kind);
+    if (!group.length) continue;
+    if (rows.length) rows.push(<li key={`line-${kind}`} class="session-divider" aria-hidden="true" />);
+    for (const s of group) rows.push(<SessionRow key={s.uid} s={s} index={i++} />);
+  }
+  return rows;
+}
+
 function sessionMenu(e, s) {
   const kind = s.kind.value;
   openContextMenu(e, [
@@ -108,40 +82,36 @@ function sessionMenu(e, s) {
   ].filter(Boolean));
 }
 
-// `index`: its place in the folder, for the rows' staggered slide-in when the folder opens (chat.css).
+// One line: the kind icon at the text's size, the title, and at the right a spinner while Claude works (a dot when
+// a session waits for your answer); the state in words is in the tooltip. `index`: its place in the folder, for
+// the rows' staggered slide-in when the folder opens.
 function SessionRow({ s, index = 0 }) {
-  const canvas = useRef(null);
   const status = s.status.value;
-  const tick = s.traceTick.value;
-  const theme = themeMode.value;
-  useEffect(() => { if (canvas.current) drawTrace(canvas.current, s.activity, status); }, [tick, status, theme]);
-
   const kind = s.kind.value;
   const exitCode = s.exitCode.value;
   const word = status === 'exited' && exitCode ? t('Ended ({code})', { code: exitCode }) : t(STATE_WORDS[status]);
+  const working = status === 'working' || status === 'starting';
+  const waiting = status === 'needs-you' || status === 'attention';
   const renaming = renamingUid.value === s.uid;
 
   return (
     <li class="session" style={{ '--i': index }} data-status={status} aria-current={String(s.uid === activeUid.value)}
         onContextMenu={(e) => sessionMenu(e, s)}>
-      <button class="session-main" title={s.title.value || s.cwd} onClick={() => selectSession(s)}
+      <button class="session-main" title={`${s.title.value || s.cwd}\n${word}`} onClick={() => selectSession(s)}
               onDblClick={() => { renamingUid.value = s.uid; }}>
         <span class="session-icon" title={t(KIND_LABEL[kind])}>
-          <Icon name={KIND_ICON[kind]} size={22} />
-          <span class="status-badge" />
+          <Icon name={KIND_ICON[kind]} size={15} />
         </span>
-        <span class="session-text">
-          <span class="session-name">
-            {renaming ? (
-              <RenameInput value={sessionLabel(s)} onDone={(name, commit) => {
-                if (commit) renameSession(s, name);
-                renamingUid.value = null;
-              }} />
-            ) : sessionLabel(s)}
-          </span>
-          <span class="session-sub"><span class="state-word">{word}</span></span>
+        <span class="session-name">
+          {renaming ? (
+            <RenameInput value={sessionLabel(s)} onDone={(name, commit) => {
+              if (commit) renameSession(s, name);
+              renamingUid.value = null;
+            }} />
+          ) : sessionLabel(s)}
         </span>
-        <canvas class="trace" ref={canvas} aria-hidden="true" />
+        {working && !renaming && <span class="session-spin" aria-label={word} />}
+        {waiting && !renaming && <span class="session-wait" aria-label={word} />}
       </button>
       <button class="icon-btn session-close" title={t('End session')} onClick={(e) => { e.stopPropagation(); endSession(s); }}>
         <Icon name="x" size={13} />
@@ -257,11 +227,9 @@ function Folder({ path, open, shown = open, searching }) {
         <button class="icon-btn folder-add" title={t('New session here')} onClick={() => openSession({ cwd: path })}>
           <Icon name="plus" size={14} />
         </button>
-        {/* At the row's right end, with ⋯ and + showing to its left on hover. */}
-        <span class="count">{open.length || ''}</span>
       </div>
       <Collapse open={!collapsed && shown.length > 0}>
-        <ul class="session-list">{shown.map((s, i) => <SessionRow key={s.uid} s={s} index={i} />)}</ul>
+        <ul class="session-list">{byKind(shown)}</ul>
       </Collapse>
       <Collapse open={!collapsed && showRecents && !searching}><Recents path={path} /></Collapse>
     </li>
@@ -323,13 +291,16 @@ function SkillsButton() {
 
 export function Sidebar() {
   const list = sessions.value;
-  // Folders: those with open sessions first (in opening order), then recent folders.
+  // Folders: those with open sessions first (in opening order), then recent folders. Sessions without a project
+  // (in the app's own folder, see chatsFolder) are listed on their own, above.
   const folders = [];
   for (const p of [...list.map((s) => s.cwd), ...(settings.value.recent || []).map((r) => r.path)]) {
-    if (!folders.some((f) => samePath(f, p))) folders.push(p);
+    if (!isLoose(p) && !folders.some((f) => samePath(f, p))) folders.push(p);
   }
   const searching = projectSearch.value > 0;
   const q = searching ? query.value.trim().toLowerCase() : '';
+  const looseCwd = chatsFolder();
+  const loose = list.filter((s) => isLoose(s.cwd) && (!q || includes(sessionLabel(s), q) || includes(s.title.value, q)));
   // Each folder with its sessions and the sessions to show: a folder whose name or path matches shows all of
   // them, otherwise only the matching ones; folders with no match are left out.
   const rows = folders.map((path) => {
@@ -349,14 +320,33 @@ export function Sidebar() {
         <button class="icon-btn no-drag" title={t('Hide sidebar')} onClick={collapse}><Icon name="sidebar" /></button>
       </div>
 
-      <button class="new-session" onClick={() => { newSessionDialog.value = {}; }}>
+      <button class="new-session" title={t('New session ({key})', { key: SHORTCUTS.newSession })} onClick={() => newChat()}
+              onContextMenu={(e) => openContextMenu(e, [
+                { label: t('New chat'), run: () => newChat('chat') },
+                { label: t('New CLI session'), run: () => newChat('terminal') },
+                { label: t('New shell'), run: () => newChat('shell') },
+                '-',
+                { label: t('More options…'), run: () => { newSessionDialog.value = {}; } },
+              ])}>
         <Icon name="plus" />
         <span>{t('New session')}</span>
-        <kbd>{SHORTCUTS.newSession}</kbd>
       </button>
       <SkillsButton />
 
       <div class="sidebar-scroll">
+        {loose.length > 0 && (
+          <section class="loose">
+            <h2 class="section-label">
+              {t('Sessions')}
+              {!searching && (
+                <button class="icon-btn section-action" title={t('Earlier conversations without a project')} aria-pressed={recentsOpen.value.has(looseCwd)}
+                        onClick={() => toggleRecents(looseCwd)}><Icon name="history" size={13} /></button>
+              )}
+            </h2>
+            <ul class="session-list">{byKind(loose)}</ul>
+            <Collapse open={!searching && recentsOpen.value.has(looseCwd)}><Recents path={looseCwd} /></Collapse>
+          </section>
+        )}
         <h2 class="section-label">
           {t('Projects')}
           {!searching && folders.length > 0 && (

@@ -48,7 +48,47 @@ function options() {
   };
 }
 
-// `handlers`: { onData(data), onResize(cols, rows), onTitle(title), onContextMenu() }
+// WebGL draws faster, and draws block and box characters exactly (Claude Code's logo, its borders), where the DOM
+// renderer leaves seams between the cells. A window gets 16 WebGL contexts at most (one more, and the oldest is
+// lost), and with every terminal holding one a few sessions would use them up: only the terminals shown last hold
+// one, the others draw with the DOM renderer until shown again. A context lost anyway (a GPU reset) is made again
+// when its terminal is shown.
+// On a transparent background (over a background image) WebGL's glyphs lose their sharp antialiasing and the text
+// looks blurry: see-through terminals always use the DOM renderer, real text the browser draws crisply.
+const WEBGL_MAX = 8;
+const webglUsers = []; // { term, addon, shown, disposed }, the one shown last at the end
+
+function dropWebgl(user) {
+  const i = webglUsers.indexOf(user);
+  if (i >= 0) webglUsers.splice(i, 1);
+  const { addon } = user;
+  user.addon = null;
+  try { addon?.dispose(); } catch { /* gone with its terminal already */ }
+}
+
+function useWebgl(user) {
+  if (user.disposed || user.term.options.allowTransparency) return;
+  const i = webglUsers.indexOf(user);
+  if (i >= 0) webglUsers.splice(i, 1);
+  if (!user.addon) {
+    try {
+      const addon = new WebglAddon();
+      addon.onContextLoss(() => {
+        if (user.addon !== addon) return;
+        dropWebgl(user);
+        setTimeout(() => { if (user.shown) useWebgl(user); }, 1000);
+      });
+      user.term.loadAddon(addon);
+      user.addon = addon;
+    } catch {
+      return; // no WebGL here: the DOM renderer
+    }
+  }
+  webglUsers.push(user);
+  while (webglUsers.length > WEBGL_MAX) dropWebgl(webglUsers[0]);
+}
+
+// `handlers`: { onData(data), onResize(cols, rows), onTitle(title), onContextMenu(), onProgramStatus(data) }
 export function createTerminal(handlers, container = termStack) {
   const term = new Terminal(options());
   const fit = new FitAddon();
@@ -68,21 +108,23 @@ export function createTerminal(handlers, container = termStack) {
   host.append(mount);
   container.append(host);
   term.open(mount);
-  // WebGL draws faster, but on a transparent background (over a background image) its glyphs lose their sharp
-  // antialiasing and the text looks blurry: see-through terminals use xterm's DOM renderer, real text the browser
-  // draws crisply.
-  if (!term.options.allowTransparency) {
-    try {
-      const webgl = new WebglAddon();
-      webgl.onContextLoss(() => webgl.dispose());
-      term.loadAddon(webgl);
-    } catch { /* falls back to the DOM renderer */ }
-  }
+  // Shown: its host is the active one of its stack (the others are there, hidden).
+  const user = { term, addon: null, shown: false, disposed: false };
+  const watch = new MutationObserver(() => {
+    const shown = host.classList.contains('active');
+    if (shown && !user.shown) useWebgl(user);
+    user.shown = shown;
+  });
+  watch.observe(host, { attributes: true, attributeFilter: ['class'] });
+  // Its WebGL context, and the watch for it being shown, go with it.
+  term.loadAddon({ activate() {}, dispose() { user.disposed = true; watch.disconnect(); dropWebgl(user); } });
 
   term.onData(handlers.onData);
   if (handlers.onKey) term.onKey(handlers.onKey);
   term.onResize(({ cols, rows }) => handlers.onResize(cols, rows));
   term.onTitleChange(handlers.onTitle);
+  // Claude Code's report of what it is doing (OSC 7501), for the program running in the terminal to tell.
+  if (handlers.onProgramStatus) term.parser.registerOscHandler(7501, (data) => { handlers.onProgramStatus(data); return true; });
   term.onSelectionChange(() => {
     if (settings.value.copyOnSelect && term.hasSelection()) api.writeClipboard(term.getSelection());
   });

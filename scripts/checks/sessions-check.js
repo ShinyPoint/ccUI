@@ -93,7 +93,7 @@ app.on('browser-window-created', (_e, win) => {
       check('B, on screen, keeps running', started.filter((x) => x === 'conv-b').length === 1);
       await wait(500);
       check('A shows no “ended” notice and keeps its state', !(await js("[...document.querySelectorAll('#sidebar .session')].find((x) => x.textContent.includes('Chat in A')).textContent")).match(/Ended|Exited/i),
-        await js("[...document.querySelectorAll('#sidebar .session')].find((x) => x.textContent.includes('Chat in A')).querySelector('.session-sub').textContent"));
+        await js("[...document.querySelectorAll('#sidebar .session')].find((x) => x.textContent.includes('Chat in A')).dataset.status"));
       await pick('Chat in A');
       await until('A again', "/Answer in A/.test(document.querySelector('.timeline')?.textContent || '')");
       await wait(800);
@@ -127,7 +127,10 @@ app.on('browser-window-created', (_e, win) => {
       check('a second new chat in the same project shows the untouched one', n1 === n0 + 1 && (await count()) === n1 && await js("Boolean(document.querySelector('.chat.empty'))"),
         `${n0} → ${n1} → ${await count()}`);
       const newCli = async () => {
-        await js("document.querySelector('.new-session').click(); true");
+        // New session starts a chat; its menu (right-click) has the full dialog.
+        await js("{ const b = document.querySelector('#sidebar button.new-session'); const r = b.getBoundingClientRect(); b.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.left + 20, clientY: r.top + 10 })); } true");
+        await wait(200);
+        await js("[...document.querySelectorAll('.context-menu button')].find((x) => /More options/.test(x.textContent)).click(); true");
         await until('the New session dialog', "Boolean(document.querySelector('.dialog-new input[name=kind][value=terminal]'))");
         await js("document.querySelector('.dialog-new input[name=kind][value=terminal]').click(); true");
         await wait(200);
@@ -139,6 +142,26 @@ app.on('browser-window-created', (_e, win) => {
       const n2 = await count();
       await newCli();
       check('a new CLI sits beside the new chat, but a second one does not', n2 === n1 + 1 && (await count()) === n2, `${n1} → ${n2} → ${await count()}`);
+      const inA = `[...document.querySelectorAll('#sidebar .folder')].find((f) => f.textContent.includes(${JSON.stringify(path.basename(a))}))`;
+      const order = await js(`JSON.stringify([...${inA}.querySelectorAll('.session-list > li')].map((li) => li.classList.contains('session-divider') ? '—' : li.querySelector('.session-icon')?.title))`);
+      check('a folder lists its chats, then a line, then its CLI sessions', /^\["(New chat|Chat)[^—]*","—","CLI session"\]$|"—"/.test(order) && JSON.parse(order).indexOf('—') > 0
+        && JSON.parse(order).slice(JSON.parse(order).indexOf('—') + 1).every((k) => k === 'CLI session'), order);
+      const line = await js(`getComputedStyle(${inA}.querySelector('.session-divider')).backgroundImage`);
+      check('the line fades out to both ends', /linear-gradient/.test(line) && (line.match(/rgba\(0, 0, 0, 0\)|transparent/g) || []).length >= 2, line);
+      // Ending a session asks first; Cancel keeps it.
+      const cli = `[...${inA}.querySelectorAll('.session')].find((x) => x.querySelector('.session-icon').title === 'CLI session')`;
+      await js(`${cli}.querySelector('.session-close').click(); true`);
+      await until('the end question', "/End this session\\?/.test(document.querySelector('.dialog-confirm[open]')?.textContent || '')", 5000);
+      await js("[...document.querySelectorAll('.dialog-confirm[open] button')].find((b) => b.textContent === 'Cancel').click(); true");
+      await wait(500);
+      check('ending a session asks first, and Cancel keeps it', (await count()) === n2);
+      await js(`${cli}.querySelector('.session-close').click(); true`);
+      await until('the end question again', "Boolean(document.querySelector('.dialog-confirm[open]'))", 5000);
+      await js("[...document.querySelectorAll('.dialog-confirm[open] button')].find((b) => b.textContent === 'End session').click(); true");
+      await wait(800);
+      check('End session ends it', (await count()) === n2 - 1, `${n2} → ${await count()}`);
+      await newCli();
+      const n2b = await count();
       // Back to the new chat, used: the next new chat is another one.
       await pick('New chat');
       await until('the new chat', "Boolean(document.querySelector('.chat.empty .composer-input'))");
@@ -149,7 +172,7 @@ app.on('browser-window-created', (_e, win) => {
       await js(addInA);
       await until('another new chat', "Boolean(document.querySelector('.chat.empty .chat-composer'))");
       await wait(800);
-      check('once used, a new chat in the project is a new one', (await count()) === n2 + 1, `${n2} → ${await count()}`);
+      check('once used, a new chat in the project is a new one', (await count()) === n2b + 1, `${n2b} → ${await count()}`);
     } catch (err) {
       console.error('failed:', err);
       failures++;

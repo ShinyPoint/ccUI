@@ -117,7 +117,10 @@ app.on('browser-window-created', (_e, win) => {
       await js(`document.querySelector('dialog[open] .settings-head .primary-btn').click()`);
       await wait(400);
 
-      await js(`document.querySelector('.new-session').click()`);
+      // New session starts a chat; its menu (right-click) has the full dialog.
+      await js("{ const b = document.querySelector('#sidebar button.new-session'); const r = b.getBoundingClientRect(); b.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.left + 20, clientY: r.top + 10 })); } true");
+      await wait(200);
+      await js("[...document.querySelectorAll('.context-menu button')].find((x) => /More options/.test(x.textContent)).click(); true");
       await wait(400);
       await js(`[...document.querySelectorAll('dialog[open] .segmented span')].find((s) => s.textContent.includes('Pick one')).click()`);
       await wait(1500);

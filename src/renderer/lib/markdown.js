@@ -61,7 +61,7 @@ marked.use({
   renderer: {
     code({ text, lang }) {
       const language = (lang || '').trim().split(/\s+/)[0];
-      return `<div class="code-block"><div class="code-head"><span>${escapeHtml(language)}</span>`
+      return `<div class="code-block"><div class="code-head"><span>${escapeHtml(language || t('Plain text'))}</span>`
         + `<button type="button" class="code-copy" data-copy-code>${escapeHtml(t('Copy'))}</button></div>`
         + `<pre><code class="hljs">${highlight(text, language)}</code></pre></div>`;
     },

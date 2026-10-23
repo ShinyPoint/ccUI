@@ -366,6 +366,7 @@ function fakePtys(director) {
       this.sessions.set(id, session);
       const out = (text) => { if (this.sessions.has(id)) this.send('pty:data', id, text); };
       session.out = out;
+      director.onPty?.({ id, kind, cwd, args, out }); // a check can go on writing as the program would
       if (kind === 'shell') setTimeout(() => out(director.prompt(cwd)), 260);
       else setTimeout(() => out(director.cli(cwd, args)), 420);
       return { id, proc: { pid: 21400 + id * 37 } };
@@ -404,7 +405,17 @@ function fakePtys(director) {
 }
 
 // Puts the fakes in place of src/main/agent.js and src/main/pty.js. Call before requiring src/main/main.js.
+// The window opens off the screens, left of them all, and keeps drawing there: someone working at the computer
+// meanwhile neither covers nor minimizes it (Windows reports a covered window as hidden, and Chromium then stops
+// its frames: animations, and what waits for them, stand still), and their pointer can't move the hover a check
+// set. It is captured as on screen.
 function install(director) {
+  const { app, screen } = require('electron');
+  app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+  app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+  app.on('browser-window-created', (_e, win) => {
+    win.setPosition(Math.min(...screen.getAllDisplays().map((d) => d.bounds.x)) - 3000, 40);
+  });
   const swap = (file, change) => {
     const real = require(file);
     require.cache[require.resolve(file)].exports = { ...real, ...change };

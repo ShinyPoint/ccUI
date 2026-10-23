@@ -145,6 +145,35 @@ test('groupTurns separates working steps from the final answer', () => {
   assert.equal(second.work.length, 0);
 });
 
+test('an answer followed by a step or two of tidying up is still the answer', () => {
+  const answer = `## Binary search\n\nThe condition must be monotonic:\n\n\`\`\`\nF F F T T T\n\`\`\`\n\n- template 1\n- template 2\n- template 3`;
+  const tidy = reduce(initialChat(), [
+    { type: 'ui/user', uuid: 'u1', text: 'binary search templates?' },
+    assistant('m1', [{ type: 'thinking', thinking: 'Plan the answer.' }]),
+    assistant('m1', [{ type: 'text', text: answer }]),
+    assistant('m1', [{ type: 'tool_use', id: 't1', name: 'Edit', input: { file_path: 'memory.md', old_string: 'a', new_string: 'b' } }]),
+    toolResult('t1', 'ok'),
+    assistant('m2', [{ type: 'thinking', thinking: 'Sum up.' }]),
+    assistant('m2', [{ type: 'text', text: 'I also noted that templates get comments.' }]),
+    result(0.02),
+  ]);
+  const [turn] = groupTurns(topLevel(tidy), false);
+  assert.deepEqual(turn.answer.map((i) => i.text), [answer, 'I also noted that templates get comments.']);
+  assert.deepEqual(turn.work.map((i) => i.type), ['thinking', 'tool', 'thinking']);
+
+  // A remark on the way, or text followed by real work (more than two steps), stays with the work.
+  const busy = reduce(initialChat(), [
+    { type: 'ui/user', uuid: 'u2', text: 'fix it' },
+    assistant('m3', [{ type: 'text', text: answer }]),
+    ...['t2', 't3', 't4'].flatMap((id) => [assistant('m3', [{ type: 'tool_use', id, name: 'Read', input: { file_path: `${id}.js` } }]), toolResult(id, 'code')]),
+    assistant('m4', [{ type: 'text', text: 'Fixed.' }]),
+    result(0.02),
+  ]);
+  const [work] = groupTurns(topLevel(busy), false);
+  assert.deepEqual(work.answer.map((i) => i.text), ['Fixed.']);
+  assert.deepEqual(work.work.map((i) => i.type), ['text', 'tool', 'tool', 'tool']);
+});
+
 test('image reads keep a preview, or say why there is none', async () => {
   const { createRequire } = await import('node:module');
   const { slim } = createRequire(import.meta.url)('../src/main/agent.js');

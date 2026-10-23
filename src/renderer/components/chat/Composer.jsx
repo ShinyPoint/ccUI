@@ -119,6 +119,23 @@ function ContextButton({ s, onCompact }) {
   );
 }
 
+// Drawn behind the message box's text, in the same font, wrapping and scroll position: each paste placeholder as a
+// chip (a tinted, glowing piece), the rest invisible. The text itself stays the textarea's, on top.
+function ChipLayer({ marks, text, chips }) {
+  const parts = [];
+  let at = 0;
+  for (const { start, end } of chips) {
+    if (start > at) parts.push(text.slice(at, start));
+    parts.push(<mark key={start} class="paste-chip">{text.slice(start, end)}</mark>);
+    at = end;
+  }
+  parts.push(`${text.slice(at)}​`); // a last empty line keeps its height, as in the textarea
+  return <div ref={marks} class="composer-marks" aria-hidden="true">{parts}</div>;
+}
+
+// A paste this long stands in the message box as a placeholder, as in Claude Code; the text is sent in its place.
+const LONG_PASTE = { chars: 800, lines: 10 };
+
 export function Composer({ s, prefill }) {
   const chat = s.chat.value;
   const [text, setText] = useState(s.draft || '');
@@ -132,9 +149,11 @@ export function Composer({ s, prefill }) {
   const files = useRef(null);
   const historyIndex = useRef(-1);
 
-  // What is being written stays with the session while another one is shown (the composer is made anew).
-  useEffect(() => { s.draft = text; }, [text]);
-  useEffect(() => { s.draftImages = images; }, [images]);
+  // What is being written stays with the session while another one is shown (the composer is made anew). Kept
+  // there as soon as it changes, not after the next frame: choosing another project tells by it whether the chat
+  // was used (startChatIn).
+  useLayoutEffect(() => { s.draft = text; }, [text]);
+  useLayoutEffect(() => { s.draftImages = images; }, [images]);
   useEffect(() => { input.current?.focus(); }, [s.uid]);
   // Queued messages that Stop cancelled come back here, in front of whatever is being typed.
   const restore = s.restore.value;
@@ -154,6 +173,12 @@ export function Composer({ s, prefill }) {
     const el = input.current;
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+    // The chips' glow reaches past the message box, except while its text scrolls: then they are cut at its edges,
+    // as the text is.
+    if (marks.current) {
+      marks.current.classList.toggle('scrolls', el.scrollHeight > el.clientHeight);
+      marks.current.scrollTop = el.scrollTop;
+    }
   }, [text]);
 
   const busy = chat.busy;
@@ -235,8 +260,45 @@ export function Composer({ s, prefill }) {
     },
   };
 
+  // Where the paste placeholders are in the text: [{ start, end }], in order.
+  const chips = (value) => {
+    const found = [];
+    for (const token of s.pastes.keys()) {
+      for (let i = value.indexOf(token); i !== -1; i = value.indexOf(token, i + token.length)) found.push({ start: i, end: i + token.length });
+    }
+    return found.sort((a, b) => a.start - b.start);
+  };
+  // A placeholder is one piece: Backspace after it or Delete before it removes all of it, and the caret never
+  // stops inside one (it moves to the nearer end).
+  const deleteChip = (e) => {
+    const el = e.currentTarget;
+    if ((e.key !== 'Backspace' && e.key !== 'Delete') || el.selectionStart !== el.selectionEnd) return false;
+    const at = el.selectionStart;
+    const chip = chips(text).find(({ start, end }) => (e.key === 'Backspace' ? at > start && at <= end : at >= start && at < end));
+    if (!chip) return false;
+    e.preventDefault();
+    setText(text.slice(0, chip.start) + text.slice(chip.end));
+    requestAnimationFrame(() => { el.selectionStart = el.selectionEnd = chip.start; });
+    return true;
+  };
+  const snapOutOfChip = (e) => {
+    const el = e.currentTarget;
+    if (el.selectionStart !== el.selectionEnd) return;
+    const at = el.selectionStart;
+    const chip = chips(el.value).find(({ start, end }) => at > start && at < end);
+    if (chip) el.selectionStart = el.selectionEnd = at - chip.start < chip.end - at ? chip.start : chip.end;
+  };
+  const marks = useRef(null);
+
+  // The message as sent: each paste placeholder still in it replaced by its text.
+  const expand = (value) => {
+    let out = value;
+    for (const [token, full] of s.pastes) out = out.split(token).join(full);
+    return out;
+  };
+
   function send() {
-    const value = text.trim();
+    const value = expand(text).trim();
     if (!value && !images.length) return;
     const handled = !images.length && runCommand(s, value, ui);
     if (handled) {
@@ -249,6 +311,7 @@ export function Composer({ s, prefill }) {
     setText('');
     setImages([]);
     setAc(null);
+    s.pastes.clear();
     historyIndex.current = -1;
   }
 
@@ -274,6 +337,7 @@ export function Composer({ s, prefill }) {
   }
 
   function onKeyDown(e) {
+    if (deleteChip(e)) return;
     if (ac) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
@@ -357,6 +421,8 @@ export function Composer({ s, prefill }) {
           ))}
         </div>
       )}
+      <div class="composer-field">
+      {chips(text).length > 0 && <ChipLayer marks={marks} text={text} chips={chips(text)} />}
       <textarea
         ref={input}
         class="composer-input"
@@ -369,15 +435,29 @@ export function Composer({ s, prefill }) {
           updateAutocomplete(e.currentTarget.value, e.currentTarget.selectionStart);
         }}
         onKeyDown={onKeyDown}
+        onKeyUp={snapOutOfChip}
+        onMouseUp={snapOutOfChip}
+        onScroll={(e) => { if (marks.current) marks.current.scrollTop = e.currentTarget.scrollTop; }}
         onBlur={() => setTimeout(() => setAc(null), 120)}
         onPaste={(e) => {
           const pasted = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/'));
           if (pasted.length) {
             e.preventDefault();
             addFiles(pasted);
+            return;
           }
+          const clip = e.clipboardData.getData('text/plain');
+          if (clip.length <= LONG_PASTE.chars && clip.split('\n').length <= LONG_PASTE.lines) return;
+          e.preventDefault();
+          const token = t('[Pasted text #{n} · {count} chars]', { n: s.pastes.size + 1, count: clip.length.toLocaleString() });
+          s.pastes.set(token, clip);
+          const el = e.currentTarget;
+          const at = el.selectionStart + token.length;
+          setText(`${text.slice(0, el.selectionStart)}${token}${text.slice(el.selectionEnd)}`);
+          requestAnimationFrame(() => { el.selectionStart = el.selectionEnd = at; });
         }}
       />
+      </div>
       <div class="composer-bar">
         <button type="button" class="icon-btn" title={t('Attach images')} onClick={() => fileInput.current.click()}>
           <Icon name="clip" />

@@ -212,7 +212,7 @@ function ReadDetails({ item }) {
   return <CodeView code={text} path={file} limit={200} />;
 }
 
-function Details({ item, cwd, childItems, session }) {
+export function ToolDetails({ item, cwd, childItems, session }) {
   const { name, input = {}, data, result, isError } = item;
   const file = input.file_path || input.notebook_path;
   switch (name) {
@@ -332,7 +332,7 @@ function hasBody(item) {
 // An agent sent to the background: its tool result only says it was launched. The card shows it running until
 // Claude Code reports it ended (bgStatus, from the reducer), then its outcome and summary.
 const BG_STATUS = { completed: 'done', failed: 'error', stopped: 'cancelled' };
-function backgroundView(item) {
+export function backgroundView(item) {
   if (item.data?.status !== 'async_launched') return item;
   return {
     ...item,
@@ -404,7 +404,7 @@ export const ToolCard = memo(function ToolCard({ item: raw, cwd, session, childI
       {errorLine && <div class="tool-error-line">{errorLine}</div>}
       <Collapse open={showBody}>
         <div class="tool-body">
-          <Details item={item} cwd={cwd} childItems={childItems} session={session} />
+          <ToolDetails item={item} cwd={cwd} childItems={childItems} session={session} />
         </div>
       </Collapse>
       {prompt}

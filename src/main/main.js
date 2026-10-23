@@ -11,7 +11,7 @@ const { ClaudeUpdater } = require('./claude-update');
 const { shellEnvReady } = require('./shell-env');
 const { listFiles, readProjectFile } = require('./files');
 const { Settings } = require('./settings');
-const { ensureTrusted, askNatively, trustDetail } = require('./trust');
+const { ensureTrusted, isTrusted, askNatively, trustDetail } = require('./trust');
 const { t, setLanguage } = require('./i18n');
 const { Background } = require('./background');
 
@@ -308,6 +308,36 @@ function registerIpc() {
     glassAvailable: canGlass(),
   }));
   ipc.handle('app:detect-claude', (_e, custom) => detectClaude(custom));
+  // A background task's output, for its details in the window: the end of the file Claude Code writes it to. Only
+  // such files: <something claude>/…/tasks/<id>.output, under the temp folder.
+  ipc.handle('task:output', (_e, file) => {
+    const full = path.resolve(String(file || ''));
+    const inTemp = [os.tmpdir(), '/tmp'].some((dir) => full.toLowerCase().startsWith(path.resolve(dir).toLowerCase() + path.sep));
+    if (!inTemp || !/[\\/]claude[^\\/]*[\\/](?:.+[\\/])?tasks[\\/][^\\/]+\.output$/i.test(full)) return { ok: false };
+    try {
+      const size = fs.statSync(full).size;
+      const length = Math.min(size, 64 * 1024);
+      const buf = Buffer.alloc(length);
+      const fd = fs.openSync(full, 'r');
+      try { fs.readSync(fd, buf, 0, length, size - length); } finally { fs.closeSync(fd); }
+      return { ok: true, text: buf.toString('utf8'), cut: size > length };
+    } catch {
+      return { ok: false };
+    }
+  });
+  // The folder for sessions without a project (New session): made the first time, and trusted, since the app made
+  // it (or the user chose it for this in Settings).
+  ipc.handle('chats:folder', () => {
+    const folder = path.resolve(settings.get().chatsFolder || path.join(os.homedir(), 'ccUI'));
+    try {
+      fs.mkdirSync(folder, { recursive: true });
+    } catch (err) {
+      return { ok: false, error: t('The folder for chats could not be made: {error}', { error: err.message }) };
+    }
+    const list = settings.data.trustedFolders || [];
+    if (!isTrusted(settings, folder)) settings.setPrivate({ trustedFolders: [...list, folder] });
+    return { ok: true, path: folder };
+  });
   ipc.on('app:answer', (_e, id, value) => {
     const resolve = asks.get(id);
     asks.delete(id);

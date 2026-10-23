@@ -151,7 +151,7 @@ app.on('browser-window-created', (_e, win) => {
       await shot('3-settings');
 
       // Color themes tint the surfaces, not the buttons: Clay is Claude's desktop palette, the accent stays.
-      const colors = () => js(`JSON.stringify((() => { const cs = getComputedStyle(document.documentElement); const btn = getComputedStyle(document.querySelector('.new-session'));
+      const colors = () => js(`JSON.stringify((() => { const cs = getComputedStyle(document.documentElement); const btn = getComputedStyle(document.querySelector('.dialog-settings button[type=submit].primary-btn'));
         return { surface: cs.getPropertyValue('--surface').trim(), chrome: cs.getPropertyValue('--chrome').trim(), accent: cs.getPropertyValue('--accent').trim(),
           button: btn.backgroundColor + ' ' + btn.color, body: getComputedStyle(document.body).backgroundColor,
           card: getComputedStyle(document.querySelector('.dialog .set-card')).backgroundColor }; })())`).then(JSON.parse);
