@@ -45,7 +45,10 @@ const saved = (key) => {
   return { kind: 'chat', cwd: projects[h.project], title: h.title, sessionId: `0000${key}-demo` };
 };
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  language: 'en', uiScale: 100, theme: 'dark', confirmClose: false, notify: false, sidebarGlass: false, settingsVersion: 2,
+  // The look ccUI is shown in: light, Clay, at 110%, frosted glass, the work area to the window's edge. A current
+  // settingsVersion, so no migration of older settings files touches it.
+  language: 'en', uiScale: 110, theme: 'light', accent: 'ember', sidebarGlass: true, fillEdge: true,
+  confirmClose: false, notify: false, settingsVersion: 8,
   autoUpdateClaude: false, // no real Claude Code download (and its toast) in the middle of the take
   recent: Object.values(projects).map((p) => ({ path: p, at: Date.now() })),
   trustedFolders: Object.values(projects),
@@ -91,12 +94,14 @@ function wallpaper(width, height) {
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', head), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
 }
 
-// In the page: the box of the nth element matching `sel` whose text contains `text`.
+// In the page: the box of the nth element matching `sel` whose text contains `text`, in window pixels: the page's
+// own (CSS) pixels times the UI scale (__zoom), since mouse events, the pointer and the frames are in those.
 const FIND = `window.__box = (sel, text, nth) => {
   const el = [...document.querySelectorAll(sel)].filter((e) => !text || e.textContent.includes(text))[nth || 0];
   if (!el) return null;
   const r = el.getBoundingClientRect();
-  return r.width ? { x: r.left, y: r.top, w: r.width, h: r.height } : null;
+  const z = window.__zoom || 1;
+  return r.width ? { x: r.left * z, y: r.top * z, w: r.width * z, h: r.height * z } : null;
 }; document.hasFocus = () => true; 0;`;
 
 app.on('browser-window-created', (_e, win) => {
@@ -188,6 +193,9 @@ app.on('browser-window-created', (_e, win) => {
     // Before the recording starts: the second session gets its task, then a new chat opens in orbit-api.
     // Folders start folded at launch, except the open chat's: unfold the others so all three cards show.
     await until(`document.querySelectorAll('.folder').length === 3 && Boolean(document.querySelector('.chat-composer .composer-input'))`, 'restored sessions');
+    // The UI scale is applied once the app has started (main.jsx), not at load: read it now.
+    await js(`window.__zoom = ${wc.getZoomFactor()}; 0`);
+    console.log('UI scale in the take:', wc.getZoomFactor());
     await js(`document.querySelectorAll('.folder.collapsed .folder-main').forEach((b) => b.click()); 0`);
     await until(`document.querySelectorAll('.session').length === 3`, 'the folders unfolded');
     await sleep(900);
@@ -203,7 +211,7 @@ app.on('browser-window-created', (_e, win) => {
     wc.sendInputEvent({ type: 'mouseMove', ...pointer });
 
     record();
-    const size = await js('({ w: innerWidth, h: innerHeight })');
+    const size = await js('({ w: Math.round(innerWidth * (window.__zoom || 1)), h: Math.round(innerHeight * (window.__zoom || 1)) })');
 
     // 1. A new chat
     caption('Every Claude Code session opens as a chat.');
@@ -299,6 +307,9 @@ app.on('browser-window-created', (_e, win) => {
     await sleep(900);
     await click(['.settings-nav button', 'Appearance']);
     await sleep(600);
+    // Another color theme for a moment, then Clay again.
+    await click(['.swatch[title="Pink"]']);
+    await sleep(1100);
     await click(['.swatch[title="Clay"]']);
     await sleep(900);
     const image = path.join(root, 'dusk.png');
