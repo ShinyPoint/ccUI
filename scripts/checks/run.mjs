@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
-const SCRIPTED = ['agents', 'changes', 'chat-look', 'cli', 'commands', 'dialogs', 'effort', 'glass', 'i18n', 'select', 'sessions'];
+const SCRIPTED = ['agents', 'changes', 'chat-look', 'cli', 'commands', 'dialogs', 'effort', 'glass', 'i18n', 'rewind', 'select', 'sessions'];
 const electron = createRequire(import.meta.url)('electron'); // from Node, the package is the path to its binary
 
 const names = process.argv.slice(2).length ? process.argv.slice(2) : SCRIPTED;

@@ -33,6 +33,7 @@ const THEME = process.argv.includes('--dark') ? 'dark' : 'light';
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
   language: 'en', uiScale: 100, accent: 'black', theme: THEME, confirmClose: false, notify: false, trustedFolders: [project], recent: [{ path: project, at: Date.now() }],
   defaultModel: 'claude-opus-5-5[1m]',
+  sidebarGlass: false, // the page's own colour is measured: frosted glass (when the GPU allows it) makes it transparent
 }));
 app.setPath('userData', profile);
 

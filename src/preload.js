@@ -25,6 +25,10 @@ contextBridge.exposeInMainWorld('ccui', {
   pickFolder: (defaultPath) => ipcRenderer.invoke('dialog:pick-folder', defaultPath),
   chatsFolder: () => ipcRenderer.invoke('chats:folder'),
   taskOutput: (file) => ipcRenderer.invoke('task:output', file),
+  plugins: {
+    list: (cwd) => ipcRenderer.invoke('plugins:list', cwd),
+    run: (request) => ipcRenderer.invoke('plugins:run', request),
+  },
   pickFile: (title) => ipcRenderer.invoke('dialog:pick-file', title),
   saveText: (name, text, cwd) => ipcRenderer.invoke('dialog:save-text', { name, text, cwd }),
   openMemoryFile: (file) => ipcRenderer.invoke('files:open-memory', file),

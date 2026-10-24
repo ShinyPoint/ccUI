@@ -68,7 +68,8 @@ class PtyManager {
   }
 
   // kind: 'terminal' runs Claude Code, 'shell' runs the user's shell.
-  create({ kind, cwd, claude, args = [], extraArgs = '', cols = 100, rows = 30 }) {
+  // `env`: added to Claude Code's environment (the app's settings, see claudeEnv in main.js).
+  create({ kind, cwd, claude, args = [], extraArgs = '', cols = 100, rows = 30, env = {} }) {
     if (!cwd || !fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) {
       throw new Error(t('Folder not found: {path}', { path: cwd }));
     }
@@ -79,7 +80,7 @@ class PtyManager {
       cols: Math.max(cols, 20),
       rows: Math.max(rows, 5),
       cwd,
-      env: childEnv({ TERM: 'xterm-256color', COLORTERM: 'truecolor' }),
+      env: childEnv({ TERM: 'xterm-256color', COLORTERM: 'truecolor', ...env }),
       useConpty: true,
     };
     // On Windows, the ConPTY that comes with node-pty rather than the system's: the system's drops the answers to

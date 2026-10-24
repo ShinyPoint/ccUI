@@ -27,6 +27,7 @@ const DEFAULTS = {
   claudeVersion: '', // empty: the newest built-in Claude Code; a version ("2.1.300"): that one, never updated
   defaultKind: 'chat', // what a project's + opens: 'chat' | 'terminal' | 'shell'
   chatsFolder: '', // where New session's chats (and CLIs) without a project run; empty: ~/ccUI
+  taskList: false, // Claude keeps a task list on Opus 5 and later too (Claude Code gives them none by default)
   defaultModel: '', // empty: Claude Code's default
   defaultPermissionMode: 'default',
   defaultArgs: '', // extra CLI arguments for terminal sessions
@@ -37,6 +38,7 @@ const DEFAULTS = {
   sidebarCollapsed: false,
   sidebarGlass: true, // frosted-glass sidebar (system material; Windows 11 22H2+ and macOS)
   fillEdge: true, // the chat / CLI area runs out to the window's right edge (no gap there)
+  thinkingMark: false, // Claude's ✻ before each thought in a chat (off: the thought alone, still in the steps' column)
   backgroundImage: '', // file name of the background image in <userData>/backgrounds (set by background.js)
   backgroundShow: 40, // how much of the background image shows through, percent
   backgroundBlur: 8, // blur of the background image, px

@@ -3,7 +3,7 @@
 import {
   api, info, sessions, activeUid, settings, saveSettings, toast, confirmDialog, makeSession,
 } from './store.js';
-import { reduce, initialChat } from './chat-reducer.js';
+import { reduce, initialChat, before } from './chat-reducer.js';
 import { createTerminal, fitTerminal } from './terminal.js';
 import { disposePanel } from './panel.js';
 import { basename, samePath, tildify, pluralize } from './format.js';
@@ -391,15 +391,26 @@ export async function rewindTo(s, item, { files = false } = {}) {
   const sessionId = s.chat.value.sessionId || s.sessionId;
   if (!sessionId || s.removed) return;
   if (files && !(await undoFileChanges(s, item, { silentIfNone: true }))) return;
+  // While the message and what followed it fold away under "Rewinding…" (ChatView), Claude Code copies the
+  // conversation up to it; the chat then keeps what it showed before the message, as it was: nothing in between is
+  // empty, and nothing earlier is drawn again.
+  s.rewinding.value = item.key;
   const fork = await api.history.fork(sessionId, s.cwd, item.key);
-  if (!fork.ok) return toast(fork.error, 'error');
+  if (!fork.ok) {
+    s.rewinding.value = null;
+    return toast(fork.error, 'error');
+  }
+  await s.rewindFold;
   const go = async () => {
-    s.chat.value = initialChat();
+    s.quietSwap = true; // nothing that stays rises in again (ChatView)
+    s.chat.value = before(s.chat.value, item.key);
     s.openTurns.clear();
     s.scrollTop = null;
     s.sessionId = fork.sessionId;
-    const res = await startAgent(s, { resume: fork.sessionId || undefined, model: s.selectedModel.value, permissionMode: s.mode.value });
-    if (res.ok) s.restore.value = messageDraft(item);
+    s.rewinding.value = null;
+    s.restore.value = messageDraft(item);
+    requestAnimationFrame(() => requestAnimationFrame(() => { s.quietSwap = false; }));
+    await startAgent(s, { resume: fork.sessionId || undefined, model: s.selectedModel.value, permissionMode: s.mode.value });
     persistSessions();
   };
   if (s.agentId) {
@@ -580,17 +591,21 @@ async function startTerminalNow(s, { resume, extraArgs } = {}) {
   if (s.removed || !s.term || s.kind.value === 'chat') return { ok: false, error: t('Session closed.') };
   fitTerminal(s);
   const isClaude = s.kind.value === 'terminal';
+  const { cols, rows } = s.term;
   const res = await api.pty.create({
     kind: isClaude ? 'terminal' : 'shell',
     cwd: s.cwd,
     args: isClaude ? claudeArgs(s, resume) : [],
     extraArgs: isClaude ? (extraArgs ?? settings.value.defaultArgs) : '',
-    cols: s.term.cols,
-    rows: s.term.rows,
+    cols,
+    rows,
   });
   if (res.ok && s.removed) api.pty.kill(res.id);
   if (!res.ok || s.removed) return res;
   s.ptyId = res.id;
+  // The layout can change while the process starts (the message bar coming, the window resized), and the new size
+  // had nowhere to go then: told the old one, Claude Code would draw past the terminal's bottom edge.
+  if (s.term && (s.term.cols !== cols || s.term.rows !== rows)) api.pty.resize(res.id, s.term.cols, s.term.rows);
   s.pid.value = res.pid;
   s.exitCode.value = null;
   s.reports = false;

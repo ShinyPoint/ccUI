@@ -348,6 +348,8 @@ function General() {
           <Dropdown label={t('Permissions')} value={s.defaultPermissionMode} onChange={(v) => saveSettings({ defaultPermissionMode: v })}
                     options={PERMISSION_MODES.map((m) => ({ value: m, label: t(MODE_LABELS[m]) }))} />
         </Row>
+        <ToggleRow setting="taskList" label={t('Task list on newer models')}
+                   note={t('Opus 5 and later work without one unless asked: on, Claude lists its tasks above the message box. For new sessions; about 4,000 tokens of context')} />
         <Row label={t('Sessions without a project')} note={t('New session starts them in {folder}', { folder: tildify(chatsFolder()) })}>
           <button type="button" class="secondary-btn" onClick={async () => {
             const folder = await api.pickFolder(chatsFolder());
@@ -389,6 +391,7 @@ function Appearance() {
         <SliderRow setting="uiScale" label={t('UI scale')} note={t('The size of everything in the window')} live={false}
                    min={80} max={150} step={5} format={(v) => `${v}%`} />
         <SliderRow setting="chatFontSize" label={t('Chat text size')} min={11} max={22} step={1} format={(v) => `${v}px`} />
+        <ToggleRow setting="thinkingMark" label={t('✻ before Claude’s thinking')} note={t('Claude Code’s mark in front of each thought in a chat')} />
       </Group>
       <Group title={t('Window')}>
         <ToggleRow setting="sidebarGlass" label={t('Frosted glass')}

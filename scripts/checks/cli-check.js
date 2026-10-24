@@ -2,7 +2,8 @@
 // logo is drawn as solid blocks, with no seams between the cells, at the UI scale it is shown at, and still is in a
 // terminal shown again after ten others (WebGL contexts run out at 16); Claude Code's own report of its state
 // (OSC 7501) is what the sidebar shows: ccUI answers its probe, shows a spinner while it works and a dot when it
-// waits for you, and output alone doesn't count as working.
+// waits for you, and output alone doesn't count as working. With Settings' task list on, Claude Code is started with
+// its task tools (CLAUDE_CODE_ENABLE_TODO_TOOLS).
 // Usage: npx vite build && npx electron scripts/checks/cli-check.js
 const fs = require('fs');
 const path = require('path');
@@ -13,6 +14,7 @@ const { install } = require('./fakes');
 const profile = tempDir('cli-profile');
 const project = tempDir('cli-project');
 const others = Array.from({ length: 10 }, (_, i) => tempDir(`cli-other${i}`));
+const late = tempDir('cli-late'); // a project whose CLI starts while the layout changes
 const outDir = path.join(__dirname, '..', '..', 'dist', 'cli-check');
 fs.mkdirSync(outDir, { recursive: true });
 
@@ -23,17 +25,22 @@ const BAR = '██████████';
 const PROBE = '\x1b]7501;?\x07';
 const status = (state) => `\x1b]7501;state=${state}:app=claude-code\x07`;
 let cli = null; // writes as the first fake CLI
+let last = null; // the CLI started last
 const director = {
   script: () => null, prompt: () => '', shell: () => '',
   cli: () => `${PROBE}${ORANGE}${LOGO.join('\r\n')}\x1b[0m\r\n\r\n${ORANGE}${BAR}\r\n${BAR}\x1b[0m\r\n`,
-  onPty: (p) => { if (p.kind !== 'shell' && !cli) cli = p; },
+  onPty: (p) => {
+    if (p.kind === 'shell') return;
+    if (!cli) cli = p;
+    last = p;
+  },
 };
 install(director);
 
 // The project's + opens a CLI (the default kind here).
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
-  language: 'en', uiScale: 110, theme: 'light', confirmClose: false, notify: false, trustedFolders: [project, ...others],
-  recent: [project, ...others].map((p, i) => ({ path: p, at: Date.now() - i * 1000 })), defaultKind: 'terminal',
+  language: 'en', uiScale: 110, theme: 'light', confirmClose: false, notify: false, trustedFolders: [project, ...others, late],
+  recent: [project, ...others, late].map((p, i) => ({ path: p, at: Date.now() - i * 1000 })), defaultKind: 'terminal', taskList: true,
 }));
 app.setPath('userData', profile);
 
@@ -117,6 +124,7 @@ app.on('browser-window-created', (_e, win) => {
       await wait(1500);
       const at110 = await seams('logo-110');
       check('a project’s + opens the default kind, here a CLI', await js(`Boolean(${row})`));
+      check('with the task list on in Settings, Claude Code gets its task tools', cli.env.CLAUDE_CODE_ENABLE_TODO_TOOLS === '1', JSON.stringify(Object.keys(cli.env)));
       check('at 110%, the logo’s blocks join with no seams', at110.linesAcross === 0 && at110.linesDown === 0, JSON.stringify(at110));
 
       // Claude Code's report of its state.
@@ -169,6 +177,21 @@ app.on('browser-window-created', (_e, win) => {
       await wait(1200);
       const at100 = await seams('logo-100');
       check('at 100%, the logo’s blocks join with no seams', at100.linesAcross === 0 && at100.linesDown === 0, JSON.stringify(at100));
+
+      // The layout changes while Claude Code is starting (here the window gets shorter; also the message bar, a
+      // panel): Claude Code still ends up told the terminal's size, so the bottom of its pages isn't cut off.
+      director.slowPid = 900;
+      director.beforeReply = () => { director.beforeReply = null; win.setSize(1320, 660); };
+      await js(`${folder(late)}.querySelector('.folder-add').click(); true`);
+      await wait(2500);
+      const shown = await js("(document.querySelector('#topbar .project-menu [title]')?.title.match(/(\\d+)×(\\d+)/) || []).slice(1).join('×')");
+      const told = `${last.size().cols}×${last.size().rows}`;
+      check('a layout change while Claude Code starts still reaches it: it is told the size the terminal has', shown && told === shown, `told ${told}, terminal ${shown}`);
+      director.slowPid = 0;
+      win.setSize(1320, 860);
+      await wait(1200);
+      const after = await js("(document.querySelector('#topbar .project-menu [title]')?.title.match(/(\\d+)×(\\d+)/) || []).slice(1).join('×')");
+      check('and every change after it', `${last.size().cols}×${last.size().rows}` === after, `told ${last.size().cols}×${last.size().rows}, terminal ${after}`);
     } catch (err) {
       console.error('failed:', err);
       failures++;

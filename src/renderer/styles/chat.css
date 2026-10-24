@@ -219,18 +219,37 @@
 :root[data-theme="light"] .hljs-built_in, :root[data-theme="light"] .hljs-params, :root[data-theme="light"] .hljs-name, :root[data-theme="light"] .hljs-tag { color: #C4653D; }
 
 /* thinking */
-.thinking-toggle {
+/* A thinking row is laid out as a step's (.tool-head): its ✻ in the glyph's 15px box at the left edge, its words
+   from 22px in, at the steps' size, in a 30px row; so a turn's rows line up whatever they are. */
+.thinking-toggle, .thinking-summary {
   display: inline-flex; align-items: center; gap: 7px;
-  font-size: .92em;
+  max-width: 100%;
+  min-height: 30px;
+  padding: 5px 0;
   color: var(--muted);
 }
+/* What Claude thought, in the conversation's own type (not code); one line, opening to the rest. */
+.thinking-head { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--ui); }
+.thinking-toggle .thinking-head { color: var(--text-2); }
+.thinking.live .thinking-head {
+  color: transparent;
+  background: linear-gradient(90deg, var(--muted) 0 38%, var(--text) 50%, var(--muted) 62% 100%) 100% 0 / 250% 100% no-repeat;
+  -webkit-background-clip: text; background-clip: text;
+  animation: sweep 1.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .thinking.live .thinking-head { animation: none; color: var(--muted); background: none; } }
 .thinking-toggle:hover { color: var(--text-2); }
 /* Thinking Claude Code kept hidden: same label, but nothing to open. */
-.thinking-summary { display: inline-flex; align-items: center; gap: 7px; font-size: .92em; color: var(--muted); }
-.thinking-mark { color: var(--accent); }
+.thinking-mark {
+  display: grid; place-items: center;
+  width: 15px; height: 15px; flex-shrink: 0;
+  font-size: 15px; line-height: 1;
+  color: var(--accent);
+}
 .thinking-text {
-  margin: 6px 0 0 5px;
-  padding: 2px 0 2px 16px;
+  font-family: var(--ui);
+  margin: 0 0 4px 7px;
+  padding: 2px 0 2px 15px;
   box-shadow: inset 1px 0 0 var(--hair);
   max-height: 320px;
   overflow: auto;
@@ -241,17 +260,10 @@
 
 /* ---------- tool calls: one row each, joined by a thin rail ---------- */
 .tool { position: relative; padding-left: 22px; }
-/* Consecutive steps are joined by a short line in the gap between their glyphs: from just under the glyph above to
-   just over this one, never across either (head 30px, glyph 15px at 7.5px, 6px tucked under the step above). */
-.tool + .tool { margin-top: -6px; }
-.tool + .tool::before {
-  content: "";
-  position: absolute; left: 7px; top: 1.5px;
-  width: 1px; height: 4px;
-  background: var(--line);
-}
-/* A subagent's steps (head 26px, glyph at 5.5px, 2px apart in .children): the same, shifted for the smaller row. */
-.tool.nested + .tool.nested::before { top: .5px; height: 3.5px; }
+/* Consecutive steps, and thinking among them, are one column, 6px apart (their 30px rows tucked 6px into the
+   timeline's 12px gap). A thought without its ✻ (Settings) starts where the steps' glyphs do. */
+:is(.tool, .thinking) + :is(.tool, .thinking) { margin-top: -6px; }
+html.no-thinking-mark .thinking-mark { display: none; }
 .tool-head {
   position: relative;
   display: flex; align-items: baseline; gap: 8px;
@@ -288,6 +300,17 @@
   color: var(--text-2);
 }
 .tool-target.mono { font: .9em var(--mono); }
+/* A step at work: a light sweeps across its words, left to right, as Claude Code's own status does. */
+.tool:is([data-status="streaming"], [data-status="pending"], [data-status="running"]) .tool-target {
+  color: transparent;
+  background: linear-gradient(90deg, var(--muted) 0 38%, var(--text) 50%, var(--muted) 62% 100%) 100% 0 / 250% 100% no-repeat;
+  -webkit-background-clip: text; background-clip: text;
+  animation: sweep 1.8s linear infinite;
+}
+@keyframes sweep { to { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .tool:is([data-status="streaming"], [data-status="pending"], [data-status="running"]) .tool-target { animation: none; color: var(--muted); background: none; }
+}
 /* A step with no target names itself, in the weight the verb had. */
 .tool-target.as-verb { font-weight: var(--bold); color: var(--text); }
 .tool-target.as-verb.in-progress, .tool:is([data-status="cancelled"], [data-status="denied"]) .tool-target { color: var(--muted); }

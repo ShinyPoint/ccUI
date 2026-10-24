@@ -21,6 +21,9 @@ const ZH = {
   'No version reported': '未返回版本号',
   'Folder not found: {path}': '找不到文件夹：{path}',
   'The folder for chats could not be made: {error}': '无法创建对话文件夹：{error}',
+  'Claude Code did not list its plugins.': 'Claude Code 没有列出插件。',
+  'Not a plugin name: {name}': '不是有效的插件名：{name}',
+  'Nothing to do.': '没有要做的操作。',
   'Chat sessions need a Claude Code executable (claude.exe or claude), not a command name or a .cmd script. Choose one in Settings, or leave the setting empty to use the built-in Claude Code.':
     '对话会话需要 Claude Code 可执行文件（claude.exe 或 claude），不能是命令名或 .cmd 脚本。请在设置中选择一个，或留空以使用内置的 Claude Code。',
   'You did not trust this folder, so Claude Code was not started there.': '你没有信任此文件夹，所以没有在这里启动 Claude Code。',

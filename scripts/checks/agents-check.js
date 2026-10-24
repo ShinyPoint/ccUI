@@ -199,19 +199,13 @@ app.on('browser-window-created', (_e, win) => {
       const wake = await js("document.querySelector('.wake')?.textContent || ''");
       check('a marker says why Claude continued', /Map the modules.*finished/.test(wake), wake);
       await shot('2-returned');
-      // Opened, the agent's card lists its steps. Consecutive steps (its own, and the turn's) are joined by a short
-      // line in the gap between their icons that never runs over either icon.
+      // Opened, the agent's card lists its steps; steps (its own, and the turn's) have no lines between them.
       await js("[...document.querySelectorAll('.tool.agent')].find((t) => /Map the modules/.test(t.textContent)).querySelector('.tool-head').click(); true");
       await until('its steps', "document.querySelectorAll('.tool.nested').length > 3", 4000);
       await wait(500);
-      const rails = JSON.parse(await js(`JSON.stringify([...document.querySelectorAll('.tool + .tool')].filter((el) => el.offsetParent).map((el) => {
-        const prev = el.previousElementSibling.querySelector('.tool-glyph').getBoundingClientRect();
-        const glyph = el.querySelector('.tool-glyph').getBoundingClientRect();
-        const b = getComputedStyle(el, '::before'); const top = el.getBoundingClientRect().top + parseFloat(b.top);
-        return { nested: el.classList.contains('nested'), gapTop: +(top - prev.bottom).toFixed(1), gapBottom: +(glyph.top - (top + parseFloat(b.height))).toFixed(1) };
-      }))`));
-      check('step connectors sit between the icons, touching neither', rails.length > 3 && rails.every((r) => r.gapTop >= 0.5 && r.gapBottom >= 0.5),
-        JSON.stringify(rails.slice(0, 4)));
+      const rails = JSON.parse(await js(`JSON.stringify([...document.querySelectorAll('.tool + .tool')].filter((el) => el.offsetParent)
+        .map((el) => ({ nested: el.classList.contains('nested'), line: getComputedStyle(el, '::before').content })))`));
+      check('opened, the agent lists its steps, with no lines between steps', rails.length > 3 && rails.some((r) => r.nested) && rails.every((r) => r.line === 'none'), JSON.stringify(rails.slice(0, 4)));
       await shot('2b-agent-steps');
       {
         const head = JSON.parse(await js("JSON.stringify((() => { const r = document.querySelector('.tool.agent').getBoundingClientRect(); return { x: r.left, y: r.top - 120 }; })())"));

@@ -41,6 +41,15 @@ install({
       await c.tool('Edit', { file_path: c.file('memory.md'), old_string: 'a', new_string: 'b' }, { run: 150, result: 'ok' });
       await c.think(150);
       await c.say('I also noted that templates get comments.', { cps: 600 });
+    } else if (/what you think/.test(text)) {
+      // A step described in words, thinking in words, and thinking without words that took no time.
+      await c.think(1500, '**Checking the build**\n\nThe build script lives in package.json.');
+      await c.think(0);
+      await c.tool('Bash', { command: 'npm run build -- --mode production', description: 'Build the app for production' }, { run: 2500, result: 'built' });
+      await c.think(200, '**Reading the output**\n\nTwo files changed.');
+      await c.tool('Read', { file_path: c.file('notes.md') }, { run: 100 });
+      await c.tool('Read', { file_path: c.file('notes.md'), offset: 1, limit: 2 }, { run: 100 });
+      await c.say('Built.', { cps: 600 });
     } else if (/code block/.test(text)) {
       await c.say('Compile it with:\n\n```\ng++ "{source_file}" -std=c++17 -o "{file_name}"\n```', { cps: 600 });
     } else if (/long/.test(text)) {
@@ -206,6 +215,19 @@ app.on('browser-window-created', (_e, win) => {
       check('its icon is the text’s size, beside it', row.iconH <= 16 && row.middle, JSON.stringify(row));
       check('New session: no fill, regular weight; its icon and Skills’ start where Projects does', Math.abs(row.newSession) <= .6 && Math.abs(row.skills) <= .6 && row.newWeight === '400' && /rgba\(0, 0, 0, 0\)|transparent/.test(row.newFill), JSON.stringify(row));
       check('project folders show no session count', row.counts === 0);
+      // Pointing at a row shows its ×, the title stopping short of it; pointed at, the × brightens, with no fill.
+      const closeLook = async () => JSON.parse(await js(`JSON.stringify((() => { const r = document.querySelector('#sidebar .session[aria-current="true"]'); const x = r.querySelector('.session-close');
+        const name = r.querySelector('.session-name'); const cs = getComputedStyle(x);
+        return { shown: cs.opacity, fill: cs.backgroundColor, color: cs.color, gap: Math.round(x.getBoundingClientRect().left - name.getBoundingClientRect().right) }; })())`));
+      mouse(...(await center('#sidebar .session[aria-current="true"] .session-name')));
+      await wait(300);
+      const onRow = await closeLook();
+      mouse(...(await center('#sidebar .session[aria-current="true"] .session-close')));
+      await wait(300);
+      const onX = await closeLook();
+      check('pointing at a row shows its ×, clear of the title', onRow.shown === '1' && onRow.gap >= 0, JSON.stringify(onRow));
+      check('pointed at, the × brightens with no circle behind it', /rgba\(0, 0, 0, 0\)|transparent/.test(onX.fill) && onX.color !== onRow.color, JSON.stringify({ onRow, onX }));
+      mouse(5, 5);
       console.log('reduced motion:', await js("matchMedia('(prefers-reduced-motion: reduce)').matches"));
       // How far from the bottom the view is on each frame, for 3 s.
       const positions = await js(`new Promise((done) => {
@@ -264,6 +286,78 @@ app.on('browser-window-created', (_e, win) => {
       check('a code block without a language is labeled Plain text', block.label === 'Plain text', block.label);
       check('its head is the color of the code under it, with a glow around the block', /rgba\(0, 0, 0, 0\)|transparent/.test(block.head) && block.shadow !== 'none' && Number(block.weight) <= 500, JSON.stringify(block));
       await shot('2c-code-block');
+
+      // A step's description instead of its command, swept by a light while it runs; thinking shows what was thought.
+      await say('Tell me what you think.');
+      await until('the thinking', "/Checking the build/.test(document.querySelector('.timeline').textContent)", 8000);
+      const live = JSON.parse(await js(`JSON.stringify((() => { const h = [...document.querySelectorAll('.thinking-head')].at(-1); const cs = getComputedStyle(h);
+        return { text: h.textContent, font: cs.fontFamily.split(',')[0], sweep: cs.animationName }; })())`));
+      check('thinking shows what Claude thought, in the conversation’s type, swept while it goes on', live.text === 'Checking the build' && !/Mono/.test(live.font) && live.sweep === 'sweep', JSON.stringify(live));
+      await js("[...document.querySelectorAll('.work-summary')].at(-1)?.getAttribute('aria-expanded') === 'false' && [...document.querySelectorAll('.work-summary')].at(-1).click(); true");
+      await until('the step', "[...document.querySelectorAll('.tool-target')].some((x) => x.textContent === 'Build the app for production')", 8000);
+      const step = JSON.parse(await js(`JSON.stringify((() => { const x = [...document.querySelectorAll('.tool-target')].find((e) => e.textContent === 'Build the app for production'); const cs = getComputedStyle(x);
+        return { font: cs.fontFamily.split(',')[0], sweep: cs.animationName, tip: x.closest('.tool-head').title }; })())`));
+      check('a command Claude described shows the description, not the command, in the conversation’s type', !/Mono/.test(step.font) && /npm run build/.test(step.tip), JSON.stringify(step));
+      check('while it runs a light sweeps across it', step.sweep === 'sweep', step.sweep);
+      // While it runs, the thought (no ✻ by default) starts where the step's glyph does, in the step's size, and the
+      // two rows' words share a middle line with the glyph.
+      const rows = JSON.parse(await js(`JSON.stringify((() => {
+        const think = [...document.querySelectorAll('.thinking')].at(-1); const tool = [...document.querySelectorAll('.tool')].find((x) => x.textContent.includes('Build the app'));
+        const box = (el) => el.getBoundingClientRect(); const mid = (el) => box(el).top + box(el).height / 2;
+        const words = think.querySelector('.thinking-head'); const glyph = tool.querySelector('.tool-glyph'); const target = tool.querySelector('.tool-target');
+        return { start: Math.round(box(words).left - box(glyph).left), size: [getComputedStyle(words).fontSize, getComputedStyle(target).fontSize],
+          middle: Math.round(mid(glyph) - mid(target)) }; })())`));
+      check('the running thought starts where the step’s glyph does, in the same size, the glyph centered on its words',
+        Math.abs(rows.start) <= 1 && rows.size[0] === rows.size[1] && Math.abs(rows.middle) <= 1, JSON.stringify(rows));
+      await shot('2e-step-running');
+      await until('the turn', `${idle} && /Built\./.test(document.querySelector('.timeline').textContent)`);
+      await wait(400);
+      await js("{ const w = [...document.querySelectorAll('.work-summary')].at(-1); if (w && w.getAttribute('aria-expanded') === 'false') w.click(); } true");
+      await until('the steps again', "[...document.querySelectorAll('.tool-target')].some((x) => x.textContent === 'Build the app for production')", 5000);
+      const after = JSON.parse(await js(`JSON.stringify({ zero: [...document.querySelectorAll('.thinking')].some((x) => /Thought for/.test(x.textContent)),
+        sweep: getComputedStyle([...document.querySelectorAll('.tool-target')].find((e) => e.textContent === 'Build the app for production')).animationName })`));
+      check('no “Thought for 0 ms” rows, and the light stops when it is done', !after.zero && after.sweep === 'none', JSON.stringify(after));
+      // The turn's steps and thoughts make one even column, with no lines between them: each row's middle the same
+      // distance from the next. Claude's ✻ is off by default and a thought then starts where the steps' glyphs do;
+      // on in Settings, the ✻ takes that place and the thought's words line up with the steps'.
+      const column = async () => JSON.parse(await js(`JSON.stringify((() => {
+        const steps = [...document.querySelectorAll('.work-steps')].at(-1);
+        const rows = [...steps.children].filter((x) => x.matches('.tool, .thinking'));
+        const box = (el) => el.getBoundingClientRect();
+        const mid = (el) => { const r = box(el); return r.top + r.height / 2; };
+        const parts = rows.map((r) => ({ kind: r.classList.contains('tool') ? 'step' : 'thought', words: r.querySelector('.tool-target, .thinking-head') }));
+        const mids = parts.map((p) => mid(p.words));
+        const left = (sel) => [...new Set([...steps.querySelectorAll(sel)].map((e) => Math.round(box(e).left)))];
+        return { kinds: parts.map((p) => p.kind).join(' '), pitch: mids.slice(1).map((m, i) => Math.round(m - mids[i])),
+          glyphs: left(':scope > .tool .tool-glyph'), stepWords: left(':scope > .tool .tool-target'), thoughtWords: left(':scope > .thinking .thinking-head'),
+          mark: getComputedStyle(steps.querySelector('.thinking-mark')).display,
+          lines: rows.filter((r) => getComputedStyle(r, '::before').content !== 'none').length }; })())`));
+      const plain = await column();
+      check('steps and thoughts make one even column, with no lines between them',
+        plain.kinds === 'thought step thought step step' && new Set(plain.pitch).size === 1 && plain.lines === 0, JSON.stringify(plain));
+      check('without Claude’s ✻ by default, a thought starts where the steps’ glyphs do',
+        plain.mark === 'none' && plain.glyphs.length === 1 && plain.thoughtWords.length === 1 && Math.abs(plain.thoughtWords[0] - plain.glyphs[0]) <= 1, JSON.stringify(plain));
+      await js("[...document.querySelectorAll('.work-steps')].at(-1).scrollIntoView({ block: 'center' }); true");
+      await wait(300);
+      await shot('2f-steps-column-plain');
+      await js("document.querySelector('#sidebar .sidebar-bottom .settings-btn, #sidebar .sidebar-bottom button').click(); true");
+      await until('Settings', "Boolean(document.querySelector('.dialog-settings[open]'))", 5000);
+      await js("[...document.querySelectorAll('.settings-nav button')].find((b) => /Appearance/.test(b.textContent)).click(); true");
+      await until('the switch', "[...document.querySelectorAll('.dialog-settings .set-row')].some((r) => /before Claude/.test(r.textContent))", 5000);
+      await js("[...document.querySelectorAll('.dialog-settings .set-row')].find((r) => /before Claude/.test(r.textContent)).querySelector('.switch input').click(); true");
+      await wait(200);
+      await js("document.querySelector('.dialog-settings button[type=submit].primary-btn').click(); true");
+      await wait(400);
+      const marked = await column();
+      check('with ✻ on in Settings it takes that place, the thought’s words lined up with the steps’, the spacing the same',
+        marked.mark !== 'none' && marked.thoughtWords.length === 1 && Math.abs(marked.thoughtWords[0] - marked.stepWords[0]) <= 1
+        && JSON.stringify(marked.pitch) === JSON.stringify(plain.pitch) && marked.lines === 0, JSON.stringify(marked));
+      await js("[...document.querySelectorAll('.work-steps')].at(-1).scrollIntoView({ block: 'center' }); true");
+      await wait(300);
+      await shot('2f-steps-column');
+      // Opening the steps was reading (the chat stopped following the bottom): back to the end.
+      await js("{ const el = document.querySelector('.chat-scroll'); el.scrollTop = el.scrollHeight; } true");
+      await wait(400);
 
       await say('Binary search templates?');
       await until('the answer', `${idle} && /noted that templates/.test(document.querySelector('.timeline').textContent)`);

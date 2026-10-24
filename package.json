@@ -44,6 +44,7 @@
     "check:background": "vite build && electron scripts/checks/background-check.js",
     "check:look": "vite build && electron scripts/checks/chat-look-check.js",
     "check:skills": "vite build && electron scripts/checks/skills-check.js",
+    "check:plugins": "vite build && electron scripts/checks/plugins-check.js",
     "check:select": "vite build && electron scripts/checks/select-check.js",
     "check:update": "vite build && electron scripts/checks/update-check.js",
     "check:agents": "vite build && electron scripts/checks/agents-check.js",

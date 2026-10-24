@@ -78,6 +78,7 @@ effect(() => {
 });
 effect(() => {
   document.documentElement.classList.toggle('fill-edge', Boolean(settings.value.fillEdge));
+  document.documentElement.classList.toggle('no-thinking-mark', !settings.value.thinkingMark);
 });
 // Frosted pop-ups follow the same switch, whether or not the window itself can be glass.
 effect(() => {

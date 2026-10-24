@@ -41,7 +41,8 @@ function create(s) {
 async function spawn(s) {
   const p = s.panel;
   p.exited.value = false;
-  const res = await api.pty.create({ kind: 'shell', cwd: s.cwd, cols: p.term.cols, rows: p.term.rows });
+  const { cols, rows } = p.term;
+  const res = await api.pty.create({ kind: 'shell', cwd: s.cwd, cols, rows });
   if (!res.ok) {
     p.term?.write(`\r\n\x1b[31m${res.error}\x1b[0m\r\n`); // the panel may have been disposed meanwhile
     p.exited.value = true;
@@ -52,6 +53,8 @@ async function spawn(s) {
     return;
   }
   p.ptyId = res.id;
+  // Resized while the shell started (the panel opening): the shell gets the size it has now (see startTerminalNow).
+  if (p.term && (p.term.cols !== cols || p.term.rows !== rows)) api.pty.resize(res.id, p.term.cols, p.term.rows);
   panelPtys.set(res.id, s);
 }
 

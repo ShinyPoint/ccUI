@@ -110,10 +110,10 @@ export const ICONS = {
   winRestore: '<rect x="5.75" y="8.25" width="10" height="10" rx="2.2"/><path d="M8.75 5.75h7a2.5 2.5 0 0 1 2.5 2.5v7"/>',
 
   // ---------- tool steps in the chat (ToolCard.jsx): one glyph per kind of step ----------
-  // a prompt: >_ (run a command)
-  toolRun: '<path d="M5.75 7.25l4.75 4.75-4.75 4.75M12.75 17.25h5.5"/>',
-  // a window with a prompt and output (a background shell's output)
-  toolOutput: '<rect x="3.75" y="5" width="16.5" height="14" rx="2.6"/><path d="M7.4 9.9l2.3 2.1-2.3 2.1M12.4 14.3h4.2"/>',
+  // a window with a prompt and a cursor (run a command; a shell)
+  toolRun: '<rect x="3.75" y="4.75" width="16.5" height="14.5" rx="3.5"/><path d="M7.4 9.4l2.75 2.6-2.75 2.6M12.6 14.6h4"/>',
+  // the same window, its prompt followed by lines of output (a background shell's output)
+  toolOutput: '<rect x="3.75" y="4.75" width="16.5" height="14.5" rx="3.5"/><path d="M7.4 9.25l2.1 1.95-2.1 1.95M11.5 9.25h5M11.5 12.2h3.5M7.5 15.6h9"/>',
   // a rounded square (stop a background task)
   toolStop: '<rect x="6.25" y="6.25" width="11.5" height="11.5" rx="2.6"/>',
   // a page with lines (read a file)

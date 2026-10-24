@@ -637,6 +637,29 @@ export function childrenOf(state, toolId) {
 }
 
 // A turn's answer as Claude wrote it (Markdown), without its steps: what Copy and /copy take.
+// The chat as it stood just before the item `key` (a message of yours): what came earlier, item for item (the same
+// objects, so nothing on screen before it is drawn again), and nothing from it on. The task list is the one those
+// earlier steps left; background tasks they started stay listed. Edit and resend goes back to this.
+export function before(state, key) {
+  const at = state.index[key];
+  if (at == null) return state;
+  const items = state.items.slice(0, at);
+  const index = Object.fromEntries(items.map((item, i) => [item.key, i]));
+  const children = {};
+  for (const [parent, keys] of Object.entries(state.children)) {
+    const kept = keys.filter((k) => k in index);
+    if (kept.length && parent in index) children[parent] = kept;
+  }
+  const d = { ...initialChat(), init: state.init, sessionId: state.sessionId, costTotal: state.costTotal, seq: state.seq, items, index, children };
+  for (const item of items) {
+    if (item.type !== 'tool' || item.parent) continue;
+    trackTasks(d, item);
+    if (item.data) trackTaskResult(d, item, item.data);
+  }
+  d.agents = Object.fromEntries(Object.entries(state.agents).filter(([, a]) => !a.toolUseId || a.toolUseId in index));
+  return d;
+}
+
 export const answerText = (g) => g.answer.filter((i) => i.type === 'text').map((i) => i.text).join('\n\n').trim();
 
 // Text that reads as (part of) an answer rather than a remark on the way ("Let me look at the tests."): long, or

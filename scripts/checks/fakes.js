@@ -99,13 +99,16 @@ class FakeAgentSession {
     this.events({ type: 'assistant', message: { id: this.msg.id, role: 'assistant', content: [block] } });
   }
 
-  async think(ms) {
+  // Thinking for `ms`, in words when `text` is given (a summary, as Claude Code sends with summarized display),
+  // otherwise without them (as it sends when the display is omitted).
+  async think(ms, text = '') {
     this.open();
     const index = this.msg.index++;
     this.stream({ type: 'content_block_start', index, content_block: { type: 'thinking', thinking: '' } });
+    if (text) this.stream({ type: 'content_block_delta', index, delta: { type: 'thinking_delta', thinking: text } });
     await this.pause(ms);
     this.stream({ type: 'content_block_stop', index });
-    this.assistant({ type: 'thinking', thinking: '' });
+    this.assistant({ type: 'thinking', thinking: text });
   }
 
   async say(text, { cps = 150 } = {}) {
@@ -332,7 +335,17 @@ function fakeAgents(director) {
     listHistory: async (cwd) => director.histories.filter((h) => h.cwd === cwd)
       .map(({ sessionId, summary, lastModified }) => ({ sessionId, summary, lastModified })),
     loadHistory: async (sessionId) => director.transcripts.get(sessionId) || [],
-    forkBefore: async () => { throw new Error('Not available while recording.'); },
+    // A copy of a fake conversation up to the message before `uuid` (as Claude Code's forkSession makes one).
+    forkBefore: async (sessionId, _cwd, uuid) => {
+      const messages = director.transcripts.get(sessionId) || [];
+      const at = messages.findIndex((m) => m.uuid === uuid);
+      if (at < 0) throw new Error('This message is not in the saved conversation, so it cannot be used as a starting point.');
+      if (at === 0) return { sessionId: null };
+      const copy = randomUUID();
+      director.transcripts.set(copy, messages.slice(0, at));
+      await sleep(director.forkDelay ?? 300);
+      return { sessionId: copy };
+    },
   };
 }
 
@@ -360,16 +373,21 @@ function fakePtys(director) {
       this.nextId = 1;
     }
 
-    create({ kind, cwd, args = [] }) {
+    // `director.slowPid`: ms before the process id is known, as with ConPTY, which the app waits for before it
+    // answers the window (main.js). `size`: what the program was last told its terminal is.
+    create({ kind, cwd, args = [], env = {}, cols, rows }) {
       const id = this.nextId++;
-      const session = { id, kind, cwd, line: '' };
+      const session = { id, kind, cwd, line: '', size: { cols, rows } };
       this.sessions.set(id, session);
       const out = (text) => { if (this.sessions.has(id)) this.send('pty:data', id, text); };
       session.out = out;
-      director.onPty?.({ id, kind, cwd, args, out }); // a check can go on writing as the program would
+      director.onPty?.({ id, kind, cwd, args, env, out, size: () => session.size }); // a check can go on writing as the program would
       if (kind === 'shell') setTimeout(() => out(director.prompt(cwd)), 260);
       else setTimeout(() => out(director.cli(cwd, args)), 420);
-      return { id, proc: { pid: 21400 + id * 37 } };
+      const proc = { pid: director.slowPid ? undefined : 21400 + id * 37 };
+      if (director.slowPid) setTimeout(() => { proc.pid = 21400 + id * 37; }, director.slowPid);
+      director.beforeReply?.();
+      return { id, proc };
     }
 
     // A shell just echoes what is typed and prints the scripted output of the command.
@@ -392,7 +410,10 @@ function fakePtys(director) {
       }
     }
 
-    resize() {}
+    resize(id, cols, rows) {
+      const s = this.sessions.get(id);
+      if (s) s.size = { cols, rows };
+    }
 
     kill(id) {
       if (!this.sessions.delete(id)) return;

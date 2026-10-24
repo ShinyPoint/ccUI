@@ -132,22 +132,26 @@ export const TextItem = memo(({ item }) => (
   </div>
 ));
 
+// Claude's thinking, as what it thought: its first line (a summary's title, without its ** marks), opening to the
+// whole of it. Thinking that came without its text (older Claude Code, or a session resumed from one) says how long
+// it took, or nothing when that was no time at all: a row of "Thought for 0 ms" says nothing.
+const firstThought = (text) => (text.split('\n').find((l) => l.trim()) || '').replace(/\*\*/g, '').replace(/^#+\s*/, '').trim();
 export const ThinkingItem = memo(({ item }) => {
-  const seconds = item.endedAt && item.startedAt ? formatDuration(item.endedAt - item.startedAt) : '';
-  const label = item.streaming ? t('Thinking…') : seconds ? t('Thought for {time}', { time: seconds }) : t('Thought');
-  // Claude Code often keeps the thinking itself hidden: then there is nothing to open.
+  const ms = item.endedAt && item.startedAt ? item.endedAt - item.startedAt : 0;
   if (!item.text?.trim()) {
-    return <div class="thinking empty"><span class="thinking-summary"><span class="thinking-mark">✻</span>{label}</span></div>;
+    if (!item.streaming && ms < 1000) return null;
+    const label = item.streaming ? t('Thinking…') : t('Thought for {time}', { time: formatDuration(ms) });
+    return <div class={`thinking empty ${item.streaming ? 'live' : ''}`}><span class="thinking-summary"><span class="thinking-mark">✻</span><span class="thinking-head">{label}</span></span></div>;
   }
-  return <ThinkingToggle label={label} text={item.text} />;
+  return <ThinkingToggle head={firstThought(item.text)} text={item.text} live={item.streaming} />;
 });
 
-function ThinkingToggle({ label, text }) {
+function ThinkingToggle({ head, text, live }) {
   const [open, setOpen] = useState(false);
   return (
-    <div class={`thinking ${open ? 'open' : ''}`}>
-      <button type="button" class="thinking-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <span class="thinking-mark">✻</span>{label}
+    <div class={`thinking ${open ? 'open' : ''} ${live ? 'live' : ''}`}>
+      <button type="button" class="thinking-toggle" aria-expanded={open} title={t('Claude’s thinking')} onClick={() => setOpen(!open)}>
+        <span class="thinking-mark">✻</span><span class="thinking-head">{head}</span>
       </button>
       {/* Claude's thinking often ends with line breaks (and has runs of them): they would show as empty lines. */}
       <Collapse open={open}><div class="thinking-text">{text.trim().replace(/\n{3,}/g, '\n\n')}</div></Collapse>

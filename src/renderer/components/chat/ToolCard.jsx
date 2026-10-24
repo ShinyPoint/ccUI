@@ -52,8 +52,12 @@ export function describe(item, cwd) {
     }
     case 'NotebookEdit':
       return { verb: t('Edit notebook'), target: relPath(file, cwd) };
+    // What Claude says the command is for, when it says (the command itself is in the tooltip and the body);
+    // otherwise the command, as code.
     case 'Bash':
-      return { verb: t('Run'), target: firstLine(input.command), mono: true, title: input.description };
+      return input.description
+        ? { verb: t('Run'), target: input.description, title: input.command }
+        : { verb: t('Run'), target: firstLine(input.command), mono: true };
     case 'BashOutput':
       return { verb: t('Check output'), target: input.bash_id || '' };
     case 'KillShell':

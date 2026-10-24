@@ -8,7 +8,7 @@ const { PtyManager, claudeLaunch } = require('./pty');
 const { AgentManager, listHistory, loadHistory, forkBefore } = require('./agent');
 const { resolveClaude, bundledClaude, useDownloads } = require('./claude-binary');
 const { ClaudeUpdater } = require('./claude-update');
-const { shellEnvReady } = require('./shell-env');
+const { shellEnvReady, childEnv } = require('./shell-env');
 const { listFiles, readProjectFile } = require('./files');
 const { Settings } = require('./settings');
 const { ensureTrusted, isTrusted, askNatively, trustDetail } = require('./trust');
@@ -265,6 +265,10 @@ const currentClaude = () => resolveClaude(settings.get().claudePath, settings.ge
 
 // Like currentClaude, but when the built-in one isn't downloaded yet, it is first (the first session after
 // installing). { file | command } or { error } when the download failed.
+// What Claude Code gets in its environment from the app's settings, for chat and CLI sessions. Claude Code keeps a
+// task list (TodoWrite, the Task tools) on older models only; Opus 5 and later get it when asked for.
+const claudeEnv = () => (settings.get().taskList ? { CLAUDE_CODE_ENABLE_TODO_TOOLS: '1' } : {});
+
 async function claudeForSession() {
   if (!currentClaude().missing) return currentClaude();
   await updater.ensure();
@@ -325,6 +329,75 @@ function registerIpc() {
       return { ok: false };
     }
   });
+  // Plugins, through Claude Code's own `claude plugin` commands (what /plugin does in its CLI), so the app and the CLI
+  // always agree. `cwd`: the folder whose project settings count (a plugin can be on for one project only).
+  const runPlugin = async (args, cwd) => {
+    const claude = await claudeForSession();
+    if (claude.error) return { code: 1, stdout: '', stderr: claude.error };
+    let launch;
+    try {
+      launch = claudeLaunch(claude, ['plugin', ...args]);
+    } catch (err) {
+      return { code: 1, stdout: '', stderr: err.message };
+    }
+    const verbatim = typeof launch.args === 'string';
+    return new Promise((resolve) => {
+      execFile(launch.file, verbatim ? [launch.args] : launch.args, {
+        cwd: cwd && fs.existsSync(cwd) ? cwd : os.homedir(),
+        env: childEnv(),
+        timeout: 5 * 60 * 1000, // an install clones the plugin's repository
+        maxBuffer: 32 * 1024 * 1024,
+        windowsHide: true,
+        windowsVerbatimArguments: verbatim,
+      }, (err, stdout, stderr) => resolve({ code: err ? err.code || 1 : 0, stdout: String(stdout), stderr: String(stderr) }));
+    });
+  };
+  // What a --json command printed: the whole output, or its last line that is JSON (a message may come first).
+  const pluginJson = (text) => {
+    try { return JSON.parse(text); } catch { /* a line of it, then */ }
+    for (const line of text.trim().split(/\r?\n/).reverse()) {
+      try { return JSON.parse(line); } catch { /* not this one */ }
+    }
+    return null;
+  };
+  const firstLine = (text) => text.trim().split(/\r?\n/).find(Boolean) || '';
+  ipc.handle('plugins:list', async (_e, cwd) => {
+    const [list, markets] = await Promise.all([runPlugin(['list', '--json', '--available'], cwd), runPlugin(['marketplace', 'list', '--json'], cwd)]);
+    const data = pluginJson(list.stdout);
+    if (!data) return { ok: false, error: firstLine(list.stderr) || firstLine(list.stdout) || t('Claude Code did not list its plugins.') };
+    // Installed plugins come without a description (and leave the available list): read from their manifests.
+    const installed = (data.installed || []).map((p) => {
+      try {
+        const manifest = JSON.parse(fs.readFileSync(path.join(p.installPath, '.claude-plugin', 'plugin.json'), 'utf8'));
+        return { ...p, description: typeof manifest.description === 'string' ? manifest.description : '' };
+      } catch {
+        return p;
+      }
+    });
+    return { ok: true, installed, available: data.available || [], marketplaces: pluginJson(markets.stdout) || [] };
+  });
+  const PLUGIN_ID = /^[\w.@:/-]+$/;
+  ipc.handle('plugins:run', async (_e, { action, id = '', source = '', cwd, accept } = {}) => {
+    if (id && !PLUGIN_ID.test(id)) return { ok: false, error: t('Not a plugin name: {name}', { name: id }) };
+    const json = ['--json'];
+    const args = {
+      install: ['install', id, ...json, ...(accept ? ['--accept-command', String(accept)] : [])],
+      uninstall: ['uninstall', id, ...json],
+      enable: ['enable', id, ...json],
+      disable: ['disable', id, ...json],
+      update: ['update', id],
+      details: ['details', id],
+      'marketplace-add': ['marketplace', 'add', String(source).trim()],
+      'marketplace-update': ['marketplace', 'update'],
+      'marketplace-remove': ['marketplace', 'remove', id],
+    }[action];
+    if (!args || (action.startsWith('marketplace-add') && !String(source).trim())) return { ok: false, error: t('Nothing to do.') };
+    const run = await runPlugin(args, cwd);
+    const result = args.includes('--json') ? pluginJson(run.stdout) : null;
+    const ok = run.code === 0 && (!result || !result.outcome || result.outcome === 'ok');
+    return { ok, result, text: run.stdout.trim(), error: ok ? '' : result?.message || firstLine(run.stderr) || firstLine(run.stdout) };
+  });
+
   // The folder for sessions without a project (New session): made the first time, and trusted, since the app made
   // it (or the user chose it for this in Settings).
   ipc.handle('chats:folder', () => {
@@ -389,7 +462,7 @@ function registerIpc() {
       await shellEnvReady;
       const claude = opts?.kind === 'shell' ? null : await claudeForSession();
       if (claude?.error) return { ok: false, error: claude.error };
-      const { id, proc } = ptys.create({ ...opts, claude });
+      const { id, proc } = ptys.create({ ...opts, claude, env: claude ? claudeEnv() : {} });
       // ConPTY reports the pid a moment after spawning.
       for (let i = 0; i < 40 && !proc.pid; i++) await new Promise((r) => setTimeout(r, 25));
       return { ok: true, id, pid: proc.pid };
@@ -419,7 +492,7 @@ function registerIpc() {
     if (!(await ensureTrusted(settings, win, opts.cwd, askTrust))) {
       return { ok: false, code: 'untrusted', error: t('You did not trust this folder, so Claude Code was not started there.') };
     }
-    return agents.start({ ...opts, claudeFile: claude.file, apiKey: settings.getApiKey() });
+    return agents.start({ ...opts, claudeFile: claude.file, apiKey: settings.getApiKey(), env: claudeEnv() });
   });
   ipc.on('agent:send', (_e, id, payload) => agents.get(id)?.send(payload));
   ipc.on('agent:permission-reply', (_e, id, requestId, answer) => agents.get(id)?.answerPermission(requestId, answer));

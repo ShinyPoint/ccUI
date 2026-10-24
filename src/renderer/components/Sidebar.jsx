@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { signal } from '@preact/signals';
 import { Icon, Collapse, openContextMenu } from './ui.jsx';
 import {
-  api, sessions, activeUid, active, settings, saveSettings, themeMode, newSessionDialog, settingsDialog, skillsDialog, toast,
+  api, sessions, activeUid, active, settings, saveSettings, themeMode, newSessionDialog, settingsDialog, skillsDialog, pluginsDialog, toast,
   projectSearch,
 } from '../lib/store.js';
 import {
@@ -332,6 +332,10 @@ export function Sidebar() {
         <span>{t('New session')}</span>
       </button>
       <SkillsButton />
+      <button class="sidebar-link" title={t('Install Claude Code plugins, turn them on or off')} onClick={() => { pluginsDialog.value = true; }}>
+        <Icon name="toolPlug" />
+        <span>{t('Plugins')}</span>
+      </button>
 
       <div class="sidebar-scroll">
         {loose.length > 0 && (

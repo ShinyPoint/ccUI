@@ -17,6 +17,7 @@ export const active = computed(() => sessions.value.find((s) => s.uid === active
 export const newSessionDialog = signal(null); // null when closed, else prefill object
 export const taskDialog = signal(null); // a background task's details: { uid (its session), id (the task) }
 export const settingsDialog = signal(false);
+export const pluginsDialog = signal(false); // the Plugins dialog (Claude Code's plugins), open or not
 export const skillsDialog = signal(null); // the chat session whose skills are being managed, or null
 // A small read-only dialog for what some commands show (/status, /memory, /mcp; InfoDialog.jsx):
 // { title, note?, sections: [{ title?, rows: [{ label, value?, note?, mono?, action?: { label, run } }] }] }
@@ -56,6 +57,7 @@ export function makeSession({ kind, cwd, name = null, sessionId = null }) {
     draftImages: [], // images attached in the message box, not sent yet
     pastes: new Map(), // long pastes in the message box: their placeholder → the text it stands for
     restore: signal(null), // { text, images }: cancelled queued messages on their way back to the message box
+    rewinding: signal(null), // the message an edit and resend goes back to, while it does (ChatView folds it away)
     sideNotes: signal([]), // /btw side questions: [{ id, question, answer, state: 'asking' | 'done' | 'error' }]
     pendingInput: null, // text to type into the CLI once it has started (a command it alone can run)
     scrollTop: null,

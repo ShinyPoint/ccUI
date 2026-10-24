@@ -392,6 +392,9 @@ const verbFor = (key) => VERBS[[...String(key)].reduce((h, c) => (h * 31 + c.cha
 
 function Activity({ s, chat }) {
   s.tick.value; // re-render every second for the elapsed time
+  if (s.rewinding.value) {
+    return <div class="activity" aria-live="polite"><span class="activity-mark" aria-hidden="true" /><span>{t('Rewinding…')}</span></div>;
+  }
   const label = currentActivity(chat);
   if (!label) return null;
   const lastUser = [...chat.items].reverse().find((i) => i.type === 'user');
@@ -479,7 +482,7 @@ export function ChatView({ s }) {
           if (node.nodeType === 1 && !node.classList.contains('collapse') && node.parentElement?.matches(ENTER_PARENTS)) added.push(node);
         }
       }
-      if (added.length > ENTER_MAX) return;
+      if (added.length > ENTER_MAX || s.quietSwap) return;
       for (const node of added) {
         const done = (e) => {
           if (e.target !== node) return; // a child's own animation
@@ -493,6 +496,32 @@ export function ChatView({ s }) {
     observer.observe(timeline.current, { childList: true, subtree: true });
     return () => observer.disconnect();
   }, []);
+
+  // Edit and resend (rewindTo): the message and everything after it fold away, as one, while the conversation from
+  // before it is read; the session waits for the fold (s.rewindFold) before it swaps the conversation in.
+  const rewinding = s.rewinding.value;
+  useLayoutEffect(() => {
+    if (!rewinding) return undefined;
+    const root = timeline.current;
+    const wrap = root?.querySelector(`.msg-user-wrap[data-key="${CSS.escape(rewinding)}"]`);
+    let from = wrap;
+    while (from && from.parentElement !== root) from = from.parentElement;
+    const going = [];
+    for (let el = from; el; el = el.nextElementSibling) if (!el.matches('.activity')) going.push(el);
+    if (!going.length || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      for (const el of going) el.style.visibility = 'hidden';
+      s.rewindFold = Promise.resolve();
+      return () => { for (const el of going) el.style.visibility = ''; };
+    }
+    const height = going.reduce((h, el) => h + el.getBoundingClientRect().height, 0);
+    const animations = going.map((el) => el.animate([
+      { opacity: 1, height: `${el.getBoundingClientRect().height}px`, overflow: 'hidden' },
+      { opacity: 0, height: '0px', marginTop: '-12px', overflow: 'hidden' }, // and the timeline's gap above it
+    ], { duration: Math.min(420, 220 + height / 8), easing: 'cubic-bezier(.2, .7, .2, 1)', fill: 'forwards' }));
+    s.rewindFold = Promise.all(animations.map((a) => a.finished.catch(() => {})));
+    // Over: the folded rows are gone with the old conversation, or, when it failed, come back.
+    return () => { for (const a of animations) a.cancel(); };
+  }, [rewinding]);
 
   useEffect(() => {
     // Content can change height without a re-render here (bars animating open or shut), and the chat itself

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { initialChat, reduce, topLevel, childrenOf, currentActivity, groupTurns, backgroundTasks } from '../src/renderer/lib/chat-reducer.js';
+import { initialChat, reduce, topLevel, childrenOf, currentActivity, groupTurns, backgroundTasks, before } from '../src/renderer/lib/chat-reducer.js';
 
 const stream = (event, parent = null) => ({ type: 'stream_event', event, parent_tool_use_id: parent });
 const start = (id) => stream({ type: 'message_start', message: { id } });
@@ -172,6 +172,29 @@ test('an answer followed by a step or two of tidying up is still the answer', ()
   const [work] = groupTurns(topLevel(busy), false);
   assert.deepEqual(work.answer.map((i) => i.text), ['Fixed.']);
   assert.deepEqual(work.work.map((i) => i.type), ['text', 'tool', 'tool', 'tool']);
+});
+
+test('before a message: what came earlier, the same items, and nothing from it on', () => {
+  const s = reduce(initialChat(), [
+    { type: 'ui/user', uuid: 'u1', text: 'plan it' },
+    assistant('m1', [{ type: 'tool_use', id: 't1', name: 'TodoWrite', input: { todos: [{ content: 'Plan', status: 'completed', activeForm: 'Planning' }] } }]),
+    toolResult('t1', 'ok'),
+    assistant('m1', [{ type: 'text', text: 'Planned.' }]),
+    result(0.01),
+    { type: 'ui/user', uuid: 'u2', text: 'do it' },
+    assistant('m2', [{ type: 'tool_use', id: 't2', name: 'TodoWrite', input: { todos: [{ content: 'Plan', status: 'completed', activeForm: 'Planning' }, { content: 'Build', status: 'in_progress', activeForm: 'Building' }] } }]),
+    assistant('m2', [{ type: 'tool_use', id: 't3', name: 'Agent', input: { description: 'Look around', prompt: 'look' } }]),
+    assistant('m3', [{ type: 'tool_use', id: 'c1', name: 'Read', input: { file_path: 'a.js' } }], 't3'),
+  ]);
+  const b = before(s, 'u2');
+  assert.deepEqual(b.items.map((i) => i.key), s.items.slice(0, s.index.u2).map((i) => i.key));
+  assert.ok(b.items.every((item, i) => item === s.items[i]), 'the same item objects');
+  assert.equal(b.index.u2, undefined);
+  assert.deepEqual(b.children, {});
+  assert.deepEqual(b.tasks.map((x) => x.content), ['Plan']);
+  assert.equal(b.busy, false);
+  assert.equal(b.permissions.length, 0);
+  assert.equal(before(s, 'nope'), s);
 });
 
 test('image reads keep a preview, or say why there is none', async () => {

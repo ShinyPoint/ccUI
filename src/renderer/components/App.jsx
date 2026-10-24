@@ -10,6 +10,7 @@ import { SettingsDialog } from './dialogs/SettingsDialog.jsx';
 import { SkillsDialog } from './dialogs/SkillsDialog.jsx';
 import { InfoDialog } from './dialogs/InfoDialog.jsx';
 import { TaskDialog } from './dialogs/TaskDialog.jsx';
+import { PluginsDialog } from './dialogs/PluginsDialog.jsx';
 import { SidePanel } from './SidePanel.jsx';
 import { toggleChanges } from '../lib/side.js';
 import {
@@ -197,6 +198,7 @@ export function App() {
       <SkillsDialog />
       <InfoDialog />
       <TaskDialog />
+      <PluginsDialog />
       <Toasts />
       <ContextMenu />
       <ConfirmHost />

@@ -313,6 +313,7 @@ body.platform-darwin .sidebar-top { padding-left: 84px; }
   transition: color .15s;
 }
 .sidebar-link:hover:not(:disabled) { color: var(--text); }
+.sidebar-link:has(+ .sidebar-link) { margin-bottom: 0; } /* Skills, then Plugins: spaced like New session and Skills */
 .sidebar-link:disabled { opacity: .45; cursor: default; }
 .sidebar-link .icon { margin-left: -3.5px; color: var(--muted); }
 .sidebar-link:hover:not(:disabled) .icon { color: var(--text-2); }
@@ -418,15 +419,19 @@ body.platform-darwin .sidebar-top { padding-left: 84px; }
   margin: 5px 14px;
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text) 16%, transparent) 50%, transparent);
 }
+/* End session: a bare ×, no fill, that brightens when pointed at; while it shows, the title stops short of it. */
 .session-close {
   position: absolute; top: 50%; right: 8px;
   width: 24px; height: 24px;
   margin-top: -12px;
-  border-radius: var(--r-full);
+  color: var(--muted);
   opacity: 0;
+  transition: opacity .15s, color .15s;
 }
+.session-close:hover, .session-close:focus-visible { background: none; color: var(--text); }
 .session:hover :is(.session-spin, .session-wait) { opacity: 0; }
 .session:hover .session-close, .session-close:focus-visible { opacity: 1; }
+.session:is(:hover, :focus-within) .session-main { padding-right: 34px; }
 
 .session[data-status="exited"] .session-name { color: var(--muted); }
 /* Sessions without a project, above the projects: their icons and names line up with New session's (the icon's
@@ -1111,3 +1116,20 @@ body.no-session .composer { display: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Plugins (PluginsDialog): the Skills dialog's layout; each row can open, under it, to what the plugin adds. */
+.plugins .skills-bar .skills-search { flex: 1; }
+.skill.plugin { display: block; }
+.plugin .plugin-row { display: flex; align-items: center; gap: 12px; }
+.plugin .plugin-row .skill-text { flex: 1; min-width: 0; }
+.plugin-more .icon { transition: transform .2s var(--ease); }
+.plugin-more.open .icon { transform: rotate(180deg); }
+.plugin-details {
+  margin: 8px 0 4px; padding: 10px 14px;
+  border-radius: var(--r-md); background: var(--base); box-shadow: var(--glow);
+  font: 12px/1.5 var(--mono); white-space: pre-wrap; color: var(--text-2); user-select: text;
+}
+.plugin-installed { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--muted); }
+.plugin-markets { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plugin-add { display: flex; align-items: center; gap: 6px; }
+.dialog .plugin-add input { width: 260px; height: 30px; }

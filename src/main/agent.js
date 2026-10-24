@@ -126,10 +126,13 @@ class AgentSession {
         includePartialMessages: true,
         enableFileCheckpointing: true, // lets a message's file changes be undone (control 'rewind')
         systemPrompt: { type: 'preset', preset: 'claude_code' },
+        // Claude's thinking as readable summaries: newer models otherwise send it empty, and the chat could only
+        // say "Thought for 0 ms". How much Claude thinks is unchanged.
+        extraArgs: { 'thinking-display': 'summarized' },
         settingSources: ['user', 'project', 'local'],
         pathToClaudeCodeExecutable: claudeFile || undefined,
         // session_state_changed 'idle' tells the chat for certain that the turn and its background work are over.
-        env: childEnv({ CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1', ...(apiKey ? { ANTHROPIC_API_KEY: apiKey } : {}) }),
+        env: childEnv({ CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1', ...this.opts.env, ...(apiKey ? { ANTHROPIC_API_KEY: apiKey } : {}) }),
         canUseTool: (toolName, toolInput, options) => this.askPermission(toolName, toolInput, options),
         stderr: (data) => { this.stderr = (this.stderr + data).slice(-4000); },
       },
@@ -351,6 +354,11 @@ class AgentSession {
           await this.q.reloadSkills();
           await this.refreshCommands();
           return { ok: true, value: await this.listSkills() };
+        // Plugins installed, removed, turned on or off (the Plugins dialog): the session picks the change up.
+        case 'reload-plugins':
+          await this.q.reloadPlugins();
+          await this.refreshCommands();
+          return { ok: true };
         // Commands whose CLI screen the chat shows its own way (lib/commands.js). Some of these calls are in the
         // SDK's runtime but not (yet) in its typings.
         // /btw: a quick side question, answered without touching the conversation. { response } or null.
