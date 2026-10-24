@@ -76,6 +76,7 @@
     "electron": "^44.5.1",
     "electron-builder": "^26.15.3",
     "highlight.js": "^11.12.0",
+    "katex": "^0.19.1",
     "marked": "^18.0.14",
     "preact": "^11.0.0",
     "rcedit": "^5.0.2",
@@ -130,7 +131,11 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "${productName}-Setup-${version}-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-${arch}-portable.${ext}"
     },
     "icon": "assets/icon.png",
     "electronFuses": {

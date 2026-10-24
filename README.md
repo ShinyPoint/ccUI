@@ -4,7 +4,7 @@
 
 <h1>ccUI</h1>
 
-<p><b>Claude Code, as a desktop app.</b></p>
+<p><b>A desktop GUI for Claude Code.</b></p>
 
 <p>Every edit as a diff, every permission as a button, many sessions side by side,<br>
 and Claude Code's own CLI one click away, on the same conversation.</p>
@@ -29,6 +29,11 @@ and Claude Code's own CLI one click away, on the same conversation.</p>
 <img src="docs/demo.gif" width="100%" alt="ccUI in use: a chat where Claude reads files and edits them as diffs, a permission asked as buttons, and the same conversation continued in the CLI">
 
 </div>
+
+ccUI is a desktop app (a GUI client) for [Claude Code](https://code.claude.com), Anthropic's coding agent, on
+Windows, macOS and Linux. It runs Claude Code as a chat you can read and steer, through the Claude Agent SDK, and
+as Claude Code's own CLI in a terminal tab, on the same conversation: switch between the two at any time. It also
+manages the Claude Code version for you, so there is nothing to install with npm.
 
 > [!NOTE]
 > ccUI is an independent project. It is not made, endorsed or supported by Anthropic.
@@ -84,6 +89,10 @@ Get the newest build from [Releases](https://github.com/ShinyPoint/ccUI/releases
 **The first session takes a minute:** the installers don't include Claude Code, so ccUI downloads it from npm the
 first time a session starts (about 135 MB, once) and shows how far along it is. Then sign in: see
 [Accounts and sign-in](#accounts-and-sign-in).
+
+From 0.1.7 on, every file in a release is built by GitHub Actions from this repository and has a build provenance
+attestation that says so. To check a download with the [GitHub CLI](https://cli.github.com):
+`gh attestation verify <file> --repo ShinyPoint/ccUI`.
 
 The builds are not code-signed yet:
 - **Windows** SmartScreen may say "Windows protected your PC": choose **More info → Run anyway**.
@@ -290,11 +299,11 @@ The installers leave out the Claude Code executable (it is downloaded on first u
 110 MB on Windows. Build each platform on that platform: the terminal module's prebuilt binary comes from an
 OS-specific npm package that `npm install` only fetches for the current OS.
 
-Releases: the Windows installers are built locally and published with the release; publishing it starts
-`.github/workflows/release.yml`, which builds the macOS (Apple Silicon and Intel, signed ad-hoc: there is no Apple
-Developer ID yet) and Linux installers on GitHub's runners, uploads them to the same release and adds their
-checksums to its `SHA256SUMS.txt`. Before distributing builds, read Anthropic's terms for Claude Code and the Agent
-SDK: <https://code.claude.com/docs/en/legal-and-compliance>.
+Releases: publishing a release starts `.github/workflows/release.yml`, which builds the Windows (installer and
+portable), macOS (Apple Silicon and Intel, signed ad-hoc: there is no Apple Developer ID yet) and Linux installers on
+GitHub's runners, attests each file, uploads them to the release and writes its `SHA256SUMS.txt`. Before
+distributing builds, read Anthropic's terms for Claude Code and the Agent SDK:
+<https://code.claude.com/docs/en/legal-and-compliance>.
 
 ## Project layout
 

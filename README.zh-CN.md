@@ -4,7 +4,7 @@
 
 <h1>ccUI</h1>
 
-<p><b>把 Claude Code 变成桌面应用。</b></p>
+<p><b>Claude Code 的桌面图形界面。</b></p>
 
 <p>每处编辑都是 diff，每个权限请求都是按钮，多个会话并排运行，<br>
 Claude Code 自带的 CLI 一键可达，对话始终是同一个。</p>
@@ -29,6 +29,10 @@ Claude Code 自带的 CLI 一键可达，对话始终是同一个。</p>
 <img src="docs/demo.gif" width="100%" alt="ccUI 使用演示：Claude 读取文件并以 diff 形式修改，权限请求以按钮呈现，同一段对话在 CLI 中继续">
 
 </div>
+
+ccUI 是 [Claude Code](https://code.claude.com)（Anthropic 的编程智能体）的桌面客户端，一个图形界面（GUI），支持
+Windows、macOS 和 Linux。它通过 Claude Agent SDK 把 Claude Code 以可视化的对话形式呈现，也能在终端标签里运行
+Claude Code 自带的 CLI，两者是同一段对话，随时切换。Claude Code 的版本也由它管理，不需要用 npm 安装。
 
 > [!NOTE]
 > ccUI 是独立项目，并非由 Anthropic 开发、认可或提供支持。
@@ -83,7 +87,10 @@ Claude Code 自带的 CLI 一键可达，对话始终是同一个。</p>
 **第一次开始会话需要等一会儿：** 安装包不包含 Claude Code，ccUI 会在第一次开始会话时从 npm 下载（约 135 MB，只需一次），
 并显示下载进度。之后登录即可，见[账户与登录](#账户与登录)。
 
-安装包暂未签名：
+从 0.1.7 起，Release 中的每个文件都由 GitHub Actions 从本仓库构建，并附有构建来源证明（build provenance attestation）。
+用 [GitHub CLI](https://cli.github.com) 校验下载的文件：`gh attestation verify <文件> --repo ShinyPoint/ccUI`。
+
+安装包暂未进行代码签名：
 - **Windows** SmartScreen 可能提示"Windows 已保护你的电脑"：点击**更多信息 → 仍要运行**。
 - **macOS** 第一次打开会提示无法打开 ccUI：打开 **系统设置 → 隐私与安全性**，点击**仍要打开**（或运行一次
   `xattr -cr /Applications/ccUI.app`）。
@@ -267,9 +274,9 @@ npm run dist:linux    # AppImage + deb
 安装包约 110 MB。每个平台需要在该平台上构建：终端模块的预编译文件来自按系统区分的 npm 包，`npm install` 只会获取当前
 系统的版本。
 
-发布流程：Windows 安装包在本地构建，随 Release 一起发布；发布后会触发 `.github/workflows/release.yml`，在 GitHub 的
-服务器上构建 macOS（Apple 芯片和 Intel，使用临时签名，暂无 Apple 开发者证书）和 Linux 安装包，上传到同一个 Release，
-并把它们的校验值加入 `SHA256SUMS.txt`。分发构建产物之前，请阅读 Anthropic 关于 Claude Code 和 Agent SDK 的条款：
+发布流程：发布 Release 会触发 `.github/workflows/release.yml`，在 GitHub 的服务器上构建 Windows（安装版和免安装版）、
+macOS（Apple 芯片和 Intel，使用临时签名，暂无 Apple 开发者证书）和 Linux 安装包，为每个文件生成构建来源证明，上传到该
+Release，并写入 `SHA256SUMS.txt`。分发构建产物之前，请阅读 Anthropic 关于 Claude Code 和 Agent SDK 的条款：
 <https://code.claude.com/docs/en/legal-and-compliance>。
 
 ## 项目结构

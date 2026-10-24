@@ -1,6 +1,14 @@
-# macOS and Linux installers for a GitHub release. Windows builds are made locally (npm run dist:win) and uploaded
-# with the release; this adds the rest to it, and their checksums to its SHA256SUMS.txt.
-# Runs when a release is published, or by hand for an existing tag (Actions → Release builds → Run workflow).
+# The installers for a GitHub release, built on GitHub's runners: Windows (installer and portable), macOS (Apple
+# Silicon and Intel, signed ad-hoc) and Linux. Each file gets a build provenance attestation (anyone can check that a
+# download was built here from the tagged source: gh attestation verify <file> --repo ShinyPoint/ccUI) and a line in
+# the release's SHA256SUMS.txt.
+# Runs when a release is published, or by hand for an existing tag (Actions → Release builds → Run workflow). A run by
+# hand can leave the release alone and keep the files as the run's artifacts, to try a change to this workflow.
+#
+# Windows code signing (SignPath, free for open source projects) turns on once the project is set up there: the
+# repository variables SIGNPATH_ORGANIZATION_ID, SIGNPATH_PROJECT_SLUG and SIGNPATH_POLICY_SLUG, and the secret
+# SIGNPATH_API_TOKEN. The SignPath project needs the artifact configurations in .signpath/ (slugs "app" and
+# "installers"). Every signing request waits for approval on SignPath, at most an hour.
 name: Release builds
 
 on:
@@ -9,14 +17,23 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag to build and upload to (for example v0.1.3)
+        description: Release tag to build (for example v0.1.3)
         required: true
+      upload:
+        description: Upload the files to the release (otherwise they are only kept with this run)
+        type: boolean
+        default: true
 
 permissions:
-  contents: write
+  contents: write # uploading to the release
+  actions: read # SignPath reads the files to sign from this run's artifacts
+  id-token: write # the attestations
+  attestations: write
 
 env:
   TAG: ${{ github.event.release.tag_name || inputs.tag }}
+  UPLOAD: ${{ github.event_name == 'release' || inputs.upload }}
+  SIGN: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
 
 jobs:
   build:
@@ -24,6 +41,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - { os: windows-latest, platform: win, arch: x64 }
           - { os: macos-latest, platform: mac, arch: arm64 }
           - { os: macos-latest, platform: mac, arch: x64 }
           - { os: ubuntu-latest, platform: linux, arch: x64 }
@@ -46,30 +64,108 @@ jobs:
           npm install --no-save --force "@lydell/node-pty-darwin-x64@$version"
           test "$(node -p "require('./node_modules/@lydell/node-pty-darwin-x64/package.json').version")" = "$version"
       - run: npx vite build
-      - run: npx electron-builder --${{ matrix.platform }} --${{ matrix.arch }} --publish never
+      - if: matrix.platform != 'win'
+        run: npx electron-builder --${{ matrix.platform }} --${{ matrix.arch }} --publish never
+
+      # Windows: the app first, then the installers around it, so that ccUI.exe can be signed before it is packed.
+      - if: matrix.platform == 'win'
+        id: version
+        shell: bash
+        run: |
+          npx electron-builder --win dir --x64 --publish never
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - if: matrix.platform == 'win' && env.SIGN == 'true'
+        id: unsigned-app
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-app
+          path: dist/win-unpacked/ccUI.exe
+          overwrite: true
+      - if: matrix.platform == 'win' && env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          artifact-configuration-slug: app
+          github-artifact-id: ${{ steps.unsigned-app.outputs.artifact-id }}
+          parameters: |
+            version: ${{ toJSON(steps.version.outputs.version) }}
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: dist/signed-app
+      - if: matrix.platform == 'win' && env.SIGN == 'true'
+        shell: bash
+        run: mv -f dist/signed-app/ccUI.exe dist/win-unpacked/ccUI.exe
+      - if: matrix.platform == 'win'
+        run: npx electron-builder --win nsis portable --x64 --prepackaged dist/win-unpacked --publish never
+      - if: matrix.platform == 'win' && env.SIGN == 'true'
+        id: unsigned-installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-installers
+          path: dist/*.exe
+          overwrite: true
+      - if: matrix.platform == 'win' && env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          artifact-configuration-slug: installers
+          github-artifact-id: ${{ steps.unsigned-installers.outputs.artifact-id }}
+          parameters: |
+            version: ${{ toJSON(steps.version.outputs.version) }}
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: dist/signed
+      - if: matrix.platform == 'win' && env.SIGN == 'true'
+        shell: bash
+        run: mv -f dist/signed/*.exe dist/
+
       - name: Checksums
         shell: bash
         run: |
           cd dist
           shopt -s nullglob
-          files=(*.dmg *.zip *.AppImage *.deb)
-          sha256sum "${files[@]}" > "SHA256SUMS-${{ matrix.platform }}-${{ matrix.arch }}.txt" 2>/dev/null || shasum -a 256 "${files[@]}" > "SHA256SUMS-${{ matrix.platform }}-${{ matrix.arch }}.txt"
-          cat "SHA256SUMS-${{ matrix.platform }}-${{ matrix.arch }}.txt"
-      - name: Upload to the release
+          files=(*.exe *.dmg *.zip *.AppImage *.deb)
+          sums="SHA256SUMS-${{ matrix.platform }}-${{ matrix.arch }}.txt"
+          # Git Bash marks files read in binary mode with a "*": every line is written the same way.
+          { sha256sum "${files[@]}" 2>/dev/null || shasum -a 256 "${files[@]}"; } | sed 's/ \*/  /' > "$sums"
+          cat "$sums"
+      - if: env.UPLOAD == 'true'
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-checksums: dist/SHA256SUMS-${{ matrix.platform }}-${{ matrix.arch }}.txt
+      - if: env.UPLOAD == 'true'
+        name: Upload to the release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd dist
           shopt -s nullglob
-          gh release upload "$TAG" *.dmg *.zip *.AppImage *.deb --clobber --repo "$GITHUB_REPOSITORY"
+          gh release upload "$TAG" *.exe *.dmg *.zip *.AppImage *.deb --clobber --repo "$GITHUB_REPOSITORY"
+      - if: env.UPLOAD != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: files-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.deb
+          overwrite: true
       - uses: actions/upload-artifact@v4
         with:
           name: sums-${{ matrix.platform }}-${{ matrix.arch }}
           path: dist/SHA256SUMS-*.txt
+          overwrite: true
 
   checksums:
     needs: build
+    if: github.event_name == 'release' || inputs.upload
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -82,7 +178,7 @@ jobs:
         run: |
           gh release download "$TAG" --pattern SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" || touch SHA256SUMS.txt
           cat SHA256SUMS-*.txt >> SHA256SUMS.txt
-          # One line per file, the newest checksum for each.
-          tac SHA256SUMS.txt | awk '!seen[$2]++' | tac > merged.txt && mv merged.txt SHA256SUMS.txt
+          # One line per file, the newest checksum for each (older lists may mark Windows files with a "*").
+          sed 's/ \*/  /' SHA256SUMS.txt | tac | awk '!seen[$2]++' | tac > merged.txt && mv merged.txt SHA256SUMS.txt
           cat SHA256SUMS.txt
           gh release upload "$TAG" SHA256SUMS.txt --clobber --repo "$GITHUB_REPOSITORY"

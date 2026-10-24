@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SignPath artifact configuration "installers": the Windows installer and the portable build, made around the
+     signed ccUI.exe (see .github/workflows/release.yml). -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file path="ccUI-Setup-${version}-x64.exe" product-name="ccUI" product-version="${version}">
+      <authenticode-sign />
+    </pe-file>
+    <pe-file path="ccUI-${version}-x64-portable.exe" product-name="ccUI" product-version="${version}">
+      <authenticode-sign />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

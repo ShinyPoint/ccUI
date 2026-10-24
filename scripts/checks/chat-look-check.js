@@ -26,6 +26,24 @@ const REPLY = [
   'Want me to start on it?',
 ].join('\n');
 
+// Math the way a problem statement writes it, with what must stay text: prices, shell variables, TeX that doesn't
+// parse, and TeX that asks for a link.
+const MATH = [
+  '## 问题陈述',
+  '',
+  '在 xy 平面上有 $N$ 个点，点 $i$ 的坐标为 $(i, A_i)$。',
+  '',
+  '- $2 \\le N \\le 100$',
+  '- $1 \\le A_i \\le 100$（$1 \\le i \\le N$）',
+  '',
+  'The total is',
+  '$$',
+  '\\sum_{i=1}^{N} \\frac{A_i}{2}',
+  '$$',
+  '',
+  'It costs $5 and $10; set $HOME/$USER. Broken: $\\frac{1$. Linked: $\\href{https://example.com}{x}$.',
+].join('\n');
+
 install({
   histories: [],
   transcripts: new Map(),
@@ -50,6 +68,8 @@ install({
       await c.tool('Read', { file_path: c.file('notes.md') }, { run: 100 });
       await c.tool('Read', { file_path: c.file('notes.md'), offset: 1, limit: 2 }, { run: 100 });
       await c.say('Built.', { cps: 600 });
+    } else if (/math/.test(text)) {
+      await c.say(MATH, { cps: 1500 });
     } else if (/code block/.test(text)) {
       await c.say('Compile it with:\n\n```\ng++ "{source_file}" -std=c++17 -o "{file_name}"\n```', { cps: 600 });
     } else if (/long/.test(text)) {
@@ -286,6 +306,24 @@ app.on('browser-window-created', (_e, win) => {
       check('a code block without a language is labeled Plain text', block.label === 'Plain text', block.label);
       check('its head is the color of the code under it, with a glow around the block', /rgba\(0, 0, 0, 0\)|transparent/.test(block.head) && block.shadow !== 'none' && Number(block.weight) <= 500, JSON.stringify(block));
       await shot('2c-code-block');
+
+      // Math in Claude's answers is typeset (KaTeX, in its own fonts); prices, shell variables and broken TeX stay text.
+      await say('Show me some math.');
+      await until('the math', `${idle} && Boolean([...document.querySelectorAll('.msg-text .md')].at(-1)?.querySelector('.katex-display'))`);
+      const math = JSON.parse(await js(`(async () => { await document.fonts.ready; const md = [...document.querySelectorAll('.msg-text .md')].at(-1);
+        const text = md.querySelector('p:last-of-type').textContent;
+        return JSON.stringify({ inline: md.querySelectorAll('.katex:not(.katex-display .katex)').length, display: md.querySelectorAll('.katex-display').length,
+          sum: md.querySelector('.katex-display')?.textContent.includes('∑'), paragraph: [...md.querySelectorAll('p')].some((p) => p.textContent.trim() === 'The total is'),
+          raw: /\\$N\\$|\\$\\$/.test(md.textContent.replace(/\\$5|\\$10|\\$HOME|\\$USER|\\$\\\\frac\\{1\\$|\\$\\\\href[^$]*\\$/g, '')), text,
+          positioned: Boolean(md.querySelector('.katex-html [style]')), links: md.querySelectorAll('.katex a').length,
+          font: [...document.fonts].some((f) => f.family.replace(/"/g, '') === 'KaTeX_Main' && f.status === 'loaded') }); })()`));
+      check('inline math ($…$) is typeset, Chinese punctuation after it included', math.inline >= 6 && !math.raw, JSON.stringify({ inline: math.inline, raw: math.raw }));
+      check('display math ($$ on its own lines) is typeset as a block, after the paragraph before it', math.display === 1 && math.sum && math.paragraph, JSON.stringify({ display: math.display, sum: math.sum }));
+      check('formulas keep KaTeX’s layout and load its fonts', math.positioned && math.font, JSON.stringify({ positioned: math.positioned, font: math.font }));
+      check('prices, shell variables, TeX that doesn’t parse and TeX asking for a link stay as written',
+        /costs \$5 and \$10; set \$HOME\/\$USER\. Broken: \$\\frac\{1\$\. Linked: \$\\href\{https:\/\/example\.com\}\{x\}\$\./.test(math.text) && math.links === 0,
+        JSON.stringify({ text: math.text.slice(0, 120), links: math.links }));
+      await shot('2d-math');
 
       // A step's description instead of its command, swept by a light while it runs; thinking shows what was thought.
       await say('Tell me what you think.');
