@@ -164,6 +164,7 @@ app.on('browser-window-created', (_e, win) => {
       await run('/rename Rate limiter work');
       await wait(200);
       check('/rename names the session', (await js("document.querySelector('#sidebar .session-name').textContent")) === 'Rate limiter work');
+      check('the top bar shows the new name too', (await js("document.querySelector('#topbar .top-task')?.textContent || ''")) === 'Rate limiter work');
       check('and tells Claude Code', controls('rename').some(([, n]) => n === 'Rate limiter work'));
       await run('/model');
       check('/model opens the model menu', await until('the model menu', "Boolean(document.querySelector('.model-menu .menu-list'))", 2000));

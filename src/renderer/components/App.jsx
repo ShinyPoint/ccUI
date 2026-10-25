@@ -63,6 +63,7 @@ function Topbar({ s }) {
   const kind = s?.kind.value;
   const proc = s && kind !== 'chat' ? processInfo(s) : '';
   const panelOpen = s?.panel.open.value;
+  const task = s && (s.name.value || s.title.value); // a name you gave the session wins, as in the sidebar
   return (
     <header id="topbar" class="drag">
       {collapsed && (
@@ -74,7 +75,7 @@ function Topbar({ s }) {
         <div class="topbar-title">
           <ProjectMenu s={s} proc={proc} />
           {kind === 'chat' && <div class="no-drag"><ModelMenu s={s} /></div>}
-          {s.title.value && <span class="top-task" title={proc || s.title.value}>{s.title.value}</span>}
+          {task && <span class="top-task" title={proc || task}>{task}</span>}
         </div>
       )}
       {s && (
