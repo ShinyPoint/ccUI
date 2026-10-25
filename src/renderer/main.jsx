@@ -17,6 +17,7 @@ import { installShortcuts } from './lib/keyboard.js';
 import { installTooltips } from './lib/tooltip.js';
 import { restoreSessions, runningTasks } from './lib/sessions.js';
 import { App } from './components/App.jsx';
+import { sidebarWidth } from './components/Sidebar.jsx';
 import { language, locale, t } from './lib/i18n.js';
 
 info.value = await api.info();
@@ -52,6 +53,10 @@ effect(() => {
 });
 effect(() => {
   document.documentElement.style.setProperty('--chat-size', `${settings.value.chatFontSize || 14}px`);
+});
+// The sidebar's width, as dragged (SidebarResizer).
+effect(() => {
+  document.documentElement.style.setProperty('--sidebar-w', `${sidebarWidth(settings.value.sidebarWidth)}px`);
 });
 // UI scale (Settings → Appearance): set before the first paint, so the app never shows at another size first.
 effect(() => { api.setZoom((settings.value.uiScale || 105) / 100); });

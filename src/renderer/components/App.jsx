@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { Icon, Toasts, ContextMenu, ConfirmHost } from './ui.jsx';
-import { Sidebar } from './Sidebar.jsx';
+import { Sidebar, SidebarResizer } from './Sidebar.jsx';
 import { ChatView } from './chat/ChatView.jsx';
 import { ModelMenu } from './chat/ModelMenu.jsx';
 import { ProjectMenu } from './ProjectMenu.jsx';
@@ -182,6 +182,7 @@ export function App() {
   return (
     <div id="app">
       <Sidebar />
+      <SidebarResizer />
       <main id="main">
         <Topbar s={s} />
         <div id="stage" class={kind && kind !== 'chat' ? `mode-terminal ${terminalMode() === 'dark' && themeMode.value === 'light' ? 'term-dark' : ''}` : ''}>

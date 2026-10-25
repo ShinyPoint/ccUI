@@ -8,8 +8,9 @@ import {
 } from '../lib/store.js';
 import {
   selectSession, endSession, openSession, openConversation, forgetRecent, renameSession, newChat, chatsFolder, isLoose,
-  openInTerminal, openInChat,
+  openInTerminal, openInChat, reorderSessions,
 } from '../lib/sessions.js';
+import { pressToSort, moved } from '../lib/sortable.js';
 import { basename, tildify, samePath, relativeTime, fileManagerLabel } from '../lib/format.js';
 import { SHORTCUTS, searchProjects, focusComposer } from '../lib/keyboard.js';
 import { t, phrase } from '../lib/i18n.js';
@@ -61,7 +62,8 @@ const sessionLabel = (s) => s.name.value || s.title.value || t(KIND_LABEL[s.kind
 const sessionTip = (s, word) => [s.name.value || s.title.value || s.cwd, s.name.value && s.title.value !== s.name.value && s.title.value, word]
   .filter(Boolean).join('\n');
 
-// A folder's sessions by kind, Chat, then CLI, then Shell, with a line between the kinds present.
+// A folder's sessions by kind, Chat, then CLI, then Shell, with a line between the kinds present. Sessions are
+// dragged to another place within their kind.
 const KIND_ORDER = ['chat', 'terminal', 'shell'];
 function byKind(list) {
   const rows = [];
@@ -70,9 +72,21 @@ function byKind(list) {
     const group = list.filter((s) => s.kind.value === kind);
     if (!group.length) continue;
     if (rows.length) rows.push(<li key={`line-${kind}`} class="session-divider" aria-hidden="true" />);
-    for (const s of group) rows.push(<SessionRow key={s.uid} s={s} index={i++} />);
+    for (const s of group) rows.push(<SessionRow key={s.uid} s={s} group={group} index={i++} />);
   }
   return rows;
+}
+
+const sidebarScroller = (el) => el.closest('.sidebar-scroll');
+
+function dragSession(e, s, group) {
+  const item = e.currentTarget;
+  pressToSort(e, {
+    item,
+    items: () => [...item.parentElement.children].filter((el) => el.matches(`.session[data-kind="${s.kind.value}"]`)),
+    scroller: sidebarScroller(item),
+    onDrop: (from, to) => reorderSessions(group, moved(group, from, to)),
+  });
 }
 
 function sessionMenu(e, s) {
@@ -89,7 +103,7 @@ function sessionMenu(e, s) {
 // One line: the kind icon at the text's size, the title, and at the right a spinner while Claude works (a dot when
 // a session waits for your answer); the state in words is in the tooltip. `index`: its place in the folder, for
 // the rows' staggered slide-in when the folder opens.
-function SessionRow({ s, index = 0 }) {
+function SessionRow({ s, group, index = 0 }) {
   const status = s.status.value;
   const kind = s.kind.value;
   const exitCode = s.exitCode.value;
@@ -99,8 +113,8 @@ function SessionRow({ s, index = 0 }) {
   const renaming = renamingUid.value === s.uid;
 
   return (
-    <li class="session" style={{ '--i': index }} data-status={status} aria-current={String(s.uid === activeUid.value)}
-        onContextMenu={(e) => sessionMenu(e, s)}>
+    <li class="session" style={{ '--i': index }} data-status={status} data-kind={kind} aria-current={String(s.uid === activeUid.value)}
+        onContextMenu={(e) => sessionMenu(e, s)} onPointerDown={(e) => !renaming && dragSession(e, s, group)}>
       <button class="session-main" title={sessionTip(s, word)} onClick={() => selectSession(s)}
               onDblClick={() => { renamingUid.value = s.uid; }}>
         <span class="session-icon" title={t(KIND_LABEL[kind])}>
@@ -206,8 +220,9 @@ function folderMenu(e, path, open) {
 }
 
 // `open`: the folder's sessions; `shown`: those that match the search (all of them when not searching).
-// While searching, folders with matches are shown open.
-function Folder({ path, open, shown = open, searching }) {
+// While searching, folders with matches are shown open. `onDrag`: from the folder's own row, to move it
+// (not while searching, when only some folders show).
+function Folder({ path, open, shown = open, searching, onDrag }) {
   // Folded unless opened since launch (main.jsx clears the folder states at launch).
   const collapsed = !searching && (settings.value.folders?.[path]?.collapsed ?? true);
   const showRecents = recentsOpen.value.has(path);
@@ -217,7 +232,7 @@ function Folder({ path, open, shown = open, searching }) {
 
   return (
     <li class={`folder ${collapsed ? 'collapsed' : ''} ${containsActive ? 'has-active' : ''}`}>
-      <div class="folder-row" onContextMenu={(e) => folderMenu(e, path, open)}>
+      <div class="folder-row" onContextMenu={(e) => folderMenu(e, path, open)} onPointerDown={onDrag}>
         <button class="folder-main" title={tildify(path)} aria-expanded={!collapsed} onClick={() => setCollapsed(path, !collapsed)}>
           <span class="folder-chevron"><Icon name="chevron" size={13} /></span>
           <span class="folder-icon"><Icon name="folder" size={15} /></span>
@@ -293,14 +308,34 @@ function SkillsButton() {
   );
 }
 
+// Project folders in the order they were dragged to (settings.folderOrder); those not in it yet (opened since)
+// come first, as they would without one.
+function inDraggedOrder(folders) {
+  const order = settings.value.folderOrder || [];
+  const at = (p) => order.findIndex((o) => samePath(o, p));
+  return [...folders.filter((p) => at(p) < 0), ...folders.filter((p) => at(p) >= 0).sort((a, b) => at(a) - at(b))];
+}
+
+function dragFolder(e, paths) {
+  const item = e.currentTarget.closest('.folder');
+  pressToSort(e, {
+    item,
+    items: () => [...item.parentElement.children],
+    scroller: sidebarScroller(item),
+    onDrop: (from, to) => saveSettings({ folderOrder: moved(paths, from, to) }),
+  });
+}
+
 export function Sidebar() {
   const list = sessions.value;
-  // Folders: those with open sessions first (in opening order), then recent folders. Sessions without a project
-  // (in the app's own folder, see chatsFolder) are listed on their own, above.
-  const folders = [];
+  // Folders: those with open sessions first (in opening order), then recent folders, unless dragged into an order
+  // of their own. Sessions without a project (in the app's own folder, see chatsFolder) are listed on their own,
+  // above.
+  let folders = [];
   for (const p of [...list.map((s) => s.cwd), ...(settings.value.recent || []).map((r) => r.path)]) {
     if (!isLoose(p) && !folders.some((f) => samePath(f, p))) folders.push(p);
   }
+  folders = inDraggedOrder(folders);
   const searching = projectSearch.value > 0;
   const q = searching ? query.value.trim().toLowerCase() : '';
   const looseCwd = chatsFolder();
@@ -365,7 +400,10 @@ export function Sidebar() {
         {searching && <ProjectSearch first={rows.find((r) => r.shown.length)?.shown[0]} />}
         {rows.length ? (
           <ul class="folder-list">
-            {rows.map((r) => <Folder key={r.path} path={r.path} open={r.open} shown={r.shown} searching={Boolean(q)} />)}
+            {rows.map((r) => (
+              <Folder key={r.path} path={r.path} open={r.open} shown={r.shown} searching={Boolean(q)}
+                      onDrag={searching ? undefined : (e) => dragFolder(e, folders)} />
+            ))}
           </ul>
         ) : (
           <p class="sidebar-hint">
@@ -383,5 +421,49 @@ export function Sidebar() {
         </button>
       </div>
     </aside>
+  );
+}
+
+// The sidebar's edge, in the gap between it and the work area: drag it to make the sidebar wider or narrower
+// (double-click: back to its first width). Arrow keys move it too when it has the focus. The work area keeps at
+// least 400px.
+const WIDTH = { min: 200, max: 480, first: 256 };
+export const sidebarWidth = (w) => Math.round(Math.min(Math.max(w || WIDTH.first, WIDTH.min), Math.max(WIDTH.min, Math.min(WIDTH.max, innerWidth - 400))));
+
+export function SidebarResizer() {
+  const width = sidebarWidth(settings.value.sidebarWidth);
+  const show = (w) => document.documentElement.style.setProperty('--sidebar-w', `${w}px`);
+  const onPointerDown = (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const handle = e.currentTarget;
+    handle.setPointerCapture(e.pointerId);
+    const startX = e.clientX;
+    let now = width;
+    document.body.classList.add('resizing-sidebar');
+    const move = (ev) => {
+      now = sidebarWidth(width + ev.clientX - startX);
+      show(now);
+    };
+    const end = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('lostpointercapture', end);
+      document.body.classList.remove('resizing-sidebar');
+      if (now !== width) saveSettings({ sidebarWidth: now });
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('lostpointercapture', end);
+  };
+  const onKeyDown = (e) => {
+    const step = e.key === 'ArrowLeft' ? -16 : e.key === 'ArrowRight' ? 16 : 0;
+    if (!step) return;
+    e.preventDefault();
+    saveSettings({ sidebarWidth: sidebarWidth(width + step) });
+  };
+  return (
+    <div class="sidebar-resizer" role="separator" aria-orientation="vertical" aria-label={t('Sidebar width')} tabIndex={0}
+         aria-valuemin={WIDTH.min} aria-valuemax={WIDTH.max} aria-valuenow={width}
+         title={t('Drag to resize the sidebar. Double-click for its first width.')}
+         onPointerDown={onPointerDown} onDblClick={() => saveSettings({ sidebarWidth: WIDTH.first })} onKeyDown={onKeyDown} />
   );
 }

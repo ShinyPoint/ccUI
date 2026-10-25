@@ -47,6 +47,8 @@ const MATH = [
 install({
   histories: [],
   transcripts: new Map(),
+  // Enough of them for the context pop-up to be taller than its room (it scrolls then).
+  contextRows: [{ name: 'Skills', tokens: 2400, kind: 'used' }, { name: 'Custom agents', tokens: 800, kind: 'used' }],
   script: () => async (c, text) => {
     await c.think(300);
     if (/big file/.test(text)) {
@@ -494,6 +496,9 @@ app.on('browser-window-created', (_e, win) => {
       const p = JSON.parse(pop);
       check('it lists what takes the space, without deferred tools', p.rows.includes('Messages') && p.rows.includes('Free space') && !p.rows.includes('MCP tools'), pop);
       check('and the session cost', /\$0\.0\d/.test(p.cost), p.cost);
+      const fullness = JSON.parse(await js(`JSON.stringify((() => { const pop = document.querySelector('.context-pop'); const bar = pop.querySelector('.ctx-bar');
+        return { bar: Math.round(bar.getBoundingClientRect().height * 10) / 10, fill: Math.round(bar.firstElementChild.getBoundingClientRect().width), room: pop.clientHeight, content: pop.scrollHeight }; })())`));
+      check('its bar keeps its height when the pop-up is fuller than its room', fullness.content > fullness.room && fullness.bar >= 5.5 && fullness.fill > 0, JSON.stringify(fullness));
       await shot('2b-context');
       await js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true");
       await wait(200);

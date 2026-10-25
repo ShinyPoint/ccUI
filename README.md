@@ -84,7 +84,7 @@ Get the newest build from [Releases](https://github.com/ShinyPoint/ccUI/releases
 | Windows 10 / 11 (x64) | `ccUI-Setup-<version>-x64.exe` | Installer. Or `…-portable.exe`, which runs without installing |
 | macOS 12+ (Apple Silicon) | `ccUI-<version>-mac-arm64.dmg` | Open it and drag ccUI into Applications |
 | macOS 12+ (Intel) | `ccUI-<version>-mac-x64.dmg` | |
-| Linux (x64) | `ccUI-<version>-linux-x86_64.AppImage` or `…-linux-amd64.deb` | AppImage: `chmod +x`, then run it |
+| Linux (x64) | `ccUI-<version>-linux-x86_64.AppImage` or `…-linux-amd64.deb` | AppImage: `chmod +x`, then run it. On Ubuntu or Debian the .deb installs like any package: `sudo apt install ./ccUI-<version>-linux-amd64.deb` |
 
 **The first session takes a minute:** the installers don't include Claude Code, so ccUI downloads it from npm the
 first time a session starts (about 135 MB, once) and shows how far along it is. Then sign in: see

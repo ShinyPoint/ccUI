@@ -82,7 +82,7 @@ Claude Code 自带的 CLI，两者是同一段对话，随时切换。Claude Cod
 | Windows 10 / 11（x64） | `ccUI-Setup-<版本>-x64.exe` | 安装版。也可以用 `…-portable.exe`，免安装直接运行 |
 | macOS 12+（Apple 芯片） | `ccUI-<版本>-mac-arm64.dmg` | 打开后把 ccUI 拖进"应用程序" |
 | macOS 12+（Intel） | `ccUI-<版本>-mac-x64.dmg` | |
-| Linux（x64） | `ccUI-<版本>-linux-x86_64.AppImage` 或 `…-linux-amd64.deb` | AppImage：先 `chmod +x` 再运行 |
+| Linux（x64） | `ccUI-<版本>-linux-x86_64.AppImage` 或 `…-linux-amd64.deb` | AppImage：先 `chmod +x` 再运行。Ubuntu 或 Debian 上也可以像普通软件包一样安装 .deb：`sudo apt install ./ccUI-<版本>-linux-amd64.deb` |
 
 **第一次开始会话需要等一会儿：** 安装包不包含 Claude Code，ccUI 会在第一次开始会话时从 npm 下载（约 135 MB，只需一次），
 并显示下载进度。之后登录即可，见[账户与登录](#账户与登录)。

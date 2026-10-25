@@ -263,6 +263,7 @@ class FakeAgentSession {
         { name: 'System tools', tokens: 11800, kind: 'used' },
         { name: 'Memory files', tokens: 1200, kind: 'used' },
         { name: 'Messages', tokens: totalTokens - 16100, kind: 'used' },
+        ...(this.director.contextRows || []), // more of what takes the space, for a pop-up taller than its room
         { name: 'Free space', tokens: 200000 - totalTokens - 33000, kind: 'free' },
         { name: 'Autocompact buffer', tokens: 33000, kind: 'buffer' },
         { name: 'MCP tools', tokens: 900, kind: 'deferred' },

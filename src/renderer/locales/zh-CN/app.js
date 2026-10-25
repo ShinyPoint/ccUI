@@ -68,6 +68,8 @@ export default {
   'Search projects and sessions ({key})': '搜索项目和会话（{key}）',
   'Clear (Esc)': '清除（Esc）',
   'Hide sidebar': '隐藏侧边栏',
+  'Sidebar width': '侧边栏宽度',
+  'Drag to resize the sidebar. Double-click for its first width.': '拖动以调整侧边栏宽度，双击恢复默认宽度。',
   'New session': '新建会话',
   Projects: '项目',
   Sessions: '会话',

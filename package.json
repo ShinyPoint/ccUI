@@ -52,6 +52,7 @@
     "check:dialogs": "vite build && electron scripts/checks/dialogs-check.js",
     "check:commands": "vite build && electron scripts/checks/commands-check.js",
     "check:sessions": "vite build && electron scripts/checks/sessions-check.js",
+    "check:sidebar": "vite build && electron scripts/checks/sidebar-check.js",
     "check:effort": "vite build && electron scripts/checks/effort-check.js",
     "check:i18n": "vite build && electron scripts/checks/i18n-check.js",
     "video": "vite build && electron scripts/intro-video/record.js && electron scripts/intro-video/compose.js"
@@ -133,6 +134,9 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "artifactName": "${productName}-Setup-${version}-${arch}.${ext}"
+    },
+    "toolsets": {
+      "appimage": "1.0.3"
     },
     "portable": {
       "artifactName": "${productName}-${version}-${arch}-portable.${ext}"

@@ -1081,6 +1081,17 @@ export function renameSession(s, name) {
   persistSessions();
 }
 
+// Puts a sidebar group's sessions (one folder's, of one kind) in the order dragged to. They swap among the places
+// they already had in the list, so every other session stays where it was, and so does the folders' order (which
+// follows the list's). The order is kept for the next launch.
+export function reorderSessions(group, next) {
+  const list = sessions.value.slice();
+  const places = list.flatMap((s, i) => (group.includes(s) ? [i] : []));
+  places.forEach((place, k) => { list[place] = next[k]; });
+  sessions.value = list;
+  persistSessions();
+}
+
 // ---------- recent folders ----------
 export function addRecent(path) {
   if (isLoose(path)) return; // not a project

@@ -1294,6 +1294,9 @@ html.frost[data-theme="dark"] :is(.menu-list, .context-menu, .autocomplete) { bo
 /* Lists of highlightable rows (menus, the right-click menu, the / list): 2px between
    rows, so a chosen row and a hovered one next to it stay two shapes instead of merging into one block. */
 .menu-list, .autocomplete, .context-menu { display: flex; flex-direction: column; gap: 2px; }
+/* Taller than their max-height, they scroll: nothing in them is squeezed. Rows of text never go below their text,
+   but a piece with none (the context pop-up's bar, a separator) would be pressed down to nothing. */
+:is(.menu-list, .autocomplete, .context-menu) > * { flex-shrink: 0; }
 
 /* The Changes panel is a document viewer: its scrollbars always show when there is more (fainter until hovered),
    and the diff and the file can be selected and copied (not the line numbers or the +/− signs). */

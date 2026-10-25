@@ -36,6 +36,7 @@ const DEFAULTS = {
   confirmClose: true,
   restoreSessions: true,
   sidebarCollapsed: false,
+  sidebarWidth: 256, // px, set by dragging the sidebar's edge (double-click it for this again)
   sidebarGlass: true, // frosted-glass sidebar (system material; Windows 11 22H2+ and macOS)
   fillEdge: true, // the chat / CLI area runs out to the window's right edge (no gap there)
   thinkingMark: false, // Claude's ✻ before each thought in a chat (off: the thought alone, still in the steps' column)
@@ -43,6 +44,7 @@ const DEFAULTS = {
   backgroundShow: 40, // how much of the background image shows through, percent
   backgroundBlur: 8, // blur of the background image, px
   recent: [], // [{ path, at }]
+  folderOrder: [], // project folders in the order dragged to in the sidebar; folders not in it come first
   lastSessions: [], // [{ kind, cwd, name, sessionId, model, permissionMode }]
   conversations: {}, // sessionId -> { model, permissionMode }, restored when a conversation is resumed
   folders: {}, // folder path -> { collapsed }; cleared at launch, so every folder starts folded

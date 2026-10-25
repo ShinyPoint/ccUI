@@ -216,6 +216,42 @@ body.sidebar-collapsed #app { grid-template-columns: 0 minmax(0, 1fr); }
 .new-session, .sidebar-link { min-width: calc(var(--sidebar-w) - 28px); }
 .sidebar-bottom { min-width: calc(var(--sidebar-w) - 24px); }
 body.sidebar-collapsed #sidebar { visibility: hidden; transition: visibility 0s .22s; }
+
+/* The sidebar's edge (SidebarResizer): the gap between it and the work area, under the top bar. Pointed at or
+   dragged, a line shows in the middle of the gap; while dragging, the columns follow at once, without easing. */
+#app { position: relative; }
+.sidebar-resizer {
+  position: absolute; z-index: 5;
+  top: var(--bar-h); bottom: 0; left: calc(var(--sidebar-w) - 1px);
+  width: 10px;
+  cursor: col-resize;
+  outline: none;
+}
+.sidebar-resizer::after {
+  content: ""; position: absolute; top: 8px; bottom: 8px; left: 4px; width: 2px;
+  border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--text) 22%, transparent);
+  opacity: 0;
+  transition: opacity .15s;
+}
+.sidebar-resizer:hover::after { opacity: 1; transition-delay: .15s; }
+.sidebar-resizer:focus-visible::after, body.resizing-sidebar .sidebar-resizer::after { opacity: 1; transition-delay: 0s; }
+body.resizing-sidebar #app { transition: none; }
+body.resizing-sidebar, body.resizing-sidebar * { cursor: col-resize !important; }
+body.sidebar-collapsed .sidebar-resizer { display: none; }
+
+/* Dragging a project folder or a session to another place (lib/sortable.js): it lifts and follows the pointer,
+   the others slide aside to make room. */
+.sorting :is(.folder, .session) { transition: transform .2s var(--ease), background .15s; }
+.sorting .sort-lifted {
+  position: relative; z-index: 3;
+  transition: background .15s;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: var(--glow-focus);
+}
+body.sorting-now, body.sorting-now * { cursor: grabbing !important; }
+body.sorting-now .tooltip { display: none; }
 /* Frosted glass (html.glass, see main.jsx): the window is backed by the system's blurred material and the whole
    frame around the work area (the sidebar, the top bar, the gaps) is one see-through surface with a light tint of
    the theme's chrome color. Only the chat / CLI sheet and the Terminal panel stay solid. Mostly solid: just a
