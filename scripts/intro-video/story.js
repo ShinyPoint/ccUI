@@ -1,5 +1,6 @@
-// What happens in the intro video: the demo projects on disk, the conversations already in the sidebar,
-// and what "Claude" does in each session (played by the fakes in fakes.js).
+// What happens in the intro video: the demo projects on disk, the conversations already in the sidebar, what
+// "Claude" does in each session (played by the fakes in fakes.js), and the words shown, in English or Chinese
+// (`lang`: 'en' | 'zh-CN'; one video for each README).
 const fs = require('fs');
 const path = require('path');
 const { applyEdit, applyWrite } = require('../checks/fakes');
@@ -88,10 +89,96 @@ const TEST_OUTPUT = `> orbit-api@1.8.0 test
 ℹ pass 14
 ℹ fail 0`;
 
-const PROMPTS = {
-  main: 'Add rate limiting to the public routes: 60 requests a minute per API key. Start from ',
-  atlas: 'Upgrade to React 19 and fix whatever breaks in the build',
-  deny: 'Not main. Push a branch and open a draft PR.',
+// The code block in the answer (the same in both languages: code isn't translated).
+const CODE = [
+  '```js',
+  "res.set('Retry-After', String(Math.ceil((entry.resetAt - now) / 1000)));",
+  "return res.status(429).json({ error: 'Rate limit exceeded' });",
+  '```',
+].join('\n');
+const FORMULA = '$$\n\\text{burst}_{\\max} = 2L = 120 \\qquad (W = 60\\,\\text{s},\\ L = 60)\n$$';
+
+const TEXT = {
+  en: {
+    prompt: 'Add rate limiting to the public routes: 60 requests a minute per API key.',
+    atlas: 'Upgrade to React 19 and fix whatever breaks in the build',
+    thinkRoutes: '**Reading how the routes are wired**\n\nThe /v1 routes are mounted in server.js, after authenticate sets req.apiKey.',
+    thinkPlan: '**Planning a fixed-window limiter**\n\nA middleware that counts per key and answers 429 past the limit.',
+    say: 'I’ll check how the routes are wired up, then add the limiter as middleware.',
+    test: 'Run the test suite',
+    answer: [
+      'Rate limiting is on for every `/v1` route: **60 requests a minute per API key**.',
+      '',
+      'With a fixed window of $W$ seconds and a limit of $L$, a client can still fit up to $2L$ requests around a window’s edge:',
+      '',
+      FORMULA,
+      '',
+      'Request 61 gets a `429` with a `Retry-After` header:',
+      '',
+      CODE,
+      '',
+      'All 14 tests pass.',
+    ].join('\n'),
+    atlasSay: 'I’ll bump React, then build and fix what breaks.',
+    histories: { tests: ['Write tests for the webhook retry queue', 'Added `test/webhooks.test.js` with six cases covering backoff, the retry cap and the dead-letter path. All of them pass.'],
+      notes: ['Draft the release notes for 2.4', 'The draft is in `CHANGELOG.md`: three features, five fixes, and one breaking change called out at the top.'] },
+    cliAnswer: 'Rate limiting is on for every /v1 route: 60 requests a minute per API key.',
+    captions: {
+      steps: 'Every step, readable.',
+      math: 'Math and code, typeset.',
+      cli: 'One conversation: chat or CLI.',
+      arrange: 'Arranged your way.',
+      looks: 'Light, dark, your colors.',
+    },
+    labels: { appearance: 'Appearance' },
+    cards: {
+      title: 'A desktop GUI for Claude Code',
+      line: 'Chat when you want it. <em>The CLI when you need it.</em>',
+      small: 'Windows<b>·</b>macOS<b>·</b>Linux<b>·</b>Free and open source',
+      download: 'Download',
+      star: 'If you like it, leave a <span class="star">★</span> on GitHub',
+    },
+  },
+  'zh-CN': {
+    prompt: '给公开接口加上限流：每个 API key 每分钟最多 60 次请求。',
+    atlas: '升级到 React 19，并修好构建里出现的问题',
+    thinkRoutes: '**先看路由是怎么挂载的**\n\n/v1 路由挂在 server.js 里，authenticate 之后 req.apiKey 已经可用。',
+    thinkPlan: '**用固定窗口实现限流**\n\n写一个中间件，按 key 计数，超过上限就返回 429。',
+    say: '我先看看路由是怎么组织的，再把限流做成中间件加进去。',
+    test: '运行测试',
+    answer: [
+      '所有 `/v1` 路由都已限流：**每个 API key 每分钟 60 次请求**。',
+      '',
+      '固定窗口长度为 $W$ 秒、上限为 $L$ 时，客户端在窗口交界处最多仍能发出 $2L$ 次请求：',
+      '',
+      FORMULA,
+      '',
+      '第 61 次请求会收到带 `Retry-After` 头的 `429`：',
+      '',
+      CODE,
+      '',
+      '14 个测试全部通过。',
+    ].join('\n'),
+    atlasSay: '我先升级 React，然后构建并修复出现的问题。',
+    histories: { tests: ['为 webhook 重试队列写测试', '新增了 `test/webhooks.test.js`，六个用例覆盖退避、重试上限和死信路径，全部通过。'],
+      notes: ['起草 2.4 版的发布说明', '草稿在 `CHANGELOG.md` 里：三个新功能、五个修复，开头单独标出了一处不兼容的改动。'] },
+    cliAnswer: '所有 /v1 路由都已限流：每个 API key 每分钟 60 次请求。',
+    captions: {
+      steps: '每一步，都看得清楚',
+      math: '公式和代码，排版好看',
+      cli: '同一段对话，对话或 CLI 随时切换',
+      arrange: '侧边栏，按你的习惯摆放',
+      looks: '浅色、深色，随你配色',
+    },
+    labels: { appearance: '外观' },
+    cards: {
+      title: 'Claude Code 的桌面图形界面',
+      line: '想聊天就用对话，<em>需要时切到 CLI</em>',
+      small: 'Windows<b>·</b>macOS<b>·</b>Linux<b>·</b>免费开源',
+      download: '下载',
+      star: '喜欢的话，在 GitHub 上点个 <span class="star">★</span> Star',
+    },
+  },
 };
 
 function createProjects(home) {
@@ -107,141 +194,59 @@ function createProjects(home) {
   return projects;
 }
 
-const todos = (...status) => ({
-  todos: ['Add the rate-limit middleware', 'Apply it to the /v1 routes', 'Run the tests'].map((content, i) => ({
-    content, status: status[i], activeForm: ['Adding the rate-limit middleware', 'Applying it to the /v1 routes', 'Running the tests'][i],
-  })),
-});
-
-// The session the video follows.
-async function orbit(c) {
-  await c.think(1100);
-  await c.say('I’ll check how the routes are wired up, then add the limiter as middleware.');
-  await c.tool('Read', { file_path: c.file('src/server.js') }, {
-    run: 420, data: { type: 'text', file: { filePath: c.file('src/server.js'), content: FILES['orbit-api']['src/server.js'] } },
-  });
-  await c.tool('Grep', { pattern: 'req.apiKey', path: c.file('src') }, { run: 480, result: 'src/middleware/auth.js:6:  req.apiKey = key.id;' });
-  await c.pause(300);
-  const question = 'Where should the request counts live?';
-  const asked = await c.tool('AskUserQuestion', {
-    questions: [{
-      question, header: 'Storage', multiSelect: false,
-      options: [
-        { label: 'In memory', description: 'No new dependency. Counts reset on restart; right for a single instance.' },
-        { label: 'Redis', description: 'Shared by every instance. Adds a Redis client and a connection to manage.' },
-      ],
-    }],
-  }, { ask: {}, run: 150, effect: (input) => ({ result: 'The user answered.', data: { answers: input.answers } }) });
-  if (asked.denied) return c.finish(0.02);
-  await c.think(700);
-  await c.tool('TodoWrite', todos('in_progress', 'pending', 'pending'), { run: 120 });
-  const written = await c.tool('Write', { file_path: c.file('src/middleware/rate-limit.js'), content: RATE_LIMIT }, {
-    typing: 900,
-    run: 300,
-    effect: applyWrite,
-    ask: {
-      title: 'Allow Claude to create rate-limit.js?',
-      description: 'src/middleware/rate-limit.js',
-      suggestions: [{ type: 'setMode', mode: 'acceptEdits', destination: 'session' }],
-    },
-  });
-  if (written.denied) return c.finish(0.03);
-  await c.tool('TodoWrite', todos('completed', 'in_progress', 'pending'), { run: 120 });
-  await c.tool('Edit', {
-    file_path: c.file('src/server.js'),
-    old_string: "const { authenticate } = require('./middleware/auth');\n",
-    new_string: "const { authenticate } = require('./middleware/auth');\nconst { rateLimit } = require('./middleware/rate-limit');\n",
-  }, { typing: 320, run: 380, effect: applyEdit });
-  await c.tool('Edit', {
-    file_path: c.file('src/server.js'),
-    old_string: "app.use('/v1', authenticate, publicRoutes);",
-    new_string: "app.use('/v1', authenticate, rateLimit({ limit: 60 }), publicRoutes);",
-  }, { typing: 320, run: 380, effect: applyEdit });
-  await c.tool('TodoWrite', todos('completed', 'completed', 'in_progress'), { run: 120 });
-  const tested = await c.tool('Bash', { command: 'npm test', description: 'Run the test suite' }, {
-    run: 2300,
-    progress: true,
-    result: TEST_OUTPUT,
-    data: { stdout: TEST_OUTPUT, stderr: '' },
-    ask: {
-      title: 'Allow Claude to run this command?',
-      description: 'npm test',
-      suggestions: [{ type: 'addRules', behavior: 'allow', destination: 'localSettings', rules: [{ toolName: 'Bash', ruleContent: 'npm test:*' }] }],
-    },
-  });
-  if (tested.denied) return c.finish(0.05);
-  await c.tool('TodoWrite', todos('completed', 'completed', 'completed'), { run: 120 });
-  await c.say([
-    'Rate limiting is on for every `/v1` route: **60 requests a minute per API key**.',
-    '',
-    '- `src/middleware/rate-limit.js` counts requests in a fixed window, per key',
-    '- Request 61 gets a `429` with a `Retry-After` header',
-    '',
-    'All 14 tests pass.',
-  ].join('\n'));
-  c.finish(0.0731);
-}
-
-// A second session, working in the background: it keeps building until the video turns to it (cue "push"),
-// then asks before pushing.
-async function atlas(c) {
-  await c.think(900);
-  await c.say('I’ll bump React, then build and fix what breaks.');
-  await c.tool('Read', { file_path: c.file('package.json') }, { run: 400, data: { type: 'text', file: { filePath: c.file('package.json'), content: FILES['atlas-web']['package.json'] } } });
-  await c.tool('Bash', { command: 'npm install react@19 react-dom@19' }, { run: 2400, progress: true, result: 'added 2 packages, changed 2 packages in 6s' });
-  await c.tool('Edit', {
-    file_path: c.file('src/main.jsx'),
-    old_string: "import { render } from 'react-dom';",
-    new_string: "import { createRoot } from 'react-dom/client';",
-  }, { typing: 300, run: 300, effect: applyEdit });
-  await c.tool('Bash', { command: 'npm run build' }, { until: c.director.cue('push'), result: 'vite v8.3.2 building for production...\n✓ 214 modules transformed.\n✓ built in 41.2s' });
-  await c.say('The build passes on React 19. Pushing the upgrade.');
-  const pushed = await c.tool('Bash', { command: 'git push origin main' }, {
-    run: 900,
-    result: 'To github.com:orbit/atlas-web.git\n   4c1e2aa..9f03b7d  main -> main',
-    ask: { title: 'Allow Claude to run this command?', description: 'git push origin main' },
-  });
-  if (pushed.denied) {
-    await c.think(600);
-    await c.say('Understood. I’ll push a branch and open a draft pull request instead.');
-    await c.tool('Bash', { command: 'git switch -c upgrade/react-19 && git push -u origin upgrade/react-19' }, { run: 1500, progress: true, result: "branch 'upgrade/react-19' set up to track 'origin/upgrade/react-19'." });
-    await c.tool('Bash', { command: 'gh pr create --draft --title "Upgrade to React 19"' }, { run: 1400, progress: true, result: 'https://github.com/orbit/atlas-web/pull/212' });
-    await c.say('Draft pull request opened: **#212 Upgrade to React 19**.');
-  }
-  c.finish(0.1164);
-}
-
 const HISTORIES = [
-  {
-    key: 'tests', project: 'orbit-api', title: 'Write tests for the webhook retry queue', ago: 52,
-    messages: [
-      ['user', 'Write tests for the webhook retry queue'],
-      ['assistant', 'Added `test/webhooks.test.js` with six cases covering backoff, the retry cap and the dead-letter path. All of them pass.'],
-    ],
-  },
-  {
-    key: 'notes', project: 'field-notes', title: 'Draft the release notes for 2.4', ago: 180,
-    messages: [
-      ['user', 'Draft the release notes for 2.4'],
-      ['assistant', 'The draft is in `CHANGELOG.md`: three features, five fixes, and one breaking change called out at the top.'],
-    ],
-  },
+  { key: 'tests', project: 'orbit-api', ago: 52 },
+  { key: 'notes', project: 'field-notes', ago: 180 },
 ];
 
 // Colors for the scripted terminals (they follow the terminal palette in lib/themes.js).
 const A = { dim: '\x1b[90m', accent: '\x1b[38;2;229;138;94m', green: '\x1b[32m', red: '\x1b[31m', bold: '\x1b[1m', off: '\x1b[0m' };
 
-function makeDirector(projects) {
+function makeDirector(projects, lang) {
+  const T = TEXT[lang];
   const cues = {};
   const cue = (name) => (cues[name] ??= (() => { let fire; const p = new Promise((r) => { fire = r; }); p.fire = fire; return p; })());
-  const histories = HISTORIES.map((h) => ({
-    ...h, sessionId: `0000${h.key}-demo`, cwd: projects[h.project], summary: h.title, lastModified: Date.now() - h.ago * 60000,
-  }));
+
+  // The session the video follows: thinking in words, steps, then an answer with math and code. Nothing asks for
+  // permission (the video doesn't stop on a prompt).
+  async function orbit(c) {
+    await c.think(1100, T.thinkRoutes);
+    await c.say(T.say, { cps: 220 });
+    await c.tool('Read', { file_path: c.file('src/server.js') }, {
+      run: 300, data: { type: 'text', file: { filePath: c.file('src/server.js'), content: FILES['orbit-api']['src/server.js'] } },
+    });
+    await c.tool('Grep', { pattern: 'req.apiKey', path: c.file('src') }, { run: 300, result: 'src/middleware/auth.js:6:  req.apiKey = key.id;' });
+    await c.think(800, T.thinkPlan);
+    await c.tool('Write', { file_path: c.file('src/middleware/rate-limit.js'), content: RATE_LIMIT }, { typing: 450, run: 250, effect: applyWrite });
+    await c.tool('Edit', {
+      file_path: c.file('src/server.js'),
+      old_string: "app.use('/v1', authenticate, publicRoutes);",
+      new_string: "app.use('/v1', authenticate, rateLimit({ limit: 60 }), publicRoutes);",
+    }, { typing: 250, run: 250, effect: applyEdit });
+    await c.tool('Bash', { command: 'npm test', description: T.test }, { run: 1400, progress: true, result: TEST_OUTPUT, data: { stdout: TEST_OUTPUT, stderr: '' } });
+    await c.say(T.answer, { cps: 900 });
+    c.finish(0.0731);
+  }
+
+  // A second session, working in the background the whole time: its spinner turns in the sidebar.
+  async function atlas(c) {
+    await c.think(900);
+    await c.say(T.atlasSay);
+    await c.tool('Bash', { command: 'npm install react@19 react-dom@19' }, { run: 2400, progress: true, result: 'added 2 packages, changed 2 packages in 6s' });
+    await c.tool('Bash', { command: 'npm run build' }, { until: cue('end'), result: '✓ built in 41.2s' });
+    c.finish(0.1164);
+  }
+
+  const histories = HISTORIES.map((h) => {
+    const [title, answer] = T.histories[h.key];
+    return { ...h, title, messages: [['user', title], ['assistant', answer]], sessionId: `0000${h.key}-demo`, cwd: projects[h.project], summary: title, lastModified: Date.now() - h.ago * 60000 };
+  });
   const transcripts = new Map(histories.map((h) => [h.sessionId, h.messages.map(([role, text], i) => (role === 'user'
     ? { type: 'user', uuid: `${h.sessionId}-${i}`, message: { role, content: text } }
     : { type: 'assistant', uuid: `${h.sessionId}-${i}`, message: { id: `msg_${h.key}${i}`, role, content: [{ type: 'text', text }] } }))]));
   const shown = (cwd) => `C:\\Users\\dev\\code\\${path.basename(cwd)}`;
   return {
+    T,
     histories,
     transcripts,
     cue,
@@ -253,32 +258,27 @@ function makeDirector(projects) {
       return null;
     },
     prompt: (cwd) => `${A.dim}PS${A.off} ${shown(cwd)}${A.dim}>${A.off} `,
-    shell(line) {
-      if (/^git status/.test(line)) {
-        return ` ${A.red}M${A.off} src/server.js\r\n${A.red}??${A.off} src/middleware/rate-limit.js\r\n`;
-      }
-      if (/^npm test/.test(line)) return `${TEST_OUTPUT.replace(/✔/g, `${A.green}✔${A.off}`).replace(/\n/g, '\r\n')}\r\n`;
-      return '';
-    },
+    shell: () => '',
     // A plain rendition of Claude Code's command-line interface showing the same conversation.
     cli: () => [
       '',
-      ` ${A.accent}✻${A.off} ${A.bold}Claude Code${A.off} ${A.dim}v2.1.287${A.off}`,
+      ` ${A.accent}✻${A.off} ${A.bold}Claude Code${A.off} ${A.dim}v2.1.310${A.off}`,
       `   ${A.dim}Opus 5.5 · ~\\code\\orbit-api${A.off}`,
       '',
-      `${A.dim}>${A.off} ${PROMPTS.main}@src/server.js`,
+      `${A.dim}>${A.off} ${T.prompt}`,
       '',
-      `${A.green}●${A.off} I’ll check how the routes are wired up, then add the limiter as middleware.`,
+      `${A.green}●${A.off} ${T.say}`,
       '',
       `${A.green}●${A.off} ${A.bold}Read${A.off}(src/server.js)`,
+      `${A.green}●${A.off} ${A.bold}Search${A.off}(pattern: "req.apiKey", path: "src")`,
       `${A.green}●${A.off} ${A.bold}Write${A.off}(src/middleware/rate-limit.js)`,
       `  ${A.dim}⎿  Wrote 21 lines${A.off}`,
       `${A.green}●${A.off} ${A.bold}Update${A.off}(src/server.js)`,
-      `  ${A.dim}⎿  Added 2 lines, removed 1 line${A.off}`,
+      `  ${A.dim}⎿  Added 1 line, removed 1 line${A.off}`,
       `${A.green}●${A.off} ${A.bold}Bash${A.off}(npm test)`,
       `  ${A.dim}⎿  tests 14 · pass 14 · fail 0${A.off}`,
       '',
-      `${A.green}●${A.off} Rate limiting is on for every /v1 route: 60 requests a minute per API key.`,
+      `${A.green}●${A.off} ${T.cliAnswer}`,
       '',
       `${A.dim}${'─'.repeat(96)}${A.off}`,
       `${A.dim}>${A.off} `,
@@ -286,4 +286,4 @@ function makeDirector(projects) {
   };
 }
 
-module.exports = { createProjects, makeDirector, PROMPTS, HISTORIES };
+module.exports = { createProjects, makeDirector, TEXT, HISTORIES };

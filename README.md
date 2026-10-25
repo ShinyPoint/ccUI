@@ -26,7 +26,7 @@ and Claude Code's own CLI one click away, on the same conversation.</p>
 <a href="https://github.com/ShinyPoint/ccUI/releases/latest"><img alt="Download for Linux" src="https://img.shields.io/badge/Download-Linux-D97757?style=for-the-badge&logo=linux&logoColor=white"></a>
 </p>
 
-<img src="docs/demo.gif" width="100%" alt="ccUI in use: a chat where Claude reads files and edits them as diffs, a permission asked as buttons, and the same conversation continued in the CLI">
+<img src="docs/demo.gif" width="100%" alt="ccUI in use: Claude thinking and working step by step, an answer with math and code, the same conversation in the CLI, the sidebar rearranged, and light, dark and color themes">
 
 </div>
 

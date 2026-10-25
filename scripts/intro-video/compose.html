@@ -10,7 +10,10 @@
   @font-face { font-family: "Instrument Sans"; font-weight: 400; src: url("../../node_modules/@fontsource/instrument-sans/files/instrument-sans-latin-400-normal.woff2"); }
   @font-face { font-family: "Instrument Sans"; font-weight: 600; src: url("../../node_modules/@fontsource/instrument-sans/files/instrument-sans-latin-600-normal.woff2"); }
   @font-face { font-family: "JetBrains Mono"; src: url("../../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2"); }
-  :root { --accent: #E58A5E; --text: #F2F2F4; --muted: #8E8E93; --display: "Instrument Serif", Georgia, serif; --ui: "Instrument Sans", sans-serif; --mono: "JetBrains Mono", monospace; }
+  /* Chinese: the serif's Chinese glyphs come from Noto Serif SC (installed with the app's own zh fonts), and nothing is
+     stretched (as the app's :root:lang(zh) rules). */
+  :root { --accent: #E58A5E; --text: #F2F2F4; --muted: #8E8E93; --display: "Instrument Serif", "Noto Serif SC", "Source Han Serif SC", "Songti SC", Georgia, serif; --ui: "Instrument Sans", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif; --mono: "JetBrains Mono", monospace; --stretch: 1.1; }
+  :root:lang(zh) { --stretch: 1; }
   * { box-sizing: border-box; }
   html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #0D0E13; color: var(--text); }
   body::before {
@@ -40,18 +43,23 @@
     display: flex; align-items: center; justify-content: center;
     font: 400 45px/1 var(--display); letter-spacing: .02em;
   }
-  #caption span { display: block; transform: scaleX(1.1); white-space: nowrap; }
+  #caption span { display: block; white-space: nowrap; }
+  :lang(zh) #caption { font-size: 40px; letter-spacing: .06em; }
 
   .card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0; }
   .mark { display: flex; align-items: baseline; gap: 6px; }
   .mark .cc { font: italic 190px/1 var(--display); color: var(--accent); text-shadow: 0 0 60px rgba(229, 138, 94, .35); }
   .mark .ui { font: 600 96px/1 var(--ui); letter-spacing: .14em; color: #C9C4BA; }
-  .line { margin-top: 34px; font: 400 58px/1.15 var(--display); letter-spacing: .02em; transform: scaleX(1.1); white-space: nowrap; }
+  .line { margin-top: 34px; font: 400 58px/1.15 var(--display); letter-spacing: .02em; transform: scaleX(var(--stretch)); white-space: nowrap; }
+  :lang(zh) .line { font-size: 50px; letter-spacing: .06em; }
   .line em { font-style: normal; color: var(--accent); }
   .small { margin-top: 30px; font: 400 25px/1 var(--ui); letter-spacing: .04em; color: var(--muted); }
   .small b { font-weight: 400; margin: 0 14px; opacity: .5; }
   .cmd { margin-top: 44px; padding: 16px 28px; border-radius: 12px; font: 24px/1 var(--mono); color: #D6D1C7; background: rgba(255, 255, 255, .05); box-shadow: 0 0 0 1px rgba(255, 255, 255, .09); }
   .cmd i { font-style: normal; color: var(--accent); margin-right: 14px; }
+  .cmd span { font: 400 22px/1 var(--ui); color: var(--muted); margin-right: 18px; letter-spacing: .04em; }
+  .star-line { margin-top: 26px; font: 400 27px/1 var(--ui); letter-spacing: .03em; color: #D6D1C7; }
+  .star-line .star { color: #F2C14E; text-shadow: 0 0 18px rgba(242, 193, 78, .55); }
 </style>
 </head>
 <body>
@@ -71,18 +79,19 @@
 
   <div class="card" id="intro">
     <div class="mark"><span class="cc">cc</span><span class="ui">UI</span></div>
-    <div class="line">A desktop workbench for Claude Code</div>
+    <div class="line" id="title"></div>
   </div>
   <div class="card" id="outro">
     <div class="mark"><span class="cc">cc</span><span class="ui">UI</span></div>
-    <div class="line">Chat when you want it. <em>The CLI when you need it.</em></div>
-    <div class="small">Windows<b>·</b>macOS<b>·</b>Linux<b>·</b>MIT license</div>
-    <div class="cmd">github.com/ShinyPoint/ccUI</div>
+    <div class="line" id="tagline"></div>
+    <div class="small" id="platforms"></div>
+    <div class="cmd"><span id="download"></span>github.com/ShinyPoint/ccUI/releases</div>
+    <div class="star-line" id="star"></div>
   </div>
 
 <script>
-const INTRO = 3300; // title card, ms
-const OUTRO = 5200; // closing card, ms
+const INTRO = 2300; // title card, ms
+const OUTRO = 4500; // closing card, ms
 let SCALE = 1600 / 1280; // the app's pixels to the stage's
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
@@ -99,8 +108,14 @@ let cameras = [];
 let captions = [];
 let shown = '';
 
-// Called once: the recording's timeline and the folder with its frames.
-async function setup(data, rawUrl) {
+// Called once: the recording's timeline, the folder with its frames, and the cards' words in the take's language.
+async function setup(data, rawUrl, cards) {
+  document.documentElement.lang = cards.lang;
+  $('title').textContent = cards.title;
+  $('tagline').innerHTML = cards.line;
+  $('platforms').innerHTML = cards.small;
+  $('download').textContent = cards.download;
+  $('star').innerHTML = cards.star;
   timeline = data;
   raw = rawUrl;
   const { w, h } = data.size;
@@ -127,7 +142,8 @@ async function setup(data, rawUrl) {
   }
   captions = data.events.filter((x) => x.type === 'caption');
   await document.fonts.ready;
-  await Promise.all(['400 40px "Instrument Serif"', 'italic 40px "Instrument Serif"', '600 40px "Instrument Sans"', '400 20px "Instrument Sans"', '20px "JetBrains Mono"'].map((f) => document.fonts.load(f)));
+  await Promise.all(['400 40px "Instrument Serif"', 'italic 40px "Instrument Serif"', '600 40px "Instrument Sans"', '400 20px "Instrument Sans"', '20px "JetBrains Mono"',
+    '400 40px "Noto Serif SC"', '400 20px "HarmonyOS Sans SC"'].map((f) => document.fonts.load(f, '字')));
   return { duration: INTRO + data.duration + OUTRO };
 }
 
@@ -209,7 +225,7 @@ async function renderFrame(t) {
     const fadeOut = Math.max(ramp(app, next - 160, 160, ease), stageOut);
     cap.textContent = captions[i].text;
     cap.style.opacity = fadeIn * (1 - fadeOut) * stageIn;
-    cap.style.transform = `scaleX(1.1) translateY(${mix(10, 0, fadeIn)}px)`;
+    cap.style.transform = `scaleX(var(--stretch)) translateY(${mix(10, 0, fadeIn)}px)`;
   }
 
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));

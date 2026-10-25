@@ -26,7 +26,7 @@ Claude Code 自带的 CLI 一键可达，对话始终是同一个。</p>
 <a href="https://github.com/ShinyPoint/ccUI/releases/latest"><img alt="下载 Linux 版" src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Linux-D97757?style=for-the-badge&logo=linux&logoColor=white"></a>
 </p>
 
-<img src="docs/demo.gif" width="100%" alt="ccUI 使用演示：Claude 读取文件并以 diff 形式修改，权限请求以按钮呈现，同一段对话在 CLI 中继续">
+<img src="docs/demo-zh.gif" width="100%" alt="ccUI 使用演示：Claude 的思考和每一步操作、公式和代码的排版、同一段对话在 CLI 中继续、调整侧边栏，以及深浅色和配色">
 
 </div>
 

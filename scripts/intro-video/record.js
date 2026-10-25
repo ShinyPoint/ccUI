@@ -1,8 +1,9 @@
 // Intro video, step 1 of 2: records the app. Opens the built app on a throwaway profile with demo projects,
 // plays the story in story.js (Claude and the terminals are scripted, see ../checks/fakes.js: no API usage), and saves
 // what the window shows as numbered frames plus a timeline of captions, pointer moves and camera moves.
-// Step 2 (compose.js) turns those into the video.
-// Usage: npm run video   (writes dist/intro-video/)
+// Step 2 (compose.js) turns those into the video. One take per language: the app, Claude's words and the captions
+// in English or Chinese, for the README in that language.
+// Usage: npm run video   (both languages), or electron scripts/intro-video/record.js zh-CN   (writes dist/intro-video/<lang>/)
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -12,7 +13,8 @@ const { app } = require('electron');
 // Twice the video's pixel density, so zoomed-in shots stay sharp.
 app.commandLine.appendSwitch('force-device-scale-factor', '2');
 
-const OUT = path.resolve(process.argv[2] || path.join(__dirname, '..', '..', 'dist', 'intro-video'));
+const LANG = process.argv.includes('zh-CN') ? 'zh-CN' : 'en';
+const OUT = path.join(__dirname, '..', '..', 'dist', 'intro-video', LANG);
 const RAW = path.join(OUT, 'raw');
 const VIEW = { width: 1280, height: 720 };
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ccui-intro-'));
@@ -26,9 +28,10 @@ fs.mkdirSync(profile, { recursive: true });
 os.homedir = () => home;
 
 const { install, sleep } = require('../checks/fakes');
-const { createProjects, makeDirector, PROMPTS, HISTORIES } = require('./story');
+const { createProjects, makeDirector, HISTORIES } = require('./story');
 const projects = createProjects(home);
-const director = makeDirector(projects);
+const director = makeDirector(projects, LANG);
+const { T } = director;
 install(director);
 
 // The main process keeps its Settings object to itself; the background image is set through it.
@@ -42,12 +45,12 @@ const { Background } = require('../../src/main/background');
 
 const saved = (key) => {
   const h = HISTORIES.find((x) => x.key === key);
-  return { kind: 'chat', cwd: projects[h.project], title: h.title, sessionId: `0000${key}-demo` };
+  return { kind: 'chat', cwd: projects[h.project], title: T.histories[key][0], sessionId: `0000${key}-demo` };
 };
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
   // The look ccUI is shown in: light, Clay, at 110%, frosted glass, the work area to the window's edge. A current
   // settingsVersion, so no migration of older settings files touches it.
-  language: 'en', uiScale: 110, theme: 'light', accent: 'ember', sidebarGlass: true, fillEdge: true,
+  language: LANG, uiScale: 110, theme: 'light', accent: 'ember', sidebarGlass: true, fillEdge: true,
   confirmClose: false, notify: false, settingsVersion: 8,
   autoUpdateClaude: false, // no real Claude Code download (and its toast) in the middle of the take
   recent: Object.values(projects).map((p) => ({ path: p, at: Date.now() })),
@@ -176,6 +179,25 @@ app.on('browser-window-created', (_e, win) => {
     await sleep(80);
   };
   const caption = (text) => mark('caption', { text });
+  // Drags from `target` to where `to(from)` says, over `ms`.
+  const drag = async (target, to, ms) => {
+    await move(target);
+    const from = pointer;
+    const end = to(from);
+    wc.sendInputEvent({ type: 'mouseDown', ...from, button: 'left', clickCount: 1 });
+    await sleep(120);
+    mark('move', { ...end, ms });
+    const steps = Math.max(8, Math.round(ms / 30));
+    for (let i = 1; i <= steps; i++) {
+      const k = i / steps;
+      const e = k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2; // the same easing compose.js draws the pointer with
+      wc.sendInputEvent({ type: 'mouseMove', x: Math.round(from.x + (end.x - from.x) * e), y: Math.round(from.y + (end.y - from.y) * e), modifiers: ['leftButtonDown'] });
+      await sleep(ms / steps);
+    }
+    pointer = end;
+    wc.sendInputEvent({ type: 'mouseUp', ...end, button: 'left', clickCount: 1 });
+    await sleep(200);
+  };
   // Zoom the view in on an area (`pad`: [left, top, right, bottom] extra room around it), or back out with null.
   const camera = async (target, pad = [0, 0, 0, 0], ms = 800) => {
     if (!target) return mark('camera', { box: null, ms });
@@ -190,135 +212,83 @@ app.on('browser-window-created', (_e, win) => {
     wc.focus();
     await js(FIND);
 
-    // Before the recording starts: the second session gets its task, then a new chat opens in orbit-api.
-    // Folders start folded at launch, except the open chat's: unfold the others so all three cards show.
+    // Before the recording starts: the second session gets its task (it works in the background the whole time),
+    // then a new chat opens in orbit-api. Folders start folded at launch, except the open chat's: unfold the others.
     await until(`document.querySelectorAll('.folder').length === 3 && Boolean(document.querySelector('.chat-composer .composer-input'))`, 'restored sessions');
     // The UI scale is applied once the app has started (main.jsx), not at load: read it now.
     await js(`window.__zoom = ${wc.getZoomFactor()}; 0`);
-    console.log('UI scale in the take:', wc.getZoomFactor());
+    console.log('UI scale in the take:', wc.getZoomFactor(), 'language:', LANG);
     await js(`document.querySelectorAll('.folder.collapsed .folder-main').forEach((b) => b.click()); 0`);
     await until(`document.querySelectorAll('.session').length === 3`, 'the folders unfolded');
     await sleep(900);
     await js(`{ const el = document.querySelector('.chat-composer .composer-input');
-      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(el, ${JSON.stringify(PROMPTS.atlas)});
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(el, ${JSON.stringify(T.atlas)});
       el.dispatchEvent(new Event('input', { bubbles: true })); }`);
     await sleep(200);
     await js(`document.querySelector('.chat-composer .send-btn').click()`);
     await sleep(600);
     await js(`[...document.querySelectorAll('.folder')].find((f) => f.querySelector('.folder-name').textContent === 'orbit-api').querySelector('.folder-add').click()`);
     await until(`Boolean(document.querySelector('.chat-intro'))`, 'the new chat');
-    await sleep(5000);
+    await sleep(3500);
     wc.sendInputEvent({ type: 'mouseMove', ...pointer });
 
     record();
     const size = await js('({ w: Math.round(innerWidth * (window.__zoom || 1)), h: Math.round(innerHeight * (window.__zoom || 1)) })');
 
-    // 1. A new chat
-    caption('Every Claude Code session opens as a chat.');
-    await sleep(2800);
+    // 1. The look: close on the new chat's question, then slowly out to the whole window.
+    await camera(['.chat-intro'], [120, 90, 120, 160], 1);
+    await sleep(500);
+    await camera(null, undefined, 2200);
+    await sleep(2100);
 
-    // 2. Writing the prompt
-    await camera(['.chat-composer'], [40, 250, 40, 30]);
+    // 2. A prompt; Claude thinks in words and works in steps, one even column.
     await click(['.chat-composer .composer-input']);
-    caption('Type @ to mention a file, / to run a command.');
-    await type(PROMPTS.main, 40);
-    await type('@ser', 7);
-    await sleep(1300);
+    await type(T.prompt, LANG === 'en' ? 64 : 22);
+    await sleep(350);
     await key('Enter');
-    await sleep(900);
-    await key('Enter');
-    await camera(null);
     await sleep(500);
-    caption('Each step is one row: what Claude read, searched, changed and ran.');
-
-    // 3. Claude asks a question
-    await box(['.prompt.question']);
-    await sleep(500);
-    caption('Claude’s questions become a form.');
-    await camera(['.prompt.question'], [60, 110, 60, 40]);
-    await sleep(1300);
-    await click(['.q-option', 'In memory']);
-    await sleep(500);
-    await click(['.prompt.question .primary-btn']);
-    await sleep(400);
-    await camera(null);
-
-    // 4. An edit that needs permission
-    await box(['.prompt .secondary-btn', 'ask again']);
-    caption('Edits arrive as diffs. Permissions are buttons.');
-    await sleep(2600);
-    await click(['.prompt .secondary-btn', 'ask again']);
+    caption(T.captions.steps);
+    await until(`Boolean(document.querySelector('.katex-display'))`, 'the answer', 30000);
     await sleep(600);
 
-    // 5. A command
-    await box(['.prompt-desc', 'npm test']);
-    caption('Allow once, allow always, or deny with a note.');
+    // 3. The answer: math and code, typeset.
+    caption(T.captions.math);
+    await camera(['.msg-text', 'Retry-After'], [40, 30, 40, 30], 900);
+    await sleep(2600);
+    await camera(null, undefined, 700);
+    await sleep(500);
+
+    // 4. The same conversation in Claude Code's own CLI, and back.
+    caption(T.captions.cli);
+    await click(['#topbar .text-btn'], 600);
     await sleep(2200);
-    await click(['.prompt .primary-btn', 'Allow']);
-    director.fire('push');
-    await sleep(900);
-    caption('The task list, context use and cost stay in view.');
-    await until(`!document.querySelector('.chat-composer .send-btn.stop') && Boolean(document.querySelector('.work-summary'))`, 'the end of the turn');
-    await sleep(3200);
+    await click(['#topbar .text-btn'], 300);
+    await sleep(1000);
 
-    // 6. The other session needs an answer
-    await box(['.session[data-status="needs-you"]']);
-    caption('Run sessions side by side. The sidebar shows which one needs you.');
-    await camera(['.session[data-status="needs-you"]'], [40, 230, 380, 150]);
-    await sleep(2400);
-    await click(['.session[data-status="needs-you"] .session-main']);
-    await camera(null);
-    await box(['.prompt-desc', 'git push']);
-    await sleep(1500);
-    caption('Deny with a note, and Claude changes course.');
-    await click(['.prompt .secondary-btn', 'Deny']);
+    // 5. The sidebar: wider, and a project dragged to the top.
+    caption(T.captions.arrange);
+    await drag(['.sidebar-resizer'], (from) => ({ x: from.x + 90, y: from.y }), 700);
+    await sleep(400);
+    const top = await box(['.folder-row']);
+    await drag(['.folder-row', 'field-notes'], (from) => ({ x: from.x, y: top.y + 4 }), 900);
+    await move({ x: 760, y: 420 }, 450); // off the row, before its tooltip shows
+    await sleep(500);
+
+    // 6. Looks: dark, then another color theme and a background image, which the video ends on.
+    caption(T.captions.looks);
+    await click(['.sidebar-bottom .icon-btn'], 600);
+    await sleep(1000);
+    await click(['.sidebar-bottom .ghost-btn'], 400);
+    await sleep(450);
+    await click(['.settings-nav button', T.labels.appearance], 450);
     await sleep(300);
-    await type(PROMPTS.deny, 34);
-    await sleep(500);
-    await click(['.prompt-deny .danger-btn']);
-    await sleep(5200);
-
-    // 7. The same conversation in Claude Code's CLI, and back
-    await click(['.session .session-main', 'Add rate limiting']);
-    await sleep(900);
-    caption('Need the command line? Continue in Claude Code’s own CLI…');
-    await click(['#topbar .text-btn', 'CLI']);
-    await sleep(3600);
-    caption('…and come back. It is the same conversation.');
-    await click(['#topbar .text-btn', 'Chat']);
-    await box(['.msg-text']);
-    await sleep(2600);
-
-    // 8. The Terminal panel
-    caption('A shell in the project folder, one click away.');
-    await click(['.panel-toggle']);
-    await sleep(1600);
-    await type('git status --short', 16);
-    await key('Enter');
-    await sleep(2600);
-    await click(['.panel-toggle']);
-    await sleep(500);
-
-    // 9. Appearance
-    caption('Light or dark, a color theme, your own background.');
-    await click(['.sidebar-bottom .icon-btn']);
-    await sleep(2000);
-    await click(['.sidebar-bottom .ghost-btn']);
-    await sleep(900);
-    await click(['.settings-nav button', 'Appearance']);
+    await click(['.swatch', null, 1], 450); // Pink
     await sleep(600);
-    // Another color theme for a moment, then Clay again.
-    await click(['.swatch[title="Pink"]']);
-    await sleep(1100);
-    await click(['.swatch[title="Clay"]']);
-    await sleep(900);
     const image = path.join(root, 'dusk.png');
     fs.writeFileSync(image, wallpaper(960, 540));
     new Background(profile, settings).use(image);
-    await click(['dialog[open] button[type="submit"]']);
-    await sleep(2600);
-    await click(['.sidebar-bottom .icon-btn']);
-    await sleep(3200);
+    await click(['dialog[open] button[type="submit"]'], 400);
+    await sleep(2200);
 
     recording = false;
     await loop;
