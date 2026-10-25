@@ -75,7 +75,7 @@ function Topbar({ s }) {
         <div class="topbar-title">
           <ProjectMenu s={s} proc={proc} />
           {kind === 'chat' && <div class="no-drag"><ModelMenu s={s} /></div>}
-          {task && <span class="top-task" title={proc || task}>{task}</span>}
+          {task && <span class="top-task" title={proc ? `${task}\n${proc}` : task}>{task}</span>}
         </div>
       )}
       {s && (

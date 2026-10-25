@@ -56,6 +56,10 @@ function RenameInput({ value, onDone }) {
 const KIND_LABEL = { chat: phrase('New chat'), terminal: phrase('CLI session'), shell: phrase('Shell') };
 const KIND_ICON = { chat: 'chat', terminal: 'terminal', shell: 'dollar' };
 const sessionLabel = (s) => s.name.value || s.title.value || t(KIND_LABEL[s.kind.value]);
+// A row's tooltip: its name in full (the row cuts long ones off), the conversation's own title under a name given
+// to it, and its state.
+const sessionTip = (s, word) => [s.name.value || s.title.value || s.cwd, s.name.value && s.title.value !== s.name.value && s.title.value, word]
+  .filter(Boolean).join('\n');
 
 // A folder's sessions by kind, Chat, then CLI, then Shell, with a line between the kinds present.
 const KIND_ORDER = ['chat', 'terminal', 'shell'];
@@ -97,7 +101,7 @@ function SessionRow({ s, index = 0 }) {
   return (
     <li class="session" style={{ '--i': index }} data-status={status} aria-current={String(s.uid === activeUid.value)}
         onContextMenu={(e) => sessionMenu(e, s)}>
-      <button class="session-main" title={`${s.title.value || s.cwd}\n${word}`} onClick={() => selectSession(s)}
+      <button class="session-main" title={sessionTip(s, word)} onClick={() => selectSession(s)}
               onDblClick={() => { renamingUid.value = s.uid; }}>
         <span class="session-icon" title={t(KIND_LABEL[kind])}>
           <Icon name={KIND_ICON[kind]} size={15} />

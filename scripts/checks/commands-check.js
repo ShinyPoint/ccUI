@@ -165,6 +165,16 @@ app.on('browser-window-created', (_e, win) => {
       await wait(200);
       check('/rename names the session', (await js("document.querySelector('#sidebar .session-name').textContent")) === 'Rate limiter work');
       check('the top bar shows the new name too', (await js("document.querySelector('#topbar .top-task')?.textContent || ''")) === 'Rate limiter work');
+      // Pointing at the name shows it in full: it must be out of the window's drag area, where the system takes the
+      // pointer (the check's own pointer events don't go through the system, so the style is checked too).
+      const named = JSON.parse(await js(`(async () => { const el = document.querySelector('#topbar .top-task'); const cs = getComputedStyle(el);
+        el.dispatchEvent(new PointerEvent('pointerover', { bubbles: true })); await new Promise((r) => setTimeout(r, 700));
+        const row = document.querySelector('#sidebar .session[aria-current="true"] .session-main');
+        const out = { region: cs.getPropertyValue('app-region') || cs.getPropertyValue('-webkit-app-region'), tip: document.querySelector('.tooltip:popover-open')?.textContent || '',
+          row: row.dataset.tip || row.getAttribute('title') || '' };
+        el.dispatchEvent(new PointerEvent('pointerleave')); document.dispatchEvent(new PointerEvent('pointerleave')); return JSON.stringify(out); })()`));
+      check('pointing at the name in the top bar shows it in full', named.region === 'no-drag' && named.tip.startsWith('Rate limiter work'), JSON.stringify(named));
+      check('and the session’s row in the sidebar does too, above the conversation’s own title', named.row.split('\n')[0] === 'Rate limiter work' && named.row.split('\n').length >= 2, JSON.stringify(named.row));
       check('and tells Claude Code', controls('rename').some(([, n]) => n === 'Rate limiter work'));
       await run('/model');
       check('/model opens the model menu', await until('the model menu', "Boolean(document.querySelector('.model-menu .menu-list'))", 2000));

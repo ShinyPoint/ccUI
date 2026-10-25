@@ -542,10 +542,13 @@ body.sidebar-collapsed.platform-darwin #topbar { padding-left: 84px; }
 #topbar .menu-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .project-menu .menu-list .menu-hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 :is(html.glass, html.has-bg) :is(#topbar, .composer) :is(.icon-btn, .text-btn, .chip, .menu-button):hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
+/* Out of the drag area, where the system takes the pointer and the page never sees it: pointing at a name cut off
+   here shows it in full (its tooltip). */
 .top-task {
   min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: var(--text-2);
+  -webkit-app-region: no-drag;
 }
 .topbar-actions { display: flex; align-items: center; gap: 2px; }
 .panel-toggle.on, .changes-toggle.on { background: var(--accent-soft); color: var(--accent); }
