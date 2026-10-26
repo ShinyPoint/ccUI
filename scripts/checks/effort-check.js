@@ -16,10 +16,12 @@ const profile = tempDir('effort-profile');
 const project = tempDir('effort-project');
 fs.mkdirSync(outDir, { recursive: true });
 
+const ptys = []; // the CLI's arguments, each time one starts
 const director = {
   histories: [], transcripts: new Map(),
   script: () => async (c) => { await c.say('Done.', { cps: 600 }); c.finish(0.01); },
   prompt: () => '', shell: () => '', cli: () => '',
+  onPty: (p) => { ptys.push(p.args); },
   // More models than fit, so the list scrolls under the slider.
   models: [...MODELS, ...['Opus 4.1', 'Sonnet 4.5', 'Haiku 3.5', 'Opus 4', 'Sonnet 4'].map((name, i) => ({
     value: `legacy-${i}`, displayName: name, description: `${name} · An earlier model, kept for comparisons`,
@@ -27,6 +29,13 @@ const director = {
 };
 install(director);
 const controls = (action) => (director.controls || []).filter(([a]) => a === action);
+// What each chat's Claude Code is started with (the effort, to see it kept).
+const starts = [];
+{
+  const { AgentManager } = require.cache[require.resolve('../../src/main/agent')].exports;
+  const { start } = AgentManager.prototype;
+  AgentManager.prototype.start = function (opts) { starts.push(opts); return start.call(this, opts); };
+}
 
 const THEME = process.argv.includes('--dark') ? 'dark' : 'light';
 // Default colors (accent: 'black'), to see Clay change them.
@@ -196,6 +205,29 @@ app.on('browser-window-created', (_e, win) => {
       await new Promise((r) => win.webContents.once('did-finish-load', r));
       await wait(1200);
       check('the scale is kept across a reload', Math.abs((await js('innerWidth')) - width1) <= 2, `${await js('innerWidth')}`);
+      // The effort chosen before the reload (Max) is kept: the chat brought back starts with it, and so does a new one.
+      await until('the chat brought back', "Boolean(document.querySelector('.chat-composer .composer-input'))", 5000);
+      await wait(800);
+      const startsBefore = starts.length;
+      check('the effort chosen is kept: the chat brought back starts with it', starts.at(-1)?.effort === 'max', JSON.stringify(starts.map((x) => x.effort ?? null)));
+      check('and it is the effort new sessions start with', (await js('window.ccui.getSettings()')).defaultEffort === 'max');
+      await js("document.querySelector('.new-session').click(); true");
+      await until('a new chat', `${starts.length} > ${startsBefore} || Boolean(document.querySelector('.chat-intro'))`, 5000);
+      await wait(1500);
+      check('a new chat starts with it too', starts.length > startsBefore && starts.at(-1).effort === 'max', JSON.stringify(starts.slice(startsBefore).map((x) => x.effort ?? null)));
+      await js("document.querySelector('.model-menu .menu-button').click(); true");
+      await wait(400);
+      check('and its menu shows Max', /Max/.test(await js("document.querySelector('.effort-value')?.textContent || ''")), await js("document.querySelector('.effort-value')?.textContent || ''"));
+      await js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true");
+      await wait(300);
+      // The same chat continued in the CLI: Claude Code's CLI starts with that effort as well.
+      await js("[...document.querySelectorAll('#topbar .text-btn')].find((b) => /CLI/.test(b.textContent)).click(); true");
+      await until('the CLI', 'Boolean(document.querySelector("#stage.mode-terminal"))', 5000);
+      await wait(800);
+      const cliArgs = ptys.at(-1) || [];
+      check('in the CLI too: it starts with --effort max', cliArgs.join(' ').includes('--effort max'), cliArgs.join(' '));
+      await js("[...document.querySelectorAll('#topbar .text-btn')].find((b) => /Chat/.test(b.textContent))?.click(); true");
+      await wait(800);
       await js("document.querySelector('.sidebar-bottom .ghost-btn').click(); true");
       await until('Settings again', "Boolean(document.querySelector('.settings-nav'))", 3000);
       await js("[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent.includes('Appearance')).click(); true");

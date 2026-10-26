@@ -30,6 +30,7 @@ const DEFAULTS = {
   taskList: false, // Claude keeps a task list on Opus 5 and later too (Claude Code gives them none by default)
   defaultModel: '', // empty: Claude Code's default
   defaultPermissionMode: 'default',
+  defaultEffort: '', // the reasoning effort last chosen, for new sessions ('' = Auto, the model's default)
   defaultArgs: '', // extra CLI arguments for terminal sessions
   showStarters: false, // suggested prompts under the question on a new chat
   notify: true,
@@ -45,7 +46,7 @@ const DEFAULTS = {
   backgroundBlur: 8, // blur of the background image, px
   recent: [], // [{ path, at }]
   folderOrder: [], // project folders in the order dragged to in the sidebar; folders not in it come first
-  lastSessions: [], // [{ kind, cwd, name, sessionId, model, permissionMode }]
+  lastSessions: [], // [{ kind, cwd, name, sessionId, model, permissionMode, effort }]
   conversations: {}, // sessionId -> { model, permissionMode }, restored when a conversation is resumed
   folders: {}, // folder path -> { collapsed }; cleared at launch, so every folder starts folded
   bounds: null,

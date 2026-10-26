@@ -86,10 +86,10 @@ function dispatch(s, messages) {
 function rememberConversation(s) {
   const id = s.chat.value.sessionId || s.sessionId;
   if (!id) return;
-  const entry = { model: s.selectedModel.value || s.chat.value.init?.model || '', permissionMode: s.mode.value || '' };
+  const entry = { model: s.selectedModel.value || s.chat.value.init?.model || '', permissionMode: s.mode.value || '', effort: s.effort.value || '' };
   const all = settings.value.conversations || {};
   const old = all[id];
-  if (old && old.model === entry.model && old.permissionMode === entry.permissionMode) return;
+  if (old && old.model === entry.model && old.permissionMode === entry.permissionMode && old.effort === entry.effort) return;
   const { [id]: _drop, ...rest } = all;
   const keys = Object.keys(rest);
   for (const k of keys.slice(0, Math.max(0, keys.length - 299))) delete rest[k];
@@ -289,6 +289,11 @@ export async function setEffort(s, level) {
     return false;
   }
   s.effort.value = level;
+  // Kept, as Claude Code keeps what /effort sets: for this conversation, with the open sessions (for the next
+  // launch), and as the one new sessions start with.
+  rememberConversation(s);
+  persistSessions();
+  if ((settings.value.defaultEffort || '') !== level) saveSettings({ defaultEffort: level });
   return true;
 }
 
@@ -574,6 +579,7 @@ function claudeArgs(s, resume) {
   const args = resume ? ['--resume', resume] : [];
   if (s.selectedModel.value) args.push('--model', s.selectedModel.value);
   if (s.mode.value && s.mode.value !== 'default') args.push('--permission-mode', s.mode.value);
+  if (s.effort.value) args.push('--effort', s.effort.value);
   if (s.mode.value === 'bypassPermissions') args.push('--allow-dangerously-skip-permissions'); // the CLI refuses the mode without it
   return args;
 }
@@ -873,6 +879,10 @@ export async function openSession(opts, { activate = true } = {}) {
   }
   const s = makeSession({ kind, cwd: opts.cwd, name: opts.name, sessionId: resume || null });
   if (resume && opts.title) setTitle(s, opts.title);
+  // Effort: what this conversation had (conversations remembered before effort was kept have none), else the one
+  // last chosen.
+  const kept = resume ? settings.value.conversations?.[resume] : null;
+  s.effort.value = opts.effort ?? (kept && 'effort' in kept ? kept.effort : settings.value.defaultEffort || '');
   if (kind === 'terminal') {
     const remembered = resume ? settings.value.conversations?.[resume] : null;
     s.selectedModel.value = opts.model ?? remembered?.model ?? '';
@@ -1025,6 +1035,7 @@ export function persistSessions() {
       sessionId: s.chat.value.sessionId || s.sessionId,
       model: s.selectedModel.value,
       permissionMode: s.mode.value,
+      effort: s.effort.value,
       active: s.uid === activeUid.value,
     })),
   });
@@ -1070,6 +1081,7 @@ async function restoreEntries(saved, restored) {
       mode: entry.sessionId ? 'resume' : legacy ? 'continue' : 'new',
       model: entry.model || undefined,
       permissionMode: entry.permissionMode || undefined,
+      effort: entry.effort, // undefined in lists saved before effort was kept: then as for any session
       lazy: true,
     }, { activate: false });
     restored.push(res.session && entry.active ? res.session : null);
