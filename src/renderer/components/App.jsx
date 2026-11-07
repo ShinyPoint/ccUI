@@ -21,7 +21,7 @@ import { togglePanel } from '../lib/panel.js';
 import { SHORTCUTS } from '../lib/keyboard.js';
 import { BottomPanel } from './BottomPanel.jsx';
 import {
-  displayName, openSession, openInTerminal, openInChat, restartTerminal, chooseFolderAndStart,
+  displayName, openSession, openInTerminal, openInChat, restartTerminal, chooseFolderAndStart, cliOffered,
 } from '../lib/sessions.js';
 import { basename, tildify, formatDuration, fileManagerLabel } from '../lib/format.js';
 import { t, phrase } from '../lib/i18n.js';
@@ -80,7 +80,7 @@ function Topbar({ s }) {
       )}
       {s && (
         <div class="topbar-actions no-drag">
-          {kind === 'chat' && (
+          {kind === 'chat' && cliOffered(s) && (
             <button class="text-btn" title={t('Continue this conversation in Claude Code’s own command-line interface')} onClick={() => {
               openInTerminal(s); // asks first if Claude is working or has background tasks running
             }}>

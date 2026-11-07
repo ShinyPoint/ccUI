@@ -12,7 +12,7 @@ import { UserItem, TextItem, ThinkingItem, NoticeItem, CommandOutputItem, TurnIt
 import { topLevel, childrenOf, currentActivity, groupTurns, backgroundTasks, answerText } from '../../lib/chat-reducer.js';
 import { api, settings, settingsDialog, findBar, toast, taskDialog } from '../../lib/store.js';
 import { TASK_ICON, taskKindName } from '../dialogs/TaskDialog.jsx';
-import { openInTerminal, retryChat, stopTask, stopAllTasks, dismissSideNote } from '../../lib/sessions.js';
+import { openInTerminal, retryChat, stopTask, stopAllTasks, dismissSideNote, cliOffered, isDsh } from '../../lib/sessions.js';
 import { formatCost, formatDuration, pluralize } from '../../lib/format.js';
 import { turnChanges } from '../../lib/diff.js';
 import { openChanges } from '../../lib/side.js';
@@ -167,8 +167,11 @@ function ProblemCard({ s }) {
   const problem = s.problem.value;
   const subscription = problem.code === 'subscription';
   const title = subscription ? t('Chat sessions need an API key')
+    : problem.code === 'no-deepseek-key' ? t('A DeepSeek API key is needed')
+    : problem.code === 'no-dsh' ? t('DeepSeek Harness could not be downloaded')
     : problem.code === 'no-binary' ? t('Claude Code was not found')
     : problem.code === 'untrusted' ? t('This folder is not trusted')
+    : isDsh(s) ? t('DeepSeek Harness could not start')
     : t('Claude Code could not start');
   return (
     <div class="problem">
@@ -183,7 +186,10 @@ function ProblemCard({ s }) {
       <div class="problem-actions">
         {subscription && <button class="primary-btn" onClick={() => { settingsDialog.value = 'account'; }}>{t('Add API key')}</button>}
         {problem.code === 'no-binary' && <button class="primary-btn" onClick={() => { settingsDialog.value = true; }}>{t('Open settings')}</button>}
-        <button class="secondary-btn" onClick={() => openInTerminal(s)}><Icon name="terminal" />{t('Open in CLI')}</button>
+        {(problem.code === 'no-deepseek-key' || problem.code === 'no-dsh') && (
+          <button class="primary-btn" onClick={() => { settingsDialog.value = 'deepseek'; }}>{t('Open settings')}</button>
+        )}
+        {cliOffered(s) && <button class="secondary-btn" onClick={() => openInTerminal(s)}><Icon name="terminal" />{t('Open in CLI')}</button>}
         <button class="secondary-btn" onClick={() => retryChat(s)}>{problem.code === 'untrusted' ? t('Ask again') : t('Try again')}</button>
       </div>
     </div>
@@ -208,18 +214,22 @@ function Intro({ onPick }) {
 }
 
 // Over the message box of a new chat: the project (choosing another starts a new chat there) and how the
-// session is shown (choosing CLI continues it in Claude Code's own CLI).
+// session is shown (choosing CLI continues it in Claude Code's own CLI). A chat on DeepSeek Harness says so instead.
 function IntroChips({ s }) {
   return (
     <div class="intro-chips">
       <ProjectMenu s={s} chip />
-      <Menu className="intro-chip" title={t('How the session is shown')} up={false} value="chat"
+      {!cliOffered(s) ? (
+        isDsh(s) && <span class="intro-chip engine-chip" title={t('This chat runs on DeepSeek Harness (Settings → DeepSeek Harness)')}>
+          <Icon name="chat" size={15} /><span class="menu-text">DeepSeek</span>
+        </span>
+      ) : <Menu className="intro-chip" title={t('How the session is shown')} up={false} value="chat"
             label={<><Icon name="chat" size={15} /><span class="menu-text">{t('Chat')}</span></>}
             options={[
               { value: 'chat', label: t('Chat'), hint: t('Claude’s work as a conversation you can read and steer.') },
               { value: 'terminal', label: 'CLI', hint: t('Claude Code’s own command-line interface.') },
             ]}
-            onSelect={(kind) => { if (kind === 'terminal') openInTerminal(s); }} />
+            onSelect={(kind) => { if (kind === 'terminal') openInTerminal(s); }} />}
     </div>
   );
 }

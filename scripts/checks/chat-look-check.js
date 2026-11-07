@@ -240,7 +240,7 @@ app.on('browser-window-created', (_e, win) => {
       // Pointing at a row shows its ×, the title stopping short of it; pointed at, the × brightens, with no fill.
       const closeLook = async () => JSON.parse(await js(`JSON.stringify((() => { const r = document.querySelector('#sidebar .session[aria-current="true"]'); const x = r.querySelector('.session-close');
         const name = r.querySelector('.session-name'); const cs = getComputedStyle(x);
-        return { shown: cs.opacity, fill: cs.backgroundColor, color: cs.color, gap: Math.round(x.getBoundingClientRect().left - name.getBoundingClientRect().right) }; })())`));
+        return { shown: cs.opacity, fill: cs.backgroundColor, shadow: cs.boxShadow, color: cs.color, gap: Math.round(x.getBoundingClientRect().left - name.getBoundingClientRect().right) }; })())`));
       mouse(...(await center('#sidebar .session[aria-current="true"] .session-name')));
       await wait(300);
       const onRow = await closeLook();
@@ -248,7 +248,24 @@ app.on('browser-window-created', (_e, win) => {
       await wait(300);
       const onX = await closeLook();
       check('pointing at a row shows its ×, clear of the title', onRow.shown === '1' && onRow.gap >= 0, JSON.stringify(onRow));
-      check('pointed at, the × brightens with no circle behind it', /rgba\(0, 0, 0, 0\)|transparent/.test(onX.fill) && onX.color !== onRow.color, JSON.stringify({ onRow, onX }));
+      check('pointed at, the × brightens with no circle behind it', /rgba\(0, 0, 0, 0\)|transparent/.test(onX.fill) && onX.color !== onRow.color && onX.shadow === 'none', JSON.stringify({ onRow, onX }));
+      // Small controls lift when pointed at: a see-through pill with a shadow, not a flat grey (the message box's
+      // permission chip, the top bar's CLI button).
+      const lift = async (sel) => {
+        mouse(...(await center(sel)));
+        await wait(350);
+        return JSON.parse(await js(`JSON.stringify((() => { const cs = getComputedStyle(document.querySelector(${JSON.stringify(sel)})); return { fill: cs.backgroundColor, shadow: cs.boxShadow }; })())`));
+      };
+      const modeChip = await lift('.chat-composer .mode-menu .menu-button');
+      const cli = await lift('#topbar .text-btn');
+      const lifted = (x) => /color\(srgb.*\/ 0\.\d|rgba\(.*, 0\.\d+\)/.test(x.fill) && (x.shadow.match(/rgba/g) || []).length >= 3;
+      check('pointing at a small control lifts it: a see-through pill with a shadow, not a flat grey', lifted(modeChip) && lifted(cli), JSON.stringify({ modeChip, cli }));
+      // The sidebar's rows look the same: a pointed-at folder, and the conversation on screen (a fuller pill).
+      mouse(...(await center('#sidebar .folder-row'))); // the last one, as center() picks
+      await wait(350);
+      const folderRow = JSON.parse(await js(`JSON.stringify((() => { const cs = getComputedStyle([...document.querySelectorAll('#sidebar .folder-row')].at(-1)); return { fill: cs.backgroundColor, shadow: cs.boxShadow }; })())`));
+      const picked = JSON.parse(await js(`JSON.stringify((() => { const cs = getComputedStyle(document.querySelector('#sidebar .session[aria-current="true"]')); return { fill: cs.backgroundColor, shadow: cs.boxShadow }; })())`));
+      check('sidebar rows lift like the buttons: a pointed-at folder and the conversation on screen', lifted(folderRow) && lifted(picked), JSON.stringify({ folderRow, picked }));
       mouse(5, 5);
       console.log('reduced motion:', await js("matchMedia('(prefers-reduced-motion: reduce)').matches"));
       // How far from the bottom the view is on each frame, for 3 s.
@@ -262,10 +279,15 @@ app.on('browser-window-created', (_e, win) => {
       await wait(800);
       check('it ends at the bottom', await js("{ const el = document.querySelector('.chat-scroll'); el.scrollHeight - el.clientHeight - el.scrollTop < 2 }"));
 
-      // The history rail: pointing at the chat's right edge shows a tick per message of yours and a button; the list
-      // it opens jumps to one; Esc closes it, and Esc Esc in the empty message box opens it.
-      const rail = JSON.parse(await js(`JSON.stringify((() => { const r = document.querySelector('.history-rail')?.getBoundingClientRect(); return r ? [r.right - 6, r.top + r.height / 2] : null; })())`));
+      // The history rail: pointing at the chat's left edge shows a tick per message of yours and a button; the list
+      // it opens jumps to one; Esc closes it, and Esc Esc in the empty message box opens it. The right edge stays the
+      // scrollbar's.
+      const rail = JSON.parse(await js(`JSON.stringify((() => { const r = document.querySelector('.history-rail')?.getBoundingClientRect(); return r ? [r.left + 6, r.top + r.height / 2] : null; })())`));
       check('a conversation with two messages of yours has the history rail', Boolean(rail));
+      const edges = JSON.parse(await js(`JSON.stringify((() => { const sc = document.querySelector('.chat-scroll').getBoundingClientRect(); const r = document.querySelector('.history-rail').getBoundingClientRect();
+        const atRight = document.elementFromPoint(sc.right - 4, sc.top + sc.height / 2);
+        return { left: Math.round(r.left - sc.left), scrollbar: atRight === document.querySelector('.chat-scroll'), scrolls: document.querySelector('.chat-scroll').offsetWidth > document.querySelector('.chat-scroll').clientWidth }; })())`));
+      check('the rail is at the chat’s left edge, and the right edge is the scrollbar again', edges.left <= 1 && edges.scrollbar && edges.scrolls, JSON.stringify(edges));
       const ticks = () => js("JSON.stringify([...document.querySelectorAll('.history-tick')].map((t) => getComputedStyle(t).opacity))");
       const ticksBefore = await ticks();
       mouse(...rail);

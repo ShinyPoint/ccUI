@@ -5,13 +5,13 @@ import {
   api, toast, confirmDialog, infoDialog, settingsDialog, newSessionDialog, skillsDialog,
 } from './store.js';
 import {
-  setModel, setEffort, setMode, renameSession, askSideQuestion, branchConversation, openInTerminal, endSession,
+  setModel, setEffort, setMode, renameSession, askSideQuestion, branchConversation, openInTerminal, endSession, isDsh,
 } from './sessions.js';
 import { topLevel, groupTurns, answerText } from './chat-reducer.js';
 import { pluralize, tildify } from './format.js';
 import { t, phrase } from './i18n.js';
 
-const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max', 'auto'];
+const EFFORTS = ['off', 'low', 'medium', 'high', 'xhigh', 'max', 'auto'];
 
 // Claude's answers, latest first: each turn's final text.
 function answers(s) {
@@ -210,14 +210,19 @@ export function parseCommand(text) {
   return m ? { name: m[1], args: (m[2] || '').trim() } : null;
 }
 
-// What the message box offers after "/": the chat's own commands, Claude Code's, and the CLI's (marked).
+// The chat's own commands that need Claude Code: DeepSeek Harness has no side questions and no MCP status.
+const CLAUDE_ONLY = new Set(['btw', 'mcp']);
+const ownCommands = (s) => (isDsh(s) ? APP_COMMANDS.filter((c) => !CLAUDE_ONLY.has(c.name)) : APP_COMMANDS);
+
+// What the message box offers after "/": the chat's own commands, Claude Code's, and the CLI's (marked). A chat on
+// DeepSeek Harness has its commands (main/dsh.js) and no CLI.
 export function commandList(s) {
-  const own = APP_COMMANDS;
+  const own = ownCommands(s);
   const claude = (s.meta.value.commands || []).filter((c) => !own.some((a) => matches(a, c.name)));
   // Only the CLI shows them: what Claude Code names so (once a message has gone), and the ones known here (before).
   const terminal = new Set(s.chat.value.init?.terminalCommands || []);
   const cliOnly = (c) => terminal.has(c.name) || CLI_COMMANDS.some((x) => matches(x, c.name));
-  const cli = CLI_COMMANDS.filter((c) => !own.some((a) => matches(a, c.name)) && !claude.some((x) => matches(x, c.name)));
+  const cli = isDsh(s) ? [] : CLI_COMMANDS.filter((c) => !own.some((a) => matches(a, c.name)) && !claude.some((x) => matches(x, c.name)));
   // The app's own descriptions in the app's language; Claude Code's come as Claude Code wrote them.
   const shown = (c) => ({ ...c, description: t(c.description), argumentHint: c.argumentHint && t(c.argumentHint) });
   return [
@@ -232,8 +237,9 @@ export function commandList(s) {
 export function runCommand(s, text, ui) {
   const cmd = parseCommand(text);
   if (!cmd) return false;
-  const own = APP_COMMANDS.find((c) => matches(c, cmd.name));
-  if (own && !(own.passWithArgs && cmd.args)) {
+  const own = ownCommands(s).find((c) => matches(c, cmd.name));
+  // With arguments, some go to Claude Code instead; DeepSeek Harness has no such command, so the chat runs them.
+  if (own && (!(own.passWithArgs && cmd.args) || isDsh(s))) {
     own.run(s, cmd.args, ui);
     return 'ran';
   }
@@ -241,7 +247,7 @@ export function runCommand(s, text, ui) {
   const commands = s.meta.value.commands || [];
   const terminal = new Set(s.chat.value.init?.terminalCommands || []);
   const claude = commands.find((c) => matches(c, cmd.name));
-  const listed = CLI_COMMANDS.find((c) => matches(c, cmd.name));
+  const listed = !isDsh(s) && CLI_COMMANDS.find((c) => matches(c, cmd.name));
   // Claude Code names its CLI-only commands only after the first message; until then the known ones count.
   if (claude && !terminal.has(claude.name) && !listed) return false;
   const cli = claude || listed;

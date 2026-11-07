@@ -10,6 +10,7 @@ export const settings = signal({});
 export const claudeCheck = signal(null); // { ok, version, bundled, chatCapable } | { ok: false, error }
 // Updates of the built-in Claude Code (main/claude-update.js): { state, current, latest, received, total, error }
 export const claudeUpdate = signal({ state: 'idle' });
+export const dshInstall = signal({ state: 'absent' }); // DeepSeek Harness on this computer (main/dsh-install.js)
 export const themeMode = signal('dark');
 export const sessions = signal([]);
 export const activeUid = signal(null);
@@ -35,10 +36,12 @@ export const windowFocused = signal(document.hasFocus());
 let nextUid = 1;
 
 // kind: 'chat' | 'terminal' (Claude Code TUI) | 'shell'
-export function makeSession({ kind, cwd, name = null, sessionId = null }) {
+// engine: 'claude' (Claude Code) | 'dsh' (DeepSeek Harness, chats only)
+export function makeSession({ kind, cwd, name = null, sessionId = null, engine = 'claude' }) {
   return {
     uid: nextUid++,
     cwd,
+    engine,
     kind: signal(kind),
     name: signal(name),
     sessionId,
@@ -100,9 +103,11 @@ export function saveSettings(patch) {
 // `danger`: a red confirm button; `safeDefault` (on with danger): Cancel has the focus.
 export const confirms = signal([]);
 let confirmId = 0;
-export function confirmDialog({ title, message, detail, confirm = t('OK'), cancel = t('Cancel'), danger = false, safeDefault = danger }) {
+// `alt`: a third button, answering 'alt'; `remember`: a "don't ask again" box. With the box, the answer is
+// { answer, remember }.
+export function confirmDialog({ title, message, detail, confirm = t('OK'), cancel = t('Cancel'), alt = '', remember = '', danger = false, safeDefault = danger }) {
   return new Promise((resolve) => {
-    confirms.value = [...confirms.value, { id: ++confirmId, title, message, detail, confirm, cancel, danger, safeDefault, resolve }];
+    confirms.value = [...confirms.value, { id: ++confirmId, title, message, detail, confirm, cancel, alt, remember, danger, safeDefault, resolve }];
   });
 }
 

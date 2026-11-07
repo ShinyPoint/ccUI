@@ -18,6 +18,15 @@ const STARTUP_GRACE = 5000;
 
 export const displayName = (s) => s.name.value || basename(s.cwd);
 
+// DeepSeek Harness (Settings): its conversations have ids of their own (main/dsh.js), so a resumed one runs on it
+// whatever the setting is now; new chats run on it while the setting is on, and then there is no CLI.
+export const isDshId = (id) => /^dsh-/.test(id || '');
+export const dshMode = () => Boolean(settings.value.dshEnabled);
+export const isDsh = (s) => s?.engine === 'dsh';
+// Whether the CLI is offered: for `s` (none: anywhere). Not while DeepSeek Harness is on, nor for its chats.
+export const cliOffered = (s) => !dshMode() && !isDsh(s);
+const engineFor = (resume, engine) => engine || (resume ? (isDshId(resume) ? 'dsh' : 'claude') : dshMode() ? 'dsh' : 'claude');
+
 // ---------- status ----------
 const isSeen = (s) => s.uid === activeUid.value && document.hasFocus();
 
@@ -184,9 +193,11 @@ async function startAgentNow(s, { resume, model, permissionMode } = {}) {
   const history = resume ? await readHistory(s, resume) : null;
   const remembered = resume ? settings.value.conversations?.[resume] : null;
   const useModel = model ?? remembered?.model
-    ?? (s.selectedModel.value || (history?.ok ? lastModelIn(history.messages) : '') || settings.value.defaultModel || '');
+    ?? (s.selectedModel.value || (history?.ok ? lastModelIn(history.messages) : '')
+      || (isDsh(s) ? settings.value.dshModel : settings.value.defaultModel) || '');
   const useMode = permissionMode || remembered?.permissionMode || s.mode.value || settings.value.defaultPermissionMode || 'default';
   const res = await api.agent.start({
+    engine: s.engine,
     cwd: s.cwd,
     resume: resume || undefined,
     model: useModel || undefined,
@@ -315,11 +326,11 @@ export async function refreshContext(s) {
   if (!s.agentId || s.removed) return;
   const res = await api.agent.control(s.agentId, 'context');
   if (res.ok && res.value) {
-    const { percentage, totalTokens, maxTokens, categories = [] } = res.value;
+    const { percentage, totalTokens, maxTokens, categories = [], sessionTokens } = res.value;
     // Each row of the breakdown (the context pop-up): kind is 'used', 'free', 'buffer' (reserved for compacting)
-    // or 'deferred' (tool schemas outside the window).
+    // or 'deferred' (tool schemas outside the window). `sessionTokens`: what DeepSeek Harness used so far.
     const rows = categories.map(({ name, tokens, kind, isDeferred }) => ({ name, tokens, kind: kind || (isDeferred ? 'deferred' : 'used') }));
-    s.context.value = { percentage, totalTokens, maxTokens, categories: rows };
+    s.context.value = { percentage, totalTokens, maxTokens, categories: rows, sessionTokens };
   }
 }
 
@@ -450,7 +461,7 @@ export async function forkFrom(s, item) {
   const fork = await api.history.fork(sessionId, s.cwd, item.key);
   if (!fork.ok) return toast(fork.error, 'error');
   const res = await openSession({
-    cwd: s.cwd, kind: 'chat', mode: fork.sessionId ? 'resume' : 'new', resume: fork.sessionId || undefined,
+    cwd: s.cwd, kind: 'chat', engine: s.engine, mode: fork.sessionId ? 'resume' : 'new', resume: fork.sessionId || undefined,
     title: s.title.value ? copyTitle(s.title.value, phrase('{title} (fork)')) : '', model: s.selectedModel.value, permissionMode: s.mode.value,
   });
   if (res.ok) res.session.restore.value = messageDraft(item);
@@ -463,7 +474,7 @@ export async function branchConversation(s) {
   const fork = await api.history.fork(sessionId, s.cwd, null);
   if (!fork.ok) return toast(fork.error, 'error');
   await openSession({
-    cwd: s.cwd, kind: 'chat', mode: 'resume', resume: fork.sessionId,
+    cwd: s.cwd, kind: 'chat', engine: s.engine, mode: 'resume', resume: fork.sessionId,
     title: s.title.value ? copyTitle(s.title.value, phrase('{title} (branch)')) : '', model: s.selectedModel.value, permissionMode: s.mode.value,
   });
 }
@@ -720,9 +731,10 @@ export function restartTerminal(s, { fresh = false } = {}) {
 }
 
 // ---------- switching a conversation between chat and terminal ----------
-async function latestSessionId(cwd) {
+// The folder's latest conversation of one engine (the CLI can only continue Claude Code's).
+async function latestSessionId(cwd, engine = 'claude') {
   const res = await api.history.list(cwd);
-  return res.ok ? res.sessions[0]?.sessionId : undefined;
+  return res.ok ? res.sessions.find((h) => (h.engine || 'claude') === engine)?.sessionId : undefined;
 }
 
 // Background tasks a chat's Claude Code is running (subagents, background shells).
@@ -773,6 +785,7 @@ export async function endSession(s) {
 
 // `input`: typed into the CLI once it has started and gone quiet (not run: Enter is left to you).
 export async function openInTerminal(s, { confirmed = false, input = null } = {}) {
+  if (isDsh(s)) return; // DeepSeek Harness has no CLI here
   if (!confirmed && !(await confirmLeaving(s, 'switch'))) return;
   s.pendingInput = input;
   s.dormant = null;
@@ -818,8 +831,8 @@ export async function openInChat(s) {
 // ---------- opening, selecting, closing ----------
 // kind: 'chat' | 'terminal' | 'shell'; mode: 'new' | 'continue' | 'resume' (with `resume` = session id)
 // A new chat or CLI nobody has used yet: no conversation resumed, nothing sent (chat) or typed (CLI).
-function untouched(x, kind, cwd) {
-  if (x.removed || x.dormant || x.sessionId || x.kind.value !== kind || !samePath(x.cwd, cwd)) return false;
+function untouched(x, kind, cwd, engine = x.engine) {
+  if (x.removed || x.dormant || x.sessionId || x.kind.value !== kind || x.engine !== engine || !samePath(x.cwd, cwd)) return false;
   if (kind === 'chat') return !x.chat.value.busy && !x.chat.value.items.some((i) => i.type === 'user');
   return !x.typed && x.status.value !== 'exited';
 }
@@ -853,11 +866,15 @@ export async function startChatIn(s, cwd) {
 }
 
 export async function openSession(opts, { activate = true } = {}) {
-  const kind = opts.kind || settings.value.defaultKind || 'chat';
+  let kind = opts.kind || settings.value.defaultKind || 'chat';
   let resume = opts.resume;
+  // A new CLI while DeepSeek Harness is on is a chat on it; a conversation of DeepSeek Harness's is always a chat.
+  if (kind === 'terminal' && (isDshId(resume) || (!resume && !opts.engine && dshMode() && !opts.lazy))) kind = 'chat';
+  let engine = kind === 'chat' ? engineFor(resume, opts.engine) : 'claude';
   if (opts.mode === 'continue' && !resume && kind !== 'shell') {
-    resume = await latestSessionId(opts.cwd);
+    resume = await latestSessionId(opts.cwd, engine);
     if (!resume) toast(t('No earlier conversation in this folder, so a new one was started.'));
+    engine = kind === 'chat' ? engineFor(resume, opts.engine) : 'claude';
   }
   // One new session of a kind per project: asking for another new chat (or CLI) where an untouched one is open
   // shows that one, rather than piling up empty ones. A new chat and a new CLI can sit side by side.
@@ -866,7 +883,7 @@ export async function openSession(opts, { activate = true } = {}) {
   if (!resume && !opts.lazy && kind !== 'shell') {
     const sameArgs = (x) => kind === 'chat' || ((opts.model ?? x.selectedModel.value) === x.selectedModel.value
       && (opts.permissionMode ?? x.mode.value) === x.mode.value && !opts.extraArgs);
-    const same = sessions.value.find((x) => untouched(x, kind, opts.cwd) && sameArgs(x));
+    const same = sessions.value.find((x) => untouched(x, kind, opts.cwd, engine) && sameArgs(x));
     if (same) {
       if (activate || !activeUid.value) selectSession(same);
       if (kind === 'chat') {
@@ -877,7 +894,7 @@ export async function openSession(opts, { activate = true } = {}) {
       return { ok: true, session: same };
     }
   }
-  const s = makeSession({ kind, cwd: opts.cwd, name: opts.name, sessionId: resume || null });
+  const s = makeSession({ kind, cwd: opts.cwd, name: opts.name, sessionId: resume || null, engine });
   if (resume && opts.title) setTitle(s, opts.title);
   // Effort: what this conversation had (conversations remembered before effort was kept have none), else the one
   // last chosen.
@@ -1036,6 +1053,7 @@ export function persistSessions() {
       model: s.selectedModel.value,
       permissionMode: s.mode.value,
       effort: s.effort.value,
+      engine: s.engine,
       active: s.uid === activeUid.value,
     })),
   });
@@ -1082,6 +1100,7 @@ async function restoreEntries(saved, restored) {
       model: entry.model || undefined,
       permissionMode: entry.permissionMode || undefined,
       effort: entry.effort, // undefined in lists saved before effort was kept: then as for any session
+      engine: entry.engine, // lists saved before DeepSeek Harness have none: Claude Code's, or the conversation's own
       lazy: true,
     }, { activate: false });
     restored.push(res.session && entry.active ? res.session : null);

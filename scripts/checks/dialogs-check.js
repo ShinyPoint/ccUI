@@ -176,9 +176,26 @@ app.on('browser-window-created', (_e, win) => {
       await js("document.querySelector('.settings-head .primary-btn').click(); true");
       await wait(300);
 
-      // Quitting with a session running
+      // The close button asks first: hide in the tray, or quit.
       win.close();
+      await until('the close question', `/Hide ccUI in the tray/.test(${confirmText})`);
+      await wait(400);
+      await shot('5a-close');
+      await press('Hide in the tray');
+      await wait(600);
+      check('Hide in the tray hides the window and the app keeps running', !win.isDestroyed() && !win.isVisible());
+      win.show();
+      await wait(500);
+      // Quit, with Don't ask again: remembered, and then the question about the running session.
+      win.close();
+      await until('the close question again', `/Hide ccUI in the tray/.test(${confirmText})`);
+      await js("document.querySelector('.dialog-confirm[open] .confirm-remember input').click(); true");
+      await press('Quit');
+
+      // Quitting with a session running
       await until('the quit question', `/1 session is still running/.test(${confirmText})`);
+      check('Quit goes on to the running-session question, and the choice is remembered',
+        JSON.parse(fs.readFileSync(path.join(profile, 'settings.json'), 'utf8')).closeAction === 'quit');
       await wait(400);
       await shot('5-quit');
       await press('Cancel');

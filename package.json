@@ -55,6 +55,10 @@
     "check:sidebar": "vite build && electron scripts/checks/sidebar-check.js",
     "check:effort": "vite build && electron scripts/checks/effort-check.js",
     "check:i18n": "vite build && electron scripts/checks/i18n-check.js",
+    "check:liquid": "vite build && electron scripts/checks/liquid-check.js",
+    "check:dsh": "vite build && electron scripts/checks/dsh-check.js",
+    "check:vivid": "vite build && electron scripts/checks/vivid-check.js",
+    "check:dsh-real": "electron scripts/checks/dsh-real-check.js",
     "video": "vite build && electron scripts/intro-video/record.js en && electron scripts/intro-video/compose.js en && electron scripts/intro-video/record.js zh-CN && electron scripts/intro-video/compose.js zh-CN"
   },
   "dependencies": {

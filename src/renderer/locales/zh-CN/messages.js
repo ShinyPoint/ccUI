@@ -51,6 +51,11 @@ export default {
   'No earlier conversation in this folder, so a new one was started.': '此文件夹中没有历史对话，已开始新对话。',
 
   // main.jsx: closing the window while sessions run, trusting a folder, a Claude Code update
+  'Hide ccUI in the tray?': '把 ccUI 隐藏到托盘？',
+  'Sessions keep running in the tray, and the tray icon brings the window back. Quitting ends them.': '隐藏后会话在托盘中继续运行，点托盘图标可恢复窗口。退出则会结束会话。',
+  'Hide in the tray': '隐藏到托盘',
+  Quit: '退出',
+  'Don’t ask again': '不再询问',
   '1 session is still running': '还有 1 个会话在运行',
   '{n} sessions are still running': '还有 {n} 个会话在运行',
   'Quitting ends them. Conversations are saved, so you can continue them later.': '退出会结束这些会话。对话内容会保留，之后可以继续。',

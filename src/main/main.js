@@ -3,9 +3,12 @@ const path = require('path');
 const os = require('os');
 const { execFile } = require('child_process');
 const { pathToFileURL, fileURLToPath } = require('url');
-const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, Menu, nativeTheme, screen, session } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, Menu, nativeTheme, screen, session, net } = require('electron');
 const { PtyManager, claudeLaunch } = require('./pty');
 const { AgentManager, listHistory, loadHistory, forkBefore } = require('./agent');
+const { DshSession, isDshSession, listDshHistory, loadDshHistory, forkDshSession } = require('./dsh');
+const { DshInstaller } = require('./dsh-install');
+const { OFFICIAL, OFFICIAL_BASE_URL, listing, parseListing } = require('./dsh-catalog.mjs');
 const { resolveClaude, bundledClaude, useDownloads } = require('./claude-binary');
 const { ClaudeUpdater } = require('./claude-update');
 const { shellEnvReady, childEnv } = require('./shell-env');
@@ -14,6 +17,7 @@ const { Settings } = require('./settings');
 const { ensureTrusted, isTrusted, askNatively, trustDetail } = require('./trust');
 const { t, setLanguage } = require('./i18n');
 const { Background } = require('./background');
+const { AppTray } = require('./tray');
 
 const isMac = process.platform === 'darwin';
 const DEV_URL = process.env.VITE_DEV_SERVER_URL;
@@ -24,8 +28,14 @@ let win = null;
 let settings = null;
 let background = null;
 let updater = null;
+let dshInstaller = null;
 let quitConfirmed = false;
 let quitAsking = false;
+let tray = null;
+// Quitting was asked for (the tray's Quit, Cmd+Q, the system ending the app), so the close button's "hide to the
+// tray" doesn't apply to this close.
+let quitRequested = false;
+let closeAsking = false;
 
 const send = (channel, ...args) => {
   if (win && !win.isDestroyed()) win.webContents.send(channel, ...args);
@@ -45,6 +55,14 @@ function askWindow(kind, payload, fallback) {
     send('app:ask', id, kind, payload);
   });
 }
+// The window back from the tray (or from behind others, or minimized); a new one if there is none.
+function showWindow() {
+  if (!win || win.isDestroyed()) return createWindow();
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
 // A window that reloads or goes away can't answer any more: the questions count as declined.
 function dropAsks() {
   for (const resolve of asks.values()) resolve(false);
@@ -56,11 +74,7 @@ const agents = new AgentManager(send);
 
 const primaryInstance = app.requestSingleInstanceLock();
 if (!primaryInstance) app.quit();
-app.on('second-instance', () => {
-  if (!win) return;
-  if (win.isMinimized()) win.restore();
-  win.focus();
-});
+app.on('second-instance', () => { if (win) showWindow(); });
 
 function boundsOnScreen(b) {
   if (!b) return false;
@@ -201,6 +215,24 @@ function createWindow() {
   win.webContents.on('did-start-loading', dropAsks);
   win.webContents.on('render-process-gone', dropAsks);
   win.on('close', (e) => {
+    // The close button hides the window in the tray, quits, or asks which (Settings → General).
+    const action = tray ? settings.get().closeAction : 'quit'; // hidden with no tray icon, it couldn't come back
+    if (!quitRequested && !quitConfirmed && action !== 'quit') {
+      e.preventDefault();
+      if (action === 'tray') return win.hide();
+      if (closeAsking) return;
+      closeAsking = true;
+      askWindow('close', {}, () => ({ answer: 'alt' })).then((res) => {
+        closeAsking = false;
+        if (!res?.answer || !win || win.isDestroyed()) return;
+        const choice = res.answer === true ? 'tray' : 'quit';
+        if (res.remember) settings.set({ closeAction: choice });
+        if (choice === 'tray') return win.hide();
+        quitRequested = true;
+        win.close();
+      });
+      return;
+    }
     const live = ptys.liveCount + agents.liveCount;
     if (!quitConfirmed && live > 0 && settings.get().confirmClose) {
       // Asked in the window; the window closes again once the answer is yes.
@@ -216,6 +248,7 @@ function createWindow() {
         detail: t('Quitting ends them. Conversations are saved, so you can continue them later.'),
       }) === 0).then((yes) => {
         quitAsking = false;
+        if (!yes) quitRequested = false; // the next close button press hides or asks again
         if (!yes || !win || win.isDestroyed()) return;
         quitConfirmed = true;
         win.close();
@@ -268,6 +301,24 @@ const currentClaude = () => resolveClaude(settings.get().claudePath, settings.ge
 // What Claude Code gets in its environment from the app's settings, for chat and CLI sessions. Claude Code keeps a
 // task list (TodoWrite, the Task tools) on older models only; Opus 5 and later get it when asked for.
 const claudeEnv = () => (settings.get().taskList ? { CLAUDE_CODE_ENABLE_TODO_TOOLS: '1' } : {});
+
+// A chat on DeepSeek Harness: it needs a DeepSeek key, and dsh itself (downloaded first if it isn't here yet). It reads
+// the project's AGENTS.md and CLAUDE.md and runs commands, so the folder has to be trusted, as for Claude Code.
+async function startDsh(opts) {
+  const apiKey = settings.getApiKey('deepseekKeyEnc');
+  const { dshOfficial, dshProviders } = settings.get();
+  // A custom provider may need no key (a local server), so having one is enough to start.
+  if (!apiKey && !dshProviders.length) return { ok: false, code: 'no-deepseek-key', error: t('Add a DeepSeek API key in Settings → DeepSeek Harness.') };
+  const keys = Object.fromEntries(dshProviders.map((p) => [p.id, settings.getProviderKey(p.id)]).filter(([, key]) => key));
+  const askTrust = (cwd) => askWindow('trust', { folder: cwd, detail: trustDetail() }, () => askNatively(win, cwd));
+  if (!(await ensureTrusted(settings, win, opts.cwd, askTrust))) {
+    return { ok: false, code: 'untrusted', error: t('You did not trust this folder, so DeepSeek Harness was not started there.') };
+  }
+  if (!(await dshInstaller.ensure())) {
+    return { ok: false, code: 'no-dsh', error: t('DeepSeek Harness could not be downloaded: {reason}', { reason: dshInstaller.status.error || t('unknown error') }) };
+  }
+  return agents.start({ ...opts, Session: DshSession, install: dshInstaller.paths(), apiKey, keys, providers: { dshOfficial, dshProviders }, env: {} });
+}
 
 async function claudeForSession() {
   if (!currentClaude().missing) return currentClaude();
@@ -411,10 +462,11 @@ function registerIpc() {
     if (!isTrusted(settings, folder)) settings.setPrivate({ trustedFolders: [...list, folder] });
     return { ok: true, path: folder };
   });
+  // Yes or no; a question with a third button or a "don't ask again" box answers { answer, remember }.
   ipc.on('app:answer', (_e, id, value) => {
     const resolve = asks.get(id);
     asks.delete(id);
-    resolve?.(value === true);
+    resolve?.(value && typeof value === 'object' ? { answer: value.answer === true || value.answer === 'alt' ? value.answer : false, remember: value.remember === true } : value === true);
   });
 
   ipc.handle('settings:get', () => settings.get());
@@ -425,6 +477,7 @@ function registerIpc() {
     if (patch && 'language' in patch) {
       setLanguage(next.language, app.getLocale());
       buildMenu();
+      tray?.build();
     }
     return next;
   });
@@ -435,6 +488,33 @@ function registerIpc() {
   ipc.handle('claude-update:run', () => updater.update());
   ipc.handle('claude-update:versions', () => updater.recent().then((versions) => ({ ok: true, versions }), (err) => ({ ok: false, error: err.message })));
   ipc.handle('claude-update:use', (_e, version) => updater.use(version));
+  // DeepSeek Harness (dsh-install.js): downloaded when it is turned on in Settings, or when a chat needs it.
+  ipc.handle('dsh-install:state', () => dshInstaller.status);
+  ipc.handle('dsh-install:run', () => dshInstaller.install());
+  ipc.handle('dsh-install:remove', () => dshInstaller.remove());
+  // A model provider's key: DeepSeek's own, or a custom provider's (dsh-catalog.mjs).
+  ipc.handle('settings:set-dsh-key', (_e, id, key) => {
+    try {
+      return { ok: true, settings: id === OFFICIAL ? settings.setApiKey(key, 'deepseekKeyEnc') : settings.setProviderKey(String(id), key) };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+  // The models a provider being edited lists ("Fetch available models"). A blank key uses the one saved for `id`.
+  ipc.handle('dsh:list-models', async (_e, { id, api, baseURL, key } = {}) => {
+    const saved = id === OFFICIAL ? settings.getApiKey('deepseekKeyEnc') : id ? settings.getProviderKey(String(id)) : '';
+    const official = id === OFFICIAL;
+    const { url, headers } = listing(official ? 'anthropic-messages' : api, (official && !baseURL ? OFFICIAL_BASE_URL : baseURL), String(key || '').trim() || saved);
+    if (!/^https?:\/\//.test(url)) return { ok: false, error: t('The API address must start with http:// or https://.') };
+    try {
+      const res = await net.fetch(url, { headers, signal: AbortSignal.timeout(20000) });
+      if (!res.ok) return { ok: false, error: t('The provider answered {status}.', { status: res.status }) };
+      const models = parseListing(await res.json());
+      return models.length ? { ok: true, models } : { ok: false, error: t('The provider listed no models.') };
+    } catch (err) {
+      return { ok: false, error: t('The provider could not be reached: {reason}', { reason: err.message }) };
+    }
+  });
   ipc.handle('settings:set-api-key', (_e, key) => {
     try {
       return { ok: true, settings: settings.setApiKey(key) };
@@ -479,6 +559,7 @@ function registerIpc() {
     if (!opts?.cwd || !fs.existsSync(opts.cwd) || !fs.statSync(opts.cwd).isDirectory()) {
       return { ok: false, code: 'folder', error: t('Folder not found: {path}', { path: opts?.cwd }) };
     }
+    if (opts.engine === 'dsh') return startDsh(opts);
     const claude = await claudeForSession();
     if (claude.error) return { ok: false, code: 'no-binary', error: claude.error };
     if (!claude.file) {
@@ -500,15 +581,19 @@ function registerIpc() {
     agents.get(id)?.control(action, arg) ?? { ok: false, error: t('Session is not running.') });
   ipc.on('agent:close', (_e, id) => agents.close(id));
 
+  // Both engines' conversations, newest first; DeepSeek Harness's are told apart by their ids (dsh.js).
   ipc.handle('history:list', async (_e, cwd) => {
     try {
-      return { ok: true, sessions: await listHistory(cwd) };
+      const dsh = listDshHistory(dshInstaller.home(), cwd).map((h) => ({ ...h, engine: 'dsh' }));
+      const claude = await listHistory(cwd).catch((err) => (dsh.length ? [] : Promise.reject(err)));
+      return { ok: true, sessions: [...claude, ...dsh].sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0)) };
     } catch (err) {
       return { ok: false, error: err.message };
     }
   });
   ipc.handle('history:messages', async (_e, sessionId, cwd) => {
     try {
+      if (isDshSession(sessionId)) return { ok: true, messages: loadDshHistory(dshInstaller.home(), sessionId) };
       return { ok: true, messages: await loadHistory(sessionId, cwd) };
     } catch (err) {
       return { ok: false, error: err.message };
@@ -516,6 +601,11 @@ function registerIpc() {
   });
   ipc.handle('history:fork', async (_e, sessionId, cwd, uuid) => {
     try {
+      if (isDshSession(sessionId)) {
+        // A running conversation's last events may not be on disk yet.
+        await agents.find((x) => x.sessionId === sessionId)?.flushLog();
+        return { ok: true, ...forkDshSession(dshInstaller.home(), sessionId, uuid) };
+      }
       return { ok: true, ...(await forkBefore(sessionId, cwd, uuid)) };
     } catch (err) {
       return { ok: false, error: err.message };
@@ -622,6 +712,14 @@ app.whenReady().then(async () => {
   useDownloads(path.join(app.getPath('userData'), 'claude-code'));
   updater = new ClaudeUpdater(path.join(app.getPath('userData'), 'claude-code'), settings, send);
   updater.configure();
+  dshInstaller = new DshInstaller(path.join(app.getPath('userData'), 'dsh'), settings, send, {
+    // npm, run as its own process, doesn't see the system proxy that Electron's downloads go through.
+    proxyFor: async (url) => {
+      const rule = await session.defaultSession.resolveProxy(url);
+      const m = /^(?:PROXY|HTTPS) ([^;\s]+)/.exec(rule || '');
+      return m ? `http://${m[1]}` : '';
+    },
+  });
   nativeTheme.themeSource = settings.get().theme;
   guardRequests();
   registerIpc();
@@ -637,12 +735,18 @@ app.whenReady().then(async () => {
     send('window:glass-available', glassAvailable);
   });
   createWindow();
-  app.on('activate', () => { if (!win) createWindow(); });
+  try {
+    tray = new AppTray({ show: showWindow, quit: () => app.quit() });
+  } catch (err) {
+    logProblem(`no tray icon: ${err.message}`); // some Linux desktops have no tray; the close button then quits
+  }
+  app.on('activate', showWindow);
 });
 
 // Quitting (Cmd+Q, the Dock, the app menu) goes through the window's close handler first, so that "sessions
 // are still running" can be answered before anything is ended.
 app.on('before-quit', (e) => {
+  quitRequested = true;
   if (!quitConfirmed && win && !win.isDestroyed()) {
     e.preventDefault();
     win.close();
@@ -650,5 +754,6 @@ app.on('before-quit', (e) => {
   }
   ptys.killAll();
   agents.closeAll();
+  tray?.destroy();
 });
 app.on('window-all-closed', () => app.quit());

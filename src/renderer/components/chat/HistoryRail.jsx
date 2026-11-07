@@ -1,6 +1,7 @@
 // Your messages in this conversation, for moving through a long one (like Claude Code's Esc Esc list). Along the
-// chat's right edge: pointing there shows a tick per message, where it sits in the conversation, and a button
-// that opens the list; double Esc in an empty message box opens it too. Choosing one scrolls to it.
+// chat's left edge (the right one is the scrollbar's): pointing there shows a tick per message, where it sits in the
+// conversation, and a button that opens the list; double Esc in an empty message box opens it too. Choosing one
+// scrolls to it.
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../ui.jsx';
 import { historyRail } from '../../lib/store.js';
@@ -48,7 +49,7 @@ export function HistoryRail({ chat, scroller, onJump }) {
   }, []);
   useEffect(() => { if (open) measure(); }, [open, prompts.length]);
 
-  // Opens with a slide from the right, closes the same way back (Web Animations, like the app's other panels).
+  // Opens with a slide from the left, closes the same way back (Web Animations, like the app's other panels).
   useLayoutEffect(() => {
     if (open) {
       setShown(true);
@@ -57,7 +58,7 @@ export function HistoryRail({ chat, scroller, onJump }) {
     }
     const el = panel.current;
     if (!el || matchMedia('(prefers-reduced-motion: reduce)').matches) { setShown(false); return undefined; }
-    const anim = el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateX(12px)' }], { duration: 160, easing: 'ease-in' });
+    const anim = el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateX(-12px)' }], { duration: 160, easing: 'ease-in' });
     anim.onfinish = () => setShown(false);
     return () => anim.cancel();
   }, [open]);

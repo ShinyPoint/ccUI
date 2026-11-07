@@ -212,10 +212,11 @@ export function Dialog({ open, onClose, wide, title, className = '', children })
 // thing by accident; Esc always cancels.
 export function ConfirmHost() {
   const c = confirms.value[0];
+  const box = useRef(null);
   const answer = (value) => {
     if (!c) return;
     confirms.value = confirms.value.slice(1);
-    c.resolve(value);
+    c.resolve(c.remember ? { answer: value, remember: Boolean(box.current?.checked) } : value);
   };
   // One <dialog> per question (keyed), so a queued one opens fresh after the one before closes.
   return (
@@ -225,8 +226,10 @@ export function ConfirmHost() {
           <h3>{c.title}</h3>
           {c.detail && <p class="confirm-detail">{c.detail}</p>}
           {c.message && <p class="confirm-message">{c.message}</p>}
+          {c.remember && <label class="check confirm-remember"><input ref={box} type="checkbox" />{c.remember}</label>}
           <div class="dialog-actions">
             <button type="button" class="secondary-btn" autofocus={c.safeDefault} onClick={() => answer(false)}>{c.cancel}</button>
+            {c.alt && <button type="button" class="secondary-btn" onClick={() => answer('alt')}>{c.alt}</button>}
             <button type="submit" class={c.danger ? 'danger-btn' : 'primary-btn'} autofocus={!c.safeDefault}>{c.confirm}</button>
           </div>
         </form>
@@ -309,7 +312,7 @@ export const contextMenu = signal(null);
 export function openContextMenu(e, items) {
   e.preventDefault();
   e.stopPropagation();
-  contextMenu.value = { x: e.clientX, y: e.clientY, items };
+  contextMenu.value = { x: e.clientX, y: e.clientY, items: items.filter(Boolean) }; // false: an item not offered here
 }
 
 export function ContextMenu() {

@@ -28,7 +28,8 @@ async function agentOf(s) {
   return s.agentId;
 }
 
-function SkillRow({ skill, busy, onSet }) {
+// `readOnly`: DeepSeek Harness lists its skills but has no states to set for them.
+function SkillRow({ skill, busy, onSet, readOnly }) {
   const off = skill.state === 'off';
   const scopes = [skill.project && t('this project: {state}', { state: skill.project }), skill.user && t('all projects: {state}', { state: skill.user })].filter(Boolean);
   return (
@@ -47,8 +48,10 @@ function SkillRow({ skill, busy, onSet }) {
             <Icon name="folder" size={14} />
           </button>
         )}
-        <Dropdown className="skill-state" label={`/${skill.name}`} value={skill.state} disabled={busy} onChange={(v) => onSet(skill, v)}
-                  options={STATES.map((x) => ({ value: x.value, label: t(x.label), hint: t(x.hint) }))} />
+        {!readOnly && (
+          <Dropdown className="skill-state" label={`/${skill.name}`} value={skill.state} disabled={busy} onChange={(v) => onSet(skill, v)}
+                    options={STATES.map((x) => ({ value: x.value, label: t(x.label), hint: t(x.hint) }))} />
+        )}
       </div>
     </li>
   );
@@ -110,23 +113,24 @@ function SkillsPanel({ s }) {
           <input type="text" value={filter} placeholder={t('Search {n} skills', { n: counts.all })} spellcheck={false}
                  onInput={(e) => setFilter(e.currentTarget.value)} />
         </div>
-        <span class="skills-scope-label">{t('Changes apply to')}</span>
-        <Segmented name="skills-scope" value={scope} onChange={(v) => { lastScope = v; setScope(v); }} options={[
+        {!data.readOnly && <span class="skills-scope-label">{t('Changes apply to')}</span>}
+        {!data.readOnly && <Segmented name="skills-scope" value={scope} onChange={(v) => { lastScope = v; setScope(v); }} options={[
           { value: 'project', label: t('This project'), title: t('.claude/settings.local.json in {folder}, like Claude Code’s /skills', { folder: s.cwd }) },
           { value: 'user', label: t('All projects'), title: t('Your Claude Code settings (settings.json)') },
-        ]} />
+        ]} />}
       </div>
       <div class="skills-list">
         {groups.map((g) => (
           <section key={g.title}>
             <h4>{t(g.title)}</h4>
-            <ul>{g.items.map((x) => <SkillRow key={x.name} skill={x} busy={Boolean(busy)} onSet={set} />)}</ul>
+            <ul>{g.items.map((x) => <SkillRow key={x.name} skill={x} busy={Boolean(busy)} onSet={set} readOnly={data.readOnly} />)}</ul>
           </section>
         ))}
         {!groups.length && <p class="skills-note">{t('No skills match.')}</p>}
       </div>
       <div class="skills-foot">
-        <span>{t('{on} of {all} in use. A project’s own setting wins over All projects.', { on: counts.on, all: counts.all })}</span>
+        <span>{data.readOnly ? t('DeepSeek Harness reads skills from .dsh/skills and .agents/skills in the project, and from your skills folder.')
+          : t('{on} of {all} in use. A project’s own setting wins over All projects.', { on: counts.on, all: counts.all })}</span>
         <span class="spacer" />
         <button type="button" class="secondary-btn" onClick={() => openFolder('project')}>{t('Project skills folder')}</button>
         <button type="button" class="secondary-btn" onClick={() => openFolder('user')}>{t('Your skills folder')}</button>

@@ -1,0 +1,7 @@
+{
+  "name": "ccui-dsh",
+  "private": true,
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.2.2-rc.1"
+  }
+}

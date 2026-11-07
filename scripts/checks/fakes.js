@@ -26,11 +26,16 @@ const COMMANDS = [
   { name: 'security-review', description: 'Review the pending changes for security issues' },
 ];
 
+const DSH_COMMANDS = [
+  { name: 'compact', description: 'Summarize the conversation to free up context', argumentHint: '' },
+  { name: 'goal', description: 'Set a goal the agent keeps working toward', argumentHint: '[goal]' },
+];
+
 class FakeAgentSession {
   constructor(id, opts, emit, director) {
     Object.assign(this, { id, opts, emit, director });
     this.cwd = opts.cwd;
-    this.sessionId = opts.resume || randomUUID();
+    this.sessionId = opts.resume || (opts.Session ? `dsh-${randomUUID()}` : randomUUID());
     this.mode = opts.permissionMode || 'default';
     this.pending = new Map();
     this.closed = false;
@@ -321,11 +326,15 @@ function fakeAgents(director) {
         this.emit(channel, ...args);
       }, director);
       this.sessions.set(id, session);
-      setTimeout(() => this.emit('agent:meta', id, { commands: COMMANDS, models: director.models || MODELS }), 60);
-      return { ok: true, id, account: { provider: 'firstParty', apiKeySource: 'ANTHROPIC_API_KEY' } };
+      // A chat on DeepSeek Harness (opts.Session) is scripted the same way, with dsh's models and commands.
+      const dsh = Boolean(opts.Session);
+      const models = dsh ? require('../../src/main/dsh').modelsFor(opts.providers || {}) : director.models || MODELS;
+      setTimeout(() => this.emit('agent:meta', id, { commands: dsh ? DSH_COMMANDS : COMMANDS, models }), 60);
+      return { ok: true, id, account: { provider: dsh ? 'deepseek' : 'firstParty', apiKeySource: 'ANTHROPIC_API_KEY' } };
     }
 
     get(id) { return this.sessions.get(id); }
+    find(test) { return [...this.sessions.values()].find(test); }
     close(id) { this.sessions.get(id)?.close(); }
     closeAll() { for (const s of this.sessions.values()) s.close(); }
     get liveCount() { return this.sessions.size; }

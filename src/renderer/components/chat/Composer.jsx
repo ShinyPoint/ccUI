@@ -77,6 +77,8 @@ function ContextButton({ s, onCompact }) {
   const c = 2 * Math.PI * r;
   const rows = (context.categories || []).filter((x) => x.kind !== 'deferred' && x.tokens > 0);
   const cost = s.chat.value.costTotal;
+  // DeepSeek Harness reports tokens, not money (DeepSeek's prices change with the time of day).
+  const used = context.sessionTokens;
   return (
     <Popover className={`context-menu-wrap ${pct >= 80 ? 'high' : ''}`} align="right" panelClass="context-pop"
              title={t('Context: {pct}% used', { pct })} onOpen={() => refreshContext(s)}
@@ -107,7 +109,11 @@ function ContextButton({ s, onCompact }) {
             </ul>
           )}
           <div class="ctx-foot">
-            <div class="ctx-cost"><span>{t('This session')}</span><span>{formatCost(cost || 0)}</span></div>
+            {used
+              ? <div class="ctx-cost" title={t('Read from the cache: {n}', { n: formatTokens(used.cacheRead || 0) })}>
+                  <span>{t('This session')}</span><span>{t('{input} in · {output} out', { input: formatTokens((used.input || 0) + (used.cacheRead || 0)), output: formatTokens(used.output || 0) })}</span>
+                </div>
+              : <div class="ctx-cost"><span>{t('This session')}</span><span>{formatCost(cost || 0)}</span></div>}
             <button type="button" class="secondary-btn" title={t('Summarize the conversation so far to free up context (/compact)')}
                     onClick={() => { close(); onCompact(); }}>
               {t('Compact conversation')}

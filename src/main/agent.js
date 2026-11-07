@@ -403,7 +403,9 @@ class AgentManager {
 
   async start(opts) {
     const id = this.nextId++;
-    const session = new AgentSession(id, opts, (channel, ...args) => {
+    // `Session`: another engine with the same methods and messages (DeepSeek Harness, dsh.js).
+    const Session = opts.Session || AgentSession;
+    const session = new Session(id, opts, (channel, ...args) => {
       if (channel === 'agent:exit') this.sessions.delete(id);
       this.emit(channel, ...args);
     });
@@ -421,6 +423,10 @@ class AgentManager {
 
   get(id) {
     return this.sessions.get(id);
+  }
+
+  find(test) {
+    return [...this.sessions.values()].find(test);
   }
 
   close(id) {

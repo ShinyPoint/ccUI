@@ -72,7 +72,9 @@ const SCAN = `((fromClaude) => {
     'Windows', 'Linux', 'Anthropic', 'Bedrock', 'Vertex', 'Foundry', 'Amazon', 'Google', 'Microsoft', 'AI', 'SDK', 'URL', 'ID', 'OK', 'PS', 'KB', 'MB',
     'GB', 'ms', 'px', 'k', 'M', 'JetBrains', 'Mono', 'Instrument', 'Sans', 'Serif', 'WebGL', 'Explore', 'Enter', 'xhigh', 'max', 'Max', 'Auto', 'CLAUDE', 'md', 'local',
     // Names kept as they are: Claude Code's terms and other products, the language's own name, an example flag.
-    'hook', 'hooks', 'Vim', 'GitHub', 'Actions', 'Desktop', 'Shell', 'shell', 'English', 'key', 'value', 'sk-ant', 'ai', 'model', 'sonnet', 'bug', 'Artifacts']);
+    'hook', 'hooks', 'Vim', 'GitHub', 'Actions', 'Desktop', 'Shell', 'shell', 'English', 'key', 'value', 'sk-ant', 'ai', 'model', 'sonnet', 'bug', 'Artifacts',
+    // DeepSeek Harness: the product, its models, where its key comes from, the mirror it can be downloaded from.
+    'DeepSeek', 'Harness', 'Flash', 'Pro', 'platform', 'deepseek', 'com', 'npmmirror', 'sk']);
   const SKIP = '.md, .msg-user-text, code, pre, kbd, .xterm, .term-host, .diff, .file-view, .tool-target, .panel-path, .sf-dir, .sf-name, .wm-cc, .info-value, '
     + '.project-menu .menu-text, .project-menu .menu-label, .session-name, .folder-name, .ac-label, .diffstat, .shortcut-keys, [data-i18n-skip]';
   const claude = fromClaude.map((s) => s.trim()).filter(Boolean);

@@ -2,9 +2,10 @@ import { useEffect, useState } from 'preact/hooks';
 import { Dialog, Dropdown, Segmented, Icon, SetGroup, SetRow } from '../ui.jsx';
 import { MODE_LABELS } from '../chat/Prompts.jsx';
 import { api, active, settings, newSessionDialog } from '../../lib/store.js';
-import { openSession } from '../../lib/sessions.js';
+import { openSession, dshMode } from '../../lib/sessions.js';
 import { basename, relativeTime, tildify, samePath } from '../../lib/format.js';
 import { t, phrase } from '../../lib/i18n.js';
+import { catalog } from '../../../main/dsh-catalog.mjs';
 
 // Labels in English; t() where shown.
 export const MODEL_CHOICES = [
@@ -13,6 +14,8 @@ export const MODEL_CHOICES = [
   { value: 'sonnet', label: 'Sonnet' },
   { value: 'haiku', label: 'Haiku' },
 ];
+// DeepSeek Harness's: DeepSeek's and those of the providers added in Settings (main/dsh-catalog.mjs).
+export const dshModelChoices = () => catalog(settings.value).map((m) => ({ value: m.value, label: m.name, hint: m.providerName }));
 
 function HistoryList({ cwd, value, onChange }) {
   const [state, setState] = useState({ loading: true, list: [] });
@@ -35,7 +38,7 @@ function HistoryList({ cwd, value, onChange }) {
           <label class={value === h.sessionId ? 'chosen' : ''}>
             <input type="radio" name="history" checked={value === h.sessionId} onChange={() => onChange(h.sessionId)} />
             <span class="h-title">{h.customTitle || h.summary || h.firstPrompt || t('Untitled conversation')}</span>
-            <span class="h-meta">{relativeTime(h.lastModified)}{h.gitBranch ? ` · ${h.gitBranch}` : ''}</span>
+            <span class="h-meta">{relativeTime(h.lastModified)}{h.gitBranch ? ` · ${h.gitBranch}` : ''}{h.engine === 'dsh' ? ' · DeepSeek' : ''}</span>
           </label>
         </li>
       ))}
@@ -46,10 +49,12 @@ function HistoryList({ cwd, value, onChange }) {
 function Form({ prefill }) {
   const s = settings.value;
   const [cwd, setCwd] = useState(prefill.cwd || active.value?.cwd || s.recent?.[0]?.path || '');
-  const [kind, setKind] = useState(prefill.kind || s.defaultKind || 'chat');
+  const dsh = dshMode(); // new chats run on DeepSeek Harness, and there is no CLI
+  const [kind, setKind] = useState((dsh && (prefill.kind || s.defaultKind) === 'terminal') ? 'chat' : prefill.kind || s.defaultKind || 'chat');
   const [mode, setMode] = useState(prefill.mode || 'new');
   const [resumeId, setResumeId] = useState('');
-  const [model, setModel] = useState(s.defaultModel || '');
+  const [model, setModel] = useState((dsh ? s.dshModel : s.defaultModel) || '');
+  const models = dsh ? dshModelChoices() : MODEL_CHOICES;
   const [permissionMode, setPermissionMode] = useState(s.defaultPermissionMode || 'default');
   const [extraArgs, setExtraArgs] = useState(s.defaultArgs || '');
   const [error, setError] = useState('');
@@ -118,9 +123,9 @@ function Form({ prefill }) {
         <SetRow label={t('Open as')}>
           <Segmented name="kind" value={kind} onChange={setKind} options={[
             { value: 'chat', label: t('Chat'), title: t('Claude Code in a chat view') },
-            { value: 'terminal', label: 'CLI', title: t('Claude Code’s own command-line interface') },
+            !dsh && { value: 'terminal', label: 'CLI', title: t('Claude Code’s own command-line interface') },
             { value: 'shell', label: t('Shell'), title: t('Your system shell, without Claude') },
-          ]} />
+          ].filter(Boolean)} />
         </SetRow>
         {claudeKind && (
           <SetRow label={t('Conversation')}>
@@ -141,11 +146,11 @@ function Form({ prefill }) {
           <>
             <SetRow label={t('Model')}>
               <Dropdown label={t('Model')} value={model} onChange={setModel}
-                        options={MODEL_CHOICES.map((m) => ({ value: m.value, label: t(m.label) }))} />
+                        options={models.map((m) => ({ value: m.value, label: dsh ? m.label : t(m.label), hint: m.hint }))} />
             </SetRow>
             <SetRow label={t('Permissions')}>
               <Dropdown label={t('Permissions')} value={permissionMode} onChange={setPermissionMode}
-                        options={['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'].map((m) => ({ value: m, label: t(MODE_LABELS[m]) }))} />
+                        options={['default', 'acceptEdits', 'plan', ...(dsh ? [] : ['auto']), 'bypassPermissions'].map((m) => ({ value: m, label: t(MODE_LABELS[m]) }))} />
             </SetRow>
           </>
         )}

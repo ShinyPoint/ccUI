@@ -194,7 +194,7 @@
   color: var(--muted);
 }
 .code-copy { padding: 2px 8px; border-radius: var(--r-xs); font: 11px var(--ui); color: var(--muted); }
-.code-copy:hover { background: var(--fill-2); color: var(--text); }
+.code-copy:hover { background: var(--hover-bg); box-shadow: var(--hover-shadow); color: var(--text); }
 .code-block pre, .code-view pre {
   margin: 0;
   padding: 4px 14px 12px;
@@ -532,33 +532,33 @@ html.no-thinking-mark .thinking-mark { display: none; }
    padding hangs out into the margin); the time and cost, when shown there, at the right. */
 .turn-foot { display: flex; align-items: center; margin: -8px 0 -4px -6px; }
 .turn-foot > .turn-end { margin: 0 0 0 auto; }
-/* Your messages along the chat's right edge (HistoryRail.jsx): an invisible strip that shows a tick per message
-   and a button for the list while pointed at; the list opens over the chat's edge. */
-.history-rail { position: absolute; top: 0; right: 0; width: 18px; z-index: 6; }
+/* Your messages along the chat's left edge (HistoryRail.jsx): an invisible strip that shows a tick per message
+   and a button for the list while pointed at; the list opens over the chat's edge. The right edge is the scrollbar's. */
+.history-rail { position: absolute; top: 0; left: 0; width: 18px; z-index: 6; }
 .history-rail.open { width: auto; }
 .history-open, .history-tick { opacity: 0; transition: opacity .15s, background .15s, width .15s; }
 .history-rail:hover .history-open, .history-rail:hover .history-tick, .history-rail:focus-within .history-open { opacity: 1; }
 .history-open {
-  position: absolute; top: 10px; right: 2px;
+  position: absolute; top: 10px; left: 2px;
   display: grid; place-items: center; width: 22px; height: 22px;
   border-radius: var(--r-sm); color: var(--muted);
 }
-.history-open:hover { background: var(--fill); color: var(--text); }
+.history-open:hover { background: var(--hover-bg); box-shadow: var(--hover-shadow); color: var(--text); }
 .history-tick {
-  position: absolute; right: 4px; width: 8px; height: 3px; margin-top: -1px; padding: 0;
+  position: absolute; left: 4px; width: 8px; height: 3px; margin-top: -1px; padding: 0;
   border-radius: 2px; background: color-mix(in srgb, var(--text) 28%, transparent);
 }
 .history-tick:hover { width: 12px; background: var(--text-2); }
 .history-tick.current { background: var(--accent); }
 .history-panel {
-  position: absolute; top: 10px; right: 10px;
+  position: absolute; top: 10px; left: 10px;
   width: 260px; max-height: calc(100% - 20px);
   display: flex; flex-direction: column;
   border-radius: var(--r-md); background: var(--base); box-shadow: var(--shadow);
   outline: none;
   animation: history-in .2s var(--ease);
 }
-@keyframes history-in { from { opacity: 0; transform: translateX(12px); } }
+@keyframes history-in { from { opacity: 0; transform: translateX(-12px); } }
 .history-head { display: flex; align-items: center; gap: 6px; padding: 8px 6px 6px 12px; font-size: 12px; color: var(--muted); }
 .history-head .history-count { font-variant-numeric: tabular-nums; }
 .history-head .icon-btn { margin-left: auto; width: 24px; height: 24px; }
@@ -628,9 +628,16 @@ html.no-thinking-mark .thinking-mark { display: none; }
   border-radius: var(--r-sm);
   font: 13px var(--ui); color: var(--text-2);
 }
-.intro-chip > .menu-button:hover, .intro-chip > .menu-button[aria-expanded="true"] { background: var(--fill); color: var(--text); }
+.intro-chip > .menu-button:hover, .intro-chip > .menu-button[aria-expanded="true"] { background: var(--hover-bg); box-shadow: var(--hover-shadow); color: var(--text); }
 .intro-chip > .menu-button .icon { color: var(--muted); }
 .intro-chip .menu-text { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Which engine a new chat runs on, when it isn't Claude Code: a label, not a menu. */
+.intro-chip.engine-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 28px; padding: 0 8px;
+  font: 13px var(--ui); color: var(--text-2);
+}
+.intro-chip.engine-chip .icon { color: var(--muted); }
 .chat-intro .starters { margin-top: 18px; }
 .chat-intro .starters { text-align: left; }
 .starters { display: flex; flex-direction: column; gap: 8px; }
@@ -724,7 +731,7 @@ html.no-thinking-mark .thinking-mark { display: none; }
 .agents-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex-shrink: 0; }
 .agents-dot.busy { background: none; }
 .agents-stop-all { padding: 3px 10px; border-radius: var(--r-sm); font-size: 12px; color: var(--text-2); }
-.agents-stop-all:hover { background: var(--fill); color: var(--danger); }
+.agents-stop-all:hover { background: var(--hover-bg); box-shadow: var(--hover-shadow); color: var(--danger); }
 .agent-list { list-style: none; margin: 0; padding: 0 6px 8px 12px; max-height: 200px; overflow: auto; }
 .agent-list li {
   display: grid; grid-template-columns: minmax(0, 1fr) 24px; align-items: center; gap: 4px;
@@ -903,7 +910,7 @@ html.no-thinking-mark .thinking-mark { display: none; }
   font-size: 12.5px;
   white-space: nowrap;
 }
-.menu-button:hover, .menu-button[aria-expanded="true"] { background: var(--raise); color: var(--text); }
+.menu-button:hover, .menu-button[aria-expanded="true"] { background: var(--hover-bg); box-shadow: var(--hover-shadow); color: var(--text); }
 .menu-button .icon { color: var(--muted); }
 .menu-list { position: absolute; min-width: 250px; max-width: 360px; max-height: 360px; overflow: auto; }
 .menu-list.up { bottom: calc(100% + 6px); }
@@ -1008,8 +1015,8 @@ html.no-thinking-mark .thinking-mark { display: none; }
 /* ---------- sidebar: projects, sessions, recent conversations ---------- */
 .folder-list { list-style: none; margin: 0; padding: 0; }
 .folder { margin-bottom: 4px; }
-.folder-row { position: relative; display: flex; align-items: center; border-radius: var(--r-sm); }
-.folder-row:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.folder-row { position: relative; display: flex; align-items: center; border-radius: var(--r-sm); transition: background .15s, box-shadow .15s; }
+.folder-row:hover { background: var(--hover-bg); box-shadow: var(--hover-shadow); }
 .folder-main {
   flex: 1; min-width: 0;
   display: flex; align-items: center; gap: 6px;
@@ -1155,7 +1162,12 @@ body.resizing-panel { cursor: row-resize; user-select: none; }
   color: var(--text-2);
   font-size: 12.5px; font-weight: 500;
 }
-.text-btn:hover { background: var(--raise); color: var(--text); }
+.text-btn:hover { background: var(--hover-bg); box-shadow: var(--hover-shadow); color: var(--text); }
+/* The lift comes and goes softly, and a press sinks the control a little. */
+:is(.icon-btn, .text-btn, .menu-button, .ghost-btn, .code-copy, .history-open, .agents-stop-all) {
+  transition: background .18s, box-shadow .18s, color .15s, opacity .15s, transform .12s var(--ease);
+}
+:is(.icon-btn, .text-btn, .menu-button, .ghost-btn, .code-copy, .history-open, .agents-stop-all):active:not(:disabled) { transform: scale(.96); }
 .toasts {
   position: fixed; left: 50%; top: 52px; /* under the top bar, clear of the message box */
   transform: translateX(-50%);
@@ -1314,3 +1326,52 @@ html.frost[data-theme="dark"] :is(.menu-list, .context-menu, .autocomplete) { bo
 .task-meta { margin: 0 0 14px 36px; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .task-body { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: auto; margin: 0 -8px; padding: 4px 8px 12px; }
 .task-output pre { max-height: none; min-height: 120px; height: min(46vh, 420px); }
+
+/* Liquid glass (Settings → Appearance, html.liquid; lib/liquid.js does the bending): the floating surfaces are
+   tinted glass over what is behind them, as in iOS 27: a darker rim and bright highlights along the top-left and
+   bottom-right edges. --lg-tint and --lg-after (blur and brightening) follow the clear-to-frosted slider; menus
+   and lists use their -list pair, frosted more at every setting, since they are full of text. The
+   message box floats over the conversation, which scrolls on under it (its last lines stay above the box). */
+:root.liquid[data-theme] :is(.menu-list, .context-menu, .autocomplete, .tooltip) { background: color-mix(in srgb, var(--base) var(--lg-tint-list), transparent); }
+:root.liquid[data-theme] .find-bar { background: color-mix(in srgb, var(--base) var(--lg-tint), transparent); }
+/* The message box's glass is a layer behind its content (see lib/liquid.js: the menus inside it must see past it). */
+:root.liquid .chat-composer { isolation: isolate; }
+:root.liquid[data-theme] .chat-composer, :root.liquid[data-theme] .chat-composer:focus-within { background: transparent; box-shadow: none; }
+:root.liquid .chat-composer::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--base) var(--lg-tint), transparent);
+  -webkit-backdrop-filter: var(--lg-lens,) var(--lg-after);
+  backdrop-filter: var(--lg-lens,) var(--lg-after);
+}
+:root.liquid[data-theme] :is(.menu-list, .context-menu, .autocomplete, .tooltip, .find-bar),
+:root.liquid[data-theme] .chat-composer::before {
+  box-shadow:
+    inset 1.5px 1.5px 0 -.5px rgba(255, 255, 255, .85),
+    inset -1px -1px 0 -.5px rgba(255, 255, 255, .5),
+    inset 0 0 0 .5px rgba(255, 255, 255, .35),
+    inset 0 0 10px -3px rgba(0, 0, 0, .22),
+    0 10px 30px -10px rgba(0, 0, 0, .28), 0 1px 3px rgba(0, 0, 0, .08);
+}
+:root.liquid[data-theme="dark"] :is(.menu-list, .context-menu, .autocomplete, .tooltip, .find-bar),
+:root.liquid[data-theme="dark"] .chat-composer::before {
+  box-shadow:
+    inset 1.5px 1.5px 0 -.5px rgba(255, 255, 255, .42),
+    inset -1px -1px 0 -.5px rgba(255, 255, 255, .2),
+    inset 0 0 0 .5px rgba(255, 255, 255, .12),
+    inset 0 0 12px -3px rgba(0, 0, 0, .6),
+    0 12px 34px -10px rgba(0, 0, 0, .6), 0 1px 3px rgba(0, 0, 0, .3);
+}
+:root.liquid .chat-composer:focus-within { outline: none; }
+:root.liquid .chat-scroll { padding-bottom: var(--chat-bottom-h, 140px); }
+:root.liquid .chat-bottom { position: absolute; left: 0; right: 0; bottom: 0; }
+:root.liquid .chat-bottom::before { display: none; }
+/* The model menu's footer is glass too: frosted over the options scrolling under it (the menu is its backdrop),
+   so they never show through sharp. */
+:root.liquid .menu-footer {
+  background: color-mix(in srgb, var(--base) 40%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(1.4);
+  box-shadow: 0 -.5px 0 var(--hair);
+}

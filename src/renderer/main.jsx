@@ -10,7 +10,7 @@ import '@fontsource/jetbrains-mono/700.css';
 import '@xterm/xterm/css/xterm.css';
 import './styles/app.css';
 import './styles/chat.css';
-import { api, info, settings, saveSettings, claudeCheck, claudeUpdate, themeMode, sessions, active, backgroundUrl, toast, confirmDialog } from './lib/store.js';
+import { api, info, settings, saveSettings, claudeCheck, claudeUpdate, dshInstall, themeMode, sessions, active, backgroundUrl, toast, confirmDialog } from './lib/store.js';
 import { paletteTokens } from './lib/themes.js';
 import { applyTerminalOptions, fitTerminal } from './lib/terminal.js';
 import { installShortcuts } from './lib/keyboard.js';
@@ -18,6 +18,8 @@ import { installTooltips } from './lib/tooltip.js';
 import { restoreSessions, runningTasks } from './lib/sessions.js';
 import { App } from './components/App.jsx';
 import { sidebarWidth } from './components/Sidebar.jsx';
+import { setLiquidGlass } from './lib/liquid.js';
+import { setVivid } from './lib/vivid.js';
 import { language, locale, t } from './lib/i18n.js';
 
 info.value = await api.info();
@@ -53,6 +55,28 @@ effect(() => {
 });
 effect(() => {
   document.documentElement.style.setProperty('--chat-size', `${settings.value.chatFontSize || 14}px`);
+});
+// Liquid glass: the surfaces' tint and blur follow the clear-to-frosted slider.
+effect(() => {
+  const on = Boolean(settings.value.liquidGlass);
+  const frost = Math.min(100, Math.max(0, Number(settings.value.liquidFrost ?? 35))) / 100;
+  const root = document.documentElement;
+  root.classList.toggle('liquid', on);
+  const bright = themeMode.value === 'dark' ? 0.92 : 1.06;
+  // Bars (the message box, the find bar) go from clear to frosted; menus and lists, which are full of text, stay
+  // well frosted at any setting, so what is behind them never competes with their words.
+  root.style.setProperty('--lg-tint', `${Math.round(12 + frost * 58)}%`);
+  root.style.setProperty('--lg-after', `blur(${(1 + frost * 13).toFixed(1)}px) saturate(${(1.9 - frost * 0.5).toFixed(2)}) brightness(${bright})`);
+  root.style.setProperty('--lg-tint-list', `${Math.round(66 + frost * 26)}%`);
+  root.style.setProperty('--lg-after-list', `blur(${(18 + frost * 10).toFixed(1)}px) saturate(1.5) brightness(${bright})`);
+  setLiquidGlass(on, (settings.value.uiScale || 105) / 100);
+});
+// Vivid color: patches of color behind the frame; a background image takes their place.
+effect(() => {
+  const s = settings.value;
+  setVivid(Boolean(s.vividColor) && !backgroundUrl.value, {
+    palette: s.vividPalette, strength: s.vividStrength ?? 50, dark: themeMode.value === 'dark', sidebar: sidebarWidth(s.sidebarWidth),
+  });
 });
 // The sidebar's width, as dragged (SidebarResizer).
 effect(() => {
@@ -136,6 +160,12 @@ const ASKS = {
       danger: true,
     };
   },
+  // The window's close button, until a choice is remembered (Settings → General).
+  close: () => ({
+    title: t('Hide ccUI in the tray?'),
+    message: t('Sessions keep running in the tray, and the tray icon brings the window back. Quitting ends them.'),
+    confirm: t('Hide in the tray'), alt: t('Quit'), remember: t('Don’t ask again'),
+  }),
   trust: ({ folder, detail }) => ({
     title: t('Trust this folder?'), detail: folder, message: detail, confirm: t('Trust this folder'), safeDefault: true,
   }),
@@ -143,6 +173,13 @@ const ASKS = {
 api.onAsk((id, kind, payload) => {
   const ask = ASKS[kind];
   (ask ? confirmDialog(ask(payload || {})) : Promise.resolve(false)).then((yes) => api.answer(id, yes));
+});
+api.dshInstall.state().then((st) => { if (st) dshInstall.value = st; });
+api.dshInstall.onState((st) => {
+  const was = dshInstall.value.state;
+  dshInstall.value = st;
+  if (st.state === 'ready' && was !== 'ready' && was !== 'absent') toast(t('DeepSeek Harness {version} is ready.', { version: st.version }));
+  else if (st.state === 'error' && was !== 'error') toast(st.error, 'error');
 });
 api.claudeUpdate.state().then((st) => { if (st) claudeUpdate.value = st; });
 api.claudeUpdate.onState((st) => {

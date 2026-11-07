@@ -21,6 +21,10 @@ export function countDiff(patches) {
 // (conversations loaded from disk have no patch). A new file is all added lines.
 export function patchesFor(item) {
   if (item.data?.structuredPatch?.length) return item.data.structuredPatch;
+  // DeepSeek Harness reports an edit as the text around it before and after (main/dsh-translate.js).
+  if (item.data?.diffs?.length) {
+    return item.data.diffs.flatMap((d) => structuredPatch('a', 'b', `${d.oldText ?? ''}`, `${d.newText ?? ''}`, '', '', { context: 3 }).hunks);
+  }
   const { input = {} } = item;
   if (item.name === 'Write') {
     return typeof input.content === 'string' ? structuredPatch('a', 'b', '', input.content, '', '', { context: 3 }).hunks : [];

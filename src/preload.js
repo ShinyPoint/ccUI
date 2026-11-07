@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('ccui', {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
   setApiKey: (key) => ipcRenderer.invoke('settings:set-api-key', key),
+  setDshKey: (id, key) => ipcRenderer.invoke('settings:set-dsh-key', id, key),
+  listDshModels: (draft) => ipcRenderer.invoke('dsh:list-models', draft),
   setThemeSource: (source) => ipcRenderer.send('theme:source', source),
 
   pickFolder: (defaultPath) => ipcRenderer.invoke('dialog:pick-folder', defaultPath),
@@ -93,6 +95,12 @@ contextBridge.exposeInMainWorld('ccui', {
     versions: () => ipcRenderer.invoke('claude-update:versions'),
     use: (version) => ipcRenderer.invoke('claude-update:use', String(version || '')),
     onState: channel('claude-update:state'),
+  },
+  dshInstall: {
+    state: () => ipcRenderer.invoke('dsh-install:state'),
+    run: () => ipcRenderer.invoke('dsh-install:run'),
+    remove: () => ipcRenderer.invoke('dsh-install:remove'),
+    onState: channel('dsh-install:state'),
   },
   focusWindow: () => ipcRenderer.send('window:focus'),
   toggleDevTools: () => ipcRenderer.send('window:devtools'),

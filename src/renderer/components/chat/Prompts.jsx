@@ -63,7 +63,8 @@ export function PermissionPrompt({ session, request }) {
       message: reason.trim() ? `The user declined and said: ${reason.trim()}` : 'The user declined this action.',
     });
   };
-  const title = request.title || t('Allow Claude to use {tool}?', { tool: request.displayName || request.toolName });
+  const tool = request.displayName || request.toolName;
+  const title = request.title || (session.engine === 'dsh' ? t('Allow DeepSeek to use {tool}?', { tool }) : t('Allow Claude to use {tool}?', { tool }));
 
   return (
     <div class="prompt" role="group" aria-label={title}>
@@ -182,7 +183,9 @@ export function PlanPrompt({ session, request }) {
 
   return (
     <div class="prompt plan">
-      <div class="prompt-title"><Icon name="check" size={15} />{t('Claude has a plan and is ready to start')}</div>
+      <div class="prompt-title"><Icon name="check" size={15} />
+        {session.engine === 'dsh' ? t('DeepSeek has a plan and is ready to start') : t('Claude has a plan and is ready to start')}
+      </div>
       {plan && <Markdown text={plan} className="plan-text" />}
       {!revising ? (
         <div class="prompt-actions">

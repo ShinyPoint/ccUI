@@ -32,13 +32,27 @@ const DEFAULTS = {
   defaultPermissionMode: 'default',
   defaultEffort: '', // the reasoning effort last chosen, for new sessions ('' = Auto, the model's default)
   defaultArgs: '', // extra CLI arguments for terminal sessions
+  dshEnabled: false, // new chats run on DeepSeek Harness (dsh.js) instead of Claude Code, and there are no CLI sessions
+  dshModel: 'deepseek-flash', // the model new DeepSeek Harness chats start with
+  dshMirror: '', // where DeepSeek Harness is downloaded from: '' (nodejs.org, npm) | 'npmmirror' (dsh-install.js SOURCES)
+  // Model providers of DeepSeek Harness chats (dsh-catalog.mjs): DeepSeek's own address and model list when edited (null:
+  // dsh's defaults), and the endpoints added: [{ id, name, api, baseURL, models: [{ id, name, contextWindow, maxTokens,
+  // image, reasoning }], fetched }]. Their keys are kept apart, encrypted (dshKeysEnc).
+  dshOfficial: { baseURL: '', models: null },
+  dshProviders: [],
   showStarters: false, // suggested prompts under the question on a new chat
   notify: true,
   confirmClose: true,
+  closeAction: 'ask', // the window's close button: 'ask', 'tray' (hide it in the tray) or 'quit'
   restoreSessions: true,
   sidebarCollapsed: false,
   sidebarWidth: 256, // px, set by dragging the sidebar's edge (double-click it for this again)
   sidebarGlass: true, // frosted-glass sidebar (system material; Windows 11 22H2+ and macOS)
+  liquidGlass: false, // floating surfaces as Apple's Liquid Glass (lib/liquid.js); experimental
+  liquidFrost: 35, // its glass, from clear (0) to frosted (100)
+  vividColor: false, // soft patches of color drift behind the sidebar and top bar (lib/vivid.js)
+  vividPalette: 'aurora', // their colors: a key of VIVID_PALETTES
+  vividStrength: 50, // how strongly they show, 0 to 100
   fillEdge: true, // the chat / CLI area runs out to the window's right edge (no gap there)
   thinkingMark: false, // Claude's ✻ before each thought in a chat (off: the thought alone, still in the steps' column)
   backgroundImage: '', // file name of the background image in <userData>/backgrounds (set by background.js)
@@ -51,12 +65,14 @@ const DEFAULTS = {
   folders: {}, // folder path -> { collapsed }; cleared at launch, so every folder starts folded
   bounds: null,
   apiKeyEnc: '',
+  deepseekKeyEnc: '', // the DeepSeek API key, encrypted like the Anthropic one
+  dshKeysEnc: {}, // provider id -> its API key, encrypted (custom DeepSeek Harness providers)
   trustedFolders: [], // folders the user trusted for chat sessions (main process only, see trust.js)
   settingsVersion: 8,
 };
 
 // Kept by the main process; the window can neither read nor change them through settings:set.
-const PRIVATE = new Set(['apiKeyEnc', 'trustedFolders', 'settingsVersion', 'backgroundImage']);
+const PRIVATE = new Set(['apiKeyEnc', 'deepseekKeyEnc', 'dshKeysEnc', 'trustedFolders', 'settingsVersion', 'backgroundImage']);
 
 // A value the window may store under `key`: same type as the default (bounds may also be null).
 function acceptable(key, value) {
@@ -122,12 +138,16 @@ class Settings {
 
   // What the window may see.
   get() {
-    const { apiKeyEnc, trustedFolders, ...rest } = this.data;
+    const { apiKeyEnc, deepseekKeyEnc, dshKeysEnc, trustedFolders, ...rest } = this.data;
     return {
       ...rest,
       hasApiKey: Boolean(apiKeyEnc),
       // A saved key this computer cannot decrypt (profile copied elsewhere, keychain reset): ask for it again.
       apiKeyUnreadable: Boolean(apiKeyEnc) && this.getApiKey() === '',
+      hasDeepseekKey: Boolean(deepseekKeyEnc),
+      deepseekKeyUnreadable: Boolean(deepseekKeyEnc) && this.getApiKey('deepseekKeyEnc') === '',
+      // Which custom providers have a key saved (true) or one this computer can't decrypt (false).
+      dshKeys: Object.fromEntries(Object.keys(dshKeysEnc || {}).map((id) => [id, this.getProviderKey(id) !== ''])),
       canEncrypt: safeStorage.isEncryptionAvailable(),
     };
   }
@@ -147,20 +167,39 @@ class Settings {
     this.save();
   }
 
-  setApiKey(key) {
+  // A custom DeepSeek Harness provider's key (dshKeysEnc); '' removes it.
+  setProviderKey(id, key) {
     const value = (key || '').trim();
     if (value && !safeStorage.isEncryptionAvailable()) throw new Error(t('This system has no secure storage for the key.'));
-    this.data.apiKeyEnc = value ? safeStorage.encryptString(value).toString('base64') : '';
+    const { [id]: _old, ...rest } = this.data.dshKeysEnc || {};
+    this.data.dshKeysEnc = value ? { ...rest, [id]: safeStorage.encryptString(value).toString('base64') } : rest;
     this.save();
     return this.get();
   }
 
-  getApiKey() {
-    if (!this.data.apiKeyEnc) return '';
-    if (this.decrypted?.enc === this.data.apiKeyEnc) return this.decrypted.key;
+  getProviderKey(id) {
+    const enc = this.data.dshKeysEnc?.[id];
+    if (!enc) return '';
+    try { return safeStorage.decryptString(Buffer.from(enc, 'base64')); } catch { return ''; }
+  }
+
+  // `field`: apiKeyEnc (Anthropic's) or deepseekKeyEnc.
+  setApiKey(key, field = 'apiKeyEnc') {
+    const value = (key || '').trim();
+    if (value && !safeStorage.isEncryptionAvailable()) throw new Error(t('This system has no secure storage for the key.'));
+    this.data[field] = value ? safeStorage.encryptString(value).toString('base64') : '';
+    this.save();
+    return this.get();
+  }
+
+  getApiKey(field = 'apiKeyEnc') {
+    const enc = this.data[field];
+    if (!enc) return '';
+    this.decrypted ||= {};
+    if (this.decrypted[field]?.enc === enc) return this.decrypted[field].key;
     let key = '';
-    try { key = safeStorage.decryptString(Buffer.from(this.data.apiKeyEnc, 'base64')); } catch { /* unreadable */ }
-    this.decrypted = { enc: this.data.apiKeyEnc, key };
+    try { key = safeStorage.decryptString(Buffer.from(enc, 'base64')); } catch { /* unreadable */ }
+    this.decrypted[field] = { enc, key };
     return key;
   }
 

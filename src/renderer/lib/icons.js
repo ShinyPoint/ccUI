@@ -17,6 +17,9 @@ export const ICONS = {
   // xmark
   x: '<path d="M6.75 6.75l10.5 10.5M17.25 6.75l-10.5 10.5"/>',
 
+  // trash: a lid with its handle, a tapering bin with two ribs
+  trash: '<path d="M5.25 7h13.5M9.75 7V5.4a.9.9 0 0 1 .9-.9h2.7a.9.9 0 0 1 .9.9V7M7 7l.75 11.3a1.5 1.5 0 0 0 1.5 1.4h5.5a1.5 1.5 0 0 0 1.5-1.4L17 7M10.25 10.75v5.5M13.75 10.75v5.5"/>',
+
   // folder: tab on the left, a seam under it, soft corners
   folder: '<path d="M3.5 7.4A2.4 2.4 0 0 1 5.9 5h3.05c.62 0 1.2.25 1.64.68l.98.97c.44.43 1.02.68 1.64.68h4.89a2.4 2.4 0 0 1 2.4 2.4v7.37a2.4 2.4 0 0 1-2.4 2.4H5.9a2.4 2.4 0 0 1-2.4-2.4z"/>'
     + '<path d="M3.5 9.6h17"/>',

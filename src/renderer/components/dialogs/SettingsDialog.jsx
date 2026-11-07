@@ -4,12 +4,16 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Dialog, Dropdown, Segmented, Icon, Collapse, SetGroup as Group, SetRow as Row, Switch } from '../ui.jsx';
 import { MODE_LABELS } from '../chat/Prompts.jsx';
-import { MODEL_CHOICES } from './NewSessionDialog.jsx';
-import { api, info, settings, saveSettings, settingsDialog, claudeCheck, claudeUpdate, toast, themeMode, backgroundUrl } from '../../lib/store.js';
+import { MODEL_CHOICES, dshModelChoices } from './NewSessionDialog.jsx';
+import { ModelProviders } from './ModelProviders.jsx';
+import { OFFICIAL } from '../../../main/dsh-catalog.mjs';
+import { dshStep } from '../ClaudePreparing.jsx';
+import { api, info, settings, saveSettings, settingsDialog, claudeCheck, claudeUpdate, dshInstall, toast, themeMode, backgroundUrl } from '../../lib/store.js';
 import { SHORTCUT_LIST } from '../../lib/keyboard.js';
 import { chatsFolder } from '../../lib/sessions.js';
 import { tildify } from '../../lib/format.js';
 import { PALETTES } from '../../lib/themes.js';
+import { VIVID_PALETTES, swatchFor } from '../../lib/vivid.js';
 import { t, phrase, locale, LANGUAGES, systemLocale } from '../../lib/i18n.js';
 
 const PERMISSION_MODES = ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'];
@@ -21,6 +25,7 @@ const SECTIONS = [
   { id: 'appearance', label: phrase('Appearance'), icon: 'sun' },
   { id: 'terminal', label: phrase('Terminal'), icon: 'terminal' },
   { id: 'claude', label: phrase('Claude Code'), icon: 'chat' },
+  { id: 'deepseek', label: phrase('DeepSeek Harness'), icon: 'toolAgent' },
   { id: 'shortcuts', label: phrase('Shortcuts'), icon: 'keyboard' },
 ];
 let lastSection = 'general'; // reopening Settings shows the section you left
@@ -118,7 +123,9 @@ function BackgroundImage() {
 
 function ApiKey({ focus }) {
   const s = settings.value;
-  const [editing, setEditing] = useState(!s.hasApiKey || s.apiKeyUnreadable);
+  const has = s.hasApiKey;
+  const unreadable = s.apiKeyUnreadable;
+  const [editing, setEditing] = useState(!has || unreadable);
   const [key, setKey] = useState('');
   const input = useRef(null);
   useEffect(() => { if (focus && editing) input.current?.focus(); }, [focus, editing]);
@@ -140,7 +147,7 @@ function ApiKey({ focus }) {
                  aria-label={t('Anthropic API key')} onInput={(e) => setKey(e.currentTarget.value)}
                  onKeyDown={(e) => { if (e.key === 'Enter' && key.trim()) { e.preventDefault(); save(key); } }} />
           <button type="button" class="secondary-btn" disabled={!key.trim()} onClick={() => save(key)}>{t('Save key')}</button>
-          {s.hasApiKey && !s.apiKeyUnreadable && (
+          {has && !unreadable && (
             <button type="button" class="secondary-btn" onClick={() => { setKey(''); setEditing(false); }}>{t('Cancel')}</button>
           )}
         </div>
@@ -151,7 +158,7 @@ function ApiKey({ focus }) {
           <button type="button" class="secondary-btn" onClick={() => save('')}>{t('Remove')}</button>
         </div>
       )}
-      {s.apiKeyUnreadable && (
+      {unreadable && (
         <p class="set-note bad">
           {t('The saved key can’t be decrypted on this computer (the profile was copied or the system keychain changed). Enter it again.')}
         </p>
@@ -334,11 +341,12 @@ function General() {
       </Group>
       <Group title={t('New sessions')}>
         <Row label={t('Default session')} note={t('What a project’s + opens')}>
-          <Segmented name="defaultKind" value={s.defaultKind} onChange={(v) => saveSettings({ defaultKind: v })} options={[
+          <Segmented name="defaultKind" value={s.dshEnabled && s.defaultKind === 'terminal' ? 'chat' : s.defaultKind}
+                     onChange={(v) => saveSettings({ defaultKind: v })} options={[
             { value: 'chat', label: t('Chat') },
-            { value: 'terminal', label: 'CLI' },
+            !s.dshEnabled && { value: 'terminal', label: 'CLI' },
             { value: 'shell', label: t('Shell') },
-          ]} />
+          ].filter(Boolean)} />
         </Row>
         <Row label={t('Model')}>
           <Dropdown label={t('Model')} value={s.defaultModel} onChange={(v) => saveSettings({ defaultModel: v })}
@@ -366,6 +374,13 @@ function General() {
         <ToggleRow setting="notify" label={t('Notifications')} note={t('When a background session needs you')} />
         <ToggleRow setting="restoreSessions" label={t('Reopen sessions')} note={t('Bring back your sessions when the app starts')} />
         <ToggleRow setting="confirmClose" label={t('Ask before quitting')} note={t('When sessions are still running')} />
+        <Row label={t('Close button')} note={t('Hidden in the tray, sessions keep running; the tray icon brings the window back')}>
+          <Dropdown label={t('Close button')} value={s.closeAction} onChange={(v) => saveSettings({ closeAction: v })} options={[
+            { value: 'ask', label: t('Ask each time') },
+            { value: 'tray', label: t('Hide in the tray') },
+            { value: 'quit', label: t('Quit') },
+          ]} />
+        </Row>
       </Group>
     </>
   );
@@ -399,6 +414,29 @@ function Appearance() {
                      : !glassAvailable ? t('Menus and pop-ups are frosted. The window itself needs graphics acceleration, which isn’t available on this computer')
                      : backgroundUrl.value ? t('Menus and pop-ups are frosted; the background image takes the window’s place')
                      : t('The desktop shows through the sidebar and top bar, and menus and pop-ups are frosted')} />
+        <ToggleRow setting="vividColor" label={t('Vivid color')} disabled={Boolean(backgroundUrl.value)}
+                   note={backgroundUrl.value ? t('The background image takes its place')
+                     : t('Soft patches of color drift behind the sidebar and top bar, so a plain desktop behind the window isn’t dull')} />
+        {s.vividColor && !backgroundUrl.value && (
+          <>
+            <Row label={t('Colors')} note={t(VIVID_PALETTES[s.vividPalette]?.label || VIVID_PALETTES.aurora.label)}>
+              <div class="swatches" role="radiogroup" aria-label={t('Colors')}>
+                {Object.entries(VIVID_PALETTES).map(([name, p]) => (
+                  <label key={name} class="swatch vivid-swatch" title={t(p.label)} style={{ '--swatch': swatchFor(name, themeMode.value === 'dark') }}>
+                    <input type="radio" name="vivid" value={name} checked={(s.vividPalette || 'aurora') === name} onChange={() => saveSettings({ vividPalette: name })} />
+                    <span />
+                  </label>
+                ))}
+              </div>
+            </Row>
+            <SliderRow setting="vividStrength" label={t('Strength')} min={0} max={100} step={5} format={(v) => `${v}%`} />
+          </>
+        )}
+        <ToggleRow setting="liquidGlass" label={t('Liquid glass')}
+                   note={t('Menus, pop-ups and the message box bend and brighten what is behind them, like Apple’s Liquid Glass')} />
+        {s.liquidGlass && (
+          <SliderRow setting="liquidFrost" label={t('Glass')} note={t('From clear to frosted')} min={0} max={100} step={5} format={(v) => `${v}%`} />
+        )}
         <ToggleRow setting="fillEdge" label={t('Work area to the window’s edge')} note={t('No gap to the right of the chat and CLI')} />
         <Row label={t('Background image')} note={t('Drawn blurred behind the whole window')}>
           <BackgroundImage />
@@ -462,6 +500,81 @@ function ClaudeCode({ focusAccount }) {
   );
 }
 
+// DeepSeek Harness: whether new chats run on it, its key and model, the program itself, and what it may send.
+function DeepSeek({ focusKey }) {
+  const s = settings.value;
+  const u = dshInstall.value;
+  const busy = ['checking', 'downloading', 'installing'].includes(u.state);
+  const pct = u.state === 'downloading' && u.total ? Math.min(100, Math.round(((u.received || 0) / u.total) * 100)) : 0;
+  const [removing, setRemoving] = useState(false);
+  const remove = async () => {
+    setRemoving(false);
+    const res = await api.dshInstall.remove();
+    if (!res?.ok) toast(res?.error || t('It could not be removed.'), 'error');
+  };
+  const note = u.state === 'absent' ? t('Not downloaded yet. About 800 MB, downloaded once.')
+    : u.state === 'error' ? <span class="bad">{u.error}</span>
+    : busy ? dshStep(u)
+    : t('Version {version}, on this computer', { version: u.version });
+  const keyNote = (
+    <>
+      {t('DeepSeek’s key is from platform.deepseek.com; usage is billed to your DeepSeek account.')}{' '}
+      <a href="https://platform.deepseek.com/api_keys" onClick={(e) => { e.preventDefault(); api.openExternal('https://platform.deepseek.com/api_keys'); }}>{t('Get a key')}</a>
+    </>
+  );
+  return (
+    <>
+      <Group>
+        <Row label={t('Use DeepSeek Harness')}
+             note={t('New chats run on DeepSeek Harness instead of Claude Code, and the CLI is not offered. Open chats keep their engine; conversations of either kind stay listed.')}>
+          <Switch label={t('Use DeepSeek Harness')} checked={Boolean(s.dshEnabled)} onChange={(on) => {
+            saveSettings({ dshEnabled: on, ...(on && s.defaultKind === 'terminal' ? { defaultKind: 'chat' } : {}) });
+            if (on && u.state === 'absent') api.dshInstall.run(); // now, rather than while the first chat waits for it
+          }} />
+        </Row>
+      </Group>
+      <ModelProviders startOpen={focusKey ? OFFICIAL : null} />
+      <p class="set-para providers-key-note">{keyNote}</p>
+      <Group title={t('New chats')}>
+        <Row label={t('Model')}>
+          <Dropdown label={t('Model')} value={s.dshModel} onChange={(v) => saveSettings({ dshModel: v })} options={dshModelChoices()} />
+        </Row>
+      </Group>
+      <Group title={t('Program')}>
+        <Row label="DeepSeek Harness" note={note}>
+          {u.state !== 'ready' ? (
+            <button type="button" class="primary-btn" disabled={busy} onClick={() => api.dshInstall.run()}>
+              {busy ? t('Downloading…') : u.state === 'error' ? t('Try again') : t('Download')}
+            </button>
+          ) : removing ? (
+            <span class="input-row">
+              <button type="button" class="danger-btn" onClick={remove}>{t('Remove')}</button>
+              <button type="button" class="secondary-btn" onClick={() => setRemoving(false)}>{t('Cancel')}</button>
+            </span>
+          ) : (
+            <button type="button" class="secondary-btn" title={t('Removes the program; conversations stay')} onClick={() => setRemoving(true)}>{t('Remove…')}</button>
+          )}
+        </Row>
+        {busy && (
+          <div class={`set-progress ${u.state === 'installing' ? 'indeterminate' : ''}`} role="progressbar" aria-label={t('Download')} aria-valuenow={pct}>
+            <span style={{ width: `${pct}%` }} />
+          </div>
+        )}
+        <Row label={t('Download from')} note={t('npmmirror is a mirror in China. Either way, the files are checked against the checksums ccUI ships with.')}>
+          <Segmented name="dshMirror" value={s.dshMirror || ''} onChange={(v) => saveSettings({ dshMirror: v })} options={[
+            { value: '', label: t('Official') },
+            { value: 'npmmirror', label: 'npmmirror' },
+          ]} />
+        </Row>
+      </Group>
+      <Group title={t('Privacy')}>
+        <Row stack label={t('What is sent')}
+             note={t('DeepSeek Harness is a developer preview by DeepSeek. Out of the box it uploads each conversation’s log with its requests and sends usage telemetry; ccUI turns both off. Your messages and the files it reads still go to DeepSeek’s API, as with any model.')} />
+      </Group>
+    </>
+  );
+}
+
 function Shortcuts() {
   return (
     <Group>
@@ -515,6 +628,7 @@ function SettingsPanel({ start }) {
           {section === 'appearance' && <Appearance />}
           {section === 'terminal' && <Terminal />}
           {section === 'claude' && <ClaudeCode focusAccount={start === 'account'} />}
+          {section === 'deepseek' && <DeepSeek focusKey={start === 'deepseek' && !settings.value.hasDeepseekKey} />}
           {section === 'shortcuts' && <Shortcuts />}
         </div>
       </div>

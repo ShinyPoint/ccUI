@@ -8,7 +8,7 @@ import {
 } from '../lib/store.js';
 import {
   selectSession, endSession, openSession, openConversation, forgetRecent, renameSession, newChat, chatsFolder, isLoose,
-  openInTerminal, openInChat, reorderSessions,
+  openInTerminal, openInChat, reorderSessions, cliOffered,
 } from '../lib/sessions.js';
 import { pressToSort, moved } from '../lib/sortable.js';
 import { basename, tildify, samePath, relativeTime, fileManagerLabel } from '../lib/format.js';
@@ -93,7 +93,7 @@ function sessionMenu(e, s) {
   const kind = s.kind.value;
   openContextMenu(e, [
     { label: t('Rename'), run: () => { renamingUid.value = s.uid; } },
-    kind === 'chat' && { label: t('Open in CLI'), run: () => openInTerminal(s) },
+    kind === 'chat' && cliOffered(s) && { label: t('Open in CLI'), run: () => openInTerminal(s) },
     kind === 'terminal' && { label: t('Open in chat'), run: () => openInChat(s) },
     '-',
     { label: t('End session'), run: () => endSession(s) },
@@ -171,12 +171,12 @@ function Recents({ path }) {
                     onClick={() => openConversation(path, h.sessionId, 'chat', conversationTitle(h))}
                     onContextMenu={(e) => openContextMenu(e, [
                       { label: t('Open in chat'), run: () => openConversation(path, h.sessionId, 'chat', conversationTitle(h)) },
-                      { label: t('Open in CLI'), run: () => openConversation(path, h.sessionId, 'terminal', conversationTitle(h)) },
+                      h.engine !== 'dsh' && cliOffered() && { label: t('Open in CLI'), run: () => openConversation(path, h.sessionId, 'terminal', conversationTitle(h)) },
                       '-',
                       { label: t('Copy conversation ID'), run: () => api.writeClipboard(h.sessionId) },
-                    ])}>
+                    ].filter(Boolean))}>
               <span class="r-title">{conversationTitle(h)}</span>
-              <span class="r-meta">{relativeTime(h.lastModified)}{h.gitBranch ? ` · ${h.gitBranch}` : ''}</span>
+              <span class="r-meta">{relativeTime(h.lastModified)}{h.gitBranch ? ` · ${h.gitBranch}` : ''}{h.engine === 'dsh' ? ' · DeepSeek' : ''}</span>
             </button>
           </li>
         ))}
@@ -202,7 +202,7 @@ function toggleRecents(path, show) {
 function folderMenu(e, path, open) {
   openContextMenu(e, [
     { label: t('New chat'), run: () => openSession({ cwd: path, kind: 'chat' }) },
-    { label: t('New CLI session'), run: () => openSession({ cwd: path, kind: 'terminal' }) },
+    cliOffered() && { label: t('New CLI session'), run: () => openSession({ cwd: path, kind: 'terminal' }) },
     { label: t('New shell'), run: () => openSession({ cwd: path, kind: 'shell' }) },
     '-',
     { label: t('Continue latest conversation'), run: () => openSession({ cwd: path, mode: 'continue' }) },
@@ -362,7 +362,7 @@ export function Sidebar() {
       <button class="new-session" title={t('New session ({key})', { key: SHORTCUTS.newSession })} onClick={() => newChat()}
               onContextMenu={(e) => openContextMenu(e, [
                 { label: t('New chat'), run: () => newChat('chat') },
-                { label: t('New CLI session'), run: () => newChat('terminal') },
+                cliOffered() && { label: t('New CLI session'), run: () => newChat('terminal') },
                 { label: t('New shell'), run: () => newChat('shell') },
                 '-',
                 { label: t('More options…'), run: () => { newSessionDialog.value = {}; } },

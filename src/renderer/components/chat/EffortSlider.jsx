@@ -8,6 +8,8 @@ import { t, phrase } from '../../lib/i18n.js';
 // English, as phrases: shown with t().
 const LEVELS = {
   '': { label: phrase('Auto'), hint: phrase('The model’s default effort') },
+  off: { label: phrase('Off'), hint: phrase('No thinking, the quickest answers') }, // DeepSeek's
+  minimal: { label: phrase('Minimal'), hint: phrase('A brief thought before answering') }, // some custom providers'
   low: { label: phrase('Low'), hint: phrase('Fastest, least thinking') },
   medium: { label: phrase('Medium'), hint: phrase('Balanced speed and depth') },
   high: { label: phrase('High'), hint: phrase('Thinks harder on complex work') },
