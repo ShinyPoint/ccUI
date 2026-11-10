@@ -2,7 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { Dialog, Dropdown, Segmented, Icon, SetGroup, SetRow } from '../ui.jsx';
 import { MODE_LABELS } from '../chat/Prompts.jsx';
 import { api, active, settings, newSessionDialog } from '../../lib/store.js';
-import { openSession, dshMode } from '../../lib/sessions.js';
+import { openSession } from '../../lib/sessions.js';
 import { basename, relativeTime, tildify, samePath } from '../../lib/format.js';
 import { t, phrase } from '../../lib/i18n.js';
 import { catalog } from '../../../main/dsh-catalog.mjs';
@@ -49,11 +49,15 @@ function HistoryList({ cwd, value, onChange }) {
 function Form({ prefill }) {
   const s = settings.value;
   const [cwd, setCwd] = useState(prefill.cwd || active.value?.cwd || s.recent?.[0]?.path || '');
-  const dsh = dshMode(); // new chats run on DeepSeek Harness, and there is no CLI
-  const [kind, setKind] = useState((dsh && (prefill.kind || s.defaultKind) === 'terminal') ? 'chat' : prefill.kind || s.defaultKind || 'chat');
+  // 'dsh': a chat on DeepSeek Harness.
+  const [kind, setKind] = useState(prefill.kind || s.defaultKind || 'chat');
+  const dsh = kind === 'dsh';
+  const chat = kind === 'chat' || dsh;
   const [mode, setMode] = useState(prefill.mode || 'new');
   const [resumeId, setResumeId] = useState('');
-  const [model, setModel] = useState((dsh ? s.dshModel : s.defaultModel) || '');
+  const [claudeModel, setClaudeModel] = useState(s.defaultModel || '');
+  const [dshModel, setDshModel] = useState(s.dshModel || '');
+  const [model, setModel] = dsh ? [dshModel, setDshModel] : [claudeModel, setClaudeModel];
   const models = dsh ? dshModelChoices() : MODEL_CHOICES;
   const [permissionMode, setPermissionMode] = useState(s.defaultPermissionMode || 'default');
   const [extraArgs, setExtraArgs] = useState(s.defaultArgs || '');
@@ -68,12 +72,14 @@ function Form({ prefill }) {
     setBusy(true);
     const res = await openSession({
       cwd: cwd.trim(),
-      kind,
+      kind: dsh ? 'chat' : kind,
+      // A conversation picked runs on what it was started with.
+      engine: dsh && mode !== 'resume' ? 'dsh' : undefined,
       mode: claudeKind ? mode : 'new',
       resume: claudeKind && mode === 'resume' ? resumeId : undefined,
       // A resumed conversation keeps the model and permissions it had.
-      model: kind === 'chat' && mode === 'new' ? model : undefined,
-      permissionMode: kind === 'chat' && mode === 'new' ? permissionMode : undefined,
+      model: chat && mode === 'new' ? model : undefined,
+      permissionMode: chat && mode === 'new' ? permissionMode : undefined,
       extraArgs,
     });
     setBusy(false);
@@ -84,7 +90,8 @@ function Form({ prefill }) {
   const pick = (path) => { setCwd(path); setResumeId(''); setError(''); };
   const recent = (s.recent || []).slice(0, 5);
   const note = !claudeKind ? t('Your system shell, without Claude.')
-    : kind === 'chat' && mode !== 'new' ? t('The conversation keeps the model and permissions it had.')
+    : chat && mode !== 'new' ? t('The conversation keeps the model and permissions it had.')
+    : dsh ? t('DeepSeek Harness’s key and models are in Settings → DeepSeek Harness.')
     : kind === 'terminal' ? t('Claude Code’s own command-line interface.') : '';
 
   return (
@@ -123,9 +130,10 @@ function Form({ prefill }) {
         <SetRow label={t('Open as')}>
           <Segmented name="kind" value={kind} onChange={setKind} options={[
             { value: 'chat', label: t('Chat'), title: t('Claude Code in a chat view') },
-            !dsh && { value: 'terminal', label: 'CLI', title: t('Claude Code’s own command-line interface') },
+            { value: 'dsh', label: 'DeepSeek', title: t('DeepSeek Harness in a chat view') },
+            { value: 'terminal', label: 'CLI', title: t('Claude Code’s own command-line interface') },
             { value: 'shell', label: t('Shell'), title: t('Your system shell, without Claude') },
-          ].filter(Boolean)} />
+          ]} />
         </SetRow>
         {claudeKind && (
           <SetRow label={t('Conversation')}>
@@ -142,7 +150,7 @@ function Form({ prefill }) {
               : <p class="ns-empty">{t('Choose a project folder to see its conversations.')}</p>}
           </div>
         )}
-        {kind === 'chat' && mode === 'new' && (
+        {chat && mode === 'new' && (
           <>
             <SetRow label={t('Model')}>
               <Dropdown label={t('Model')} value={model} onChange={setModel}

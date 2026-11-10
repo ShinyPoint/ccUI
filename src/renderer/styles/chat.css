@@ -631,13 +631,6 @@ html.no-thinking-mark .thinking-mark { display: none; }
 .intro-chip > .menu-button:hover, .intro-chip > .menu-button[aria-expanded="true"] { background: var(--hover-bg); box-shadow: var(--hover-shadow); color: var(--text); }
 .intro-chip > .menu-button .icon { color: var(--muted); }
 .intro-chip .menu-text { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Which engine a new chat runs on, when it isn't Claude Code: a label, not a menu. */
-.intro-chip.engine-chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 28px; padding: 0 8px;
-  font: 13px var(--ui); color: var(--text-2);
-}
-.intro-chip.engine-chip .icon { color: var(--muted); }
 .chat-intro .starters { margin-top: 18px; }
 .chat-intro .starters { text-align: left; }
 .starters { display: flex; flex-direction: column; gap: 8px; }

@@ -18,14 +18,13 @@ const STARTUP_GRACE = 5000;
 
 export const displayName = (s) => s.name.value || basename(s.cwd);
 
-// DeepSeek Harness (Settings): its conversations have ids of their own (main/dsh.js), so a resumed one runs on it
-// whatever the setting is now; new chats run on it while the setting is on, and then there is no CLI.
+// DeepSeek Harness: chosen for a new chat over its message box (ChatView's IntroChips) or in New session. Its
+// conversations have ids of their own (main/dsh.js), so a resumed one runs on it. It has no CLI.
 export const isDshId = (id) => /^dsh-/.test(id || '');
-export const dshMode = () => Boolean(settings.value.dshEnabled);
 export const isDsh = (s) => s?.engine === 'dsh';
-// Whether the CLI is offered: for `s` (none: anywhere). Not while DeepSeek Harness is on, nor for its chats.
-export const cliOffered = (s) => !dshMode() && !isDsh(s);
-const engineFor = (resume, engine) => engine || (resume ? (isDshId(resume) ? 'dsh' : 'claude') : dshMode() ? 'dsh' : 'claude');
+// Whether the CLI is offered for `s` (none: anywhere): not for DeepSeek Harness's chats.
+export const cliOffered = (s) => !isDsh(s);
+const engineFor = (resume, engine) => engine || (isDshId(resume) ? 'dsh' : 'claude');
 
 // ---------- status ----------
 const isSeen = (s) => s.uid === activeUid.value && document.hasFocus();
@@ -860,7 +859,17 @@ export async function newChat(kind = 'chat') {
 // Another project chosen for a chat: a new chat there; this one goes if nothing was said, typed or attached in it.
 export async function startChatIn(s, cwd) {
   const unused = s.kind.value === 'chat' && untouched(s, 'chat', s.cwd) && !s.draft.trim() && !s.draftImages.length;
-  const res = await openSession({ cwd, kind: 'chat' });
+  const res = await openSession({ cwd, kind: 'chat', engine: s.engine });
+  if (res.ok && unused && res.session !== s) closeSession(s);
+  return res;
+}
+
+// What a new chat runs on, chosen over its message box: a new chat on the other engine in the same folder; this one
+// goes if nothing was said, typed or attached in it.
+export async function switchEngine(s, engine) {
+  if (s.engine === engine) return { ok: true, session: s };
+  const unused = untouched(s, 'chat', s.cwd) && !s.draft.trim() && !s.draftImages.length;
+  const res = await openSession({ cwd: s.cwd, kind: 'chat', engine });
   if (res.ok && unused && res.session !== s) closeSession(s);
   return res;
 }
@@ -868,8 +877,8 @@ export async function startChatIn(s, cwd) {
 export async function openSession(opts, { activate = true } = {}) {
   let kind = opts.kind || settings.value.defaultKind || 'chat';
   let resume = opts.resume;
-  // A new CLI while DeepSeek Harness is on is a chat on it; a conversation of DeepSeek Harness's is always a chat.
-  if (kind === 'terminal' && (isDshId(resume) || (!resume && !opts.engine && dshMode() && !opts.lazy))) kind = 'chat';
+  // A conversation of DeepSeek Harness's is always a chat.
+  if (kind === 'terminal' && isDshId(resume)) kind = 'chat';
   let engine = kind === 'chat' ? engineFor(resume, opts.engine) : 'claude';
   if (opts.mode === 'continue' && !resume && kind !== 'shell') {
     resume = await latestSessionId(opts.cwd, engine);

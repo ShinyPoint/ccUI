@@ -12,7 +12,7 @@ import { UserItem, TextItem, ThinkingItem, NoticeItem, CommandOutputItem, TurnIt
 import { topLevel, childrenOf, currentActivity, groupTurns, backgroundTasks, answerText } from '../../lib/chat-reducer.js';
 import { api, settings, settingsDialog, findBar, toast, taskDialog } from '../../lib/store.js';
 import { TASK_ICON, taskKindName } from '../dialogs/TaskDialog.jsx';
-import { openInTerminal, retryChat, stopTask, stopAllTasks, dismissSideNote, cliOffered, isDsh } from '../../lib/sessions.js';
+import { openInTerminal, retryChat, stopTask, stopAllTasks, dismissSideNote, cliOffered, isDsh, switchEngine } from '../../lib/sessions.js';
 import { formatCost, formatDuration, pluralize } from '../../lib/format.js';
 import { turnChanges } from '../../lib/diff.js';
 import { openChanges } from '../../lib/side.js';
@@ -213,23 +213,22 @@ function Intro({ onPick }) {
   );
 }
 
-// Over the message box of a new chat: the project (choosing another starts a new chat there) and how the
-// session is shown (choosing CLI continues it in Claude Code's own CLI). A chat on DeepSeek Harness says so instead.
+// Over the message box of a new chat: the project (choosing another starts a new chat there) and what the chat
+// runs on: Claude Code, DeepSeek Harness (a new chat on it, in the same folder), or Claude Code's own CLI
+// (continues this one there; DeepSeek Harness has none).
 function IntroChips({ s }) {
+  const dsh = isDsh(s);
   return (
     <div class="intro-chips">
       <ProjectMenu s={s} chip />
-      {!cliOffered(s) ? (
-        isDsh(s) && <span class="intro-chip engine-chip" title={t('This chat runs on DeepSeek Harness (Settings → DeepSeek Harness)')}>
-          <Icon name="chat" size={15} /><span class="menu-text">DeepSeek</span>
-        </span>
-      ) : <Menu className="intro-chip" title={t('How the session is shown')} up={false} value="chat"
-            label={<><Icon name="chat" size={15} /><span class="menu-text">{t('Chat')}</span></>}
+      <Menu className="intro-chip" title={t('How the session is shown')} up={false} value={dsh ? 'dsh' : 'chat'}
+            label={<><Icon name="chat" size={15} /><span class="menu-text">{dsh ? 'DeepSeek' : t('Chat')}</span></>}
             options={[
               { value: 'chat', label: t('Chat'), hint: t('Claude’s work as a conversation you can read and steer.') },
-              { value: 'terminal', label: 'CLI', hint: t('Claude Code’s own command-line interface.') },
-            ]}
-            onSelect={(kind) => { if (kind === 'terminal') openInTerminal(s); }} />}
+              { value: 'dsh', label: 'DeepSeek', hint: t('DeepSeek Harness, in the same chat view. Its key and models are in Settings.') },
+              cliOffered(s) && { value: 'terminal', label: 'CLI', hint: t('Claude Code’s own command-line interface.') },
+            ].filter(Boolean)}
+            onSelect={(v) => (v === 'terminal' ? openInTerminal(s) : switchEngine(s, v === 'dsh' ? 'dsh' : 'claude'))} />
     </div>
   );
 }

@@ -32,7 +32,6 @@ const DEFAULTS = {
   defaultPermissionMode: 'default',
   defaultEffort: '', // the reasoning effort last chosen, for new sessions ('' = Auto, the model's default)
   defaultArgs: '', // extra CLI arguments for terminal sessions
-  dshEnabled: false, // new chats run on DeepSeek Harness (dsh.js) instead of Claude Code, and there are no CLI sessions
   dshModel: 'deepseek-flash', // the model new DeepSeek Harness chats start with
   dshMirror: '', // where DeepSeek Harness is downloaded from: '' (nodejs.org, npm) | 'npmmirror' (dsh-install.js SOURCES)
   // Model providers of DeepSeek Harness chats (dsh-catalog.mjs): DeepSeek's own address and model list when edited (null:

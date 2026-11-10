@@ -139,26 +139,33 @@ app.on('browser-window-created', (_e, win) => {
       check('its key encrypted apart, never as typed', Boolean(stored.dshKeysEnc?.['custom-relay']) && !JSON.stringify(stored).includes('sk-relay-0000'));
       check('its models can be the default for new chats', (await js("[...document.querySelectorAll('.settings-body .dropdown')].some((d) => d.textContent.includes('DeepSeek V4.1 Flash'))")));
       await shot('1c-providers');
-      await js("document.querySelector('.settings-body .switch input')?.click(); true");
-      await until('the switch on', `JSON.parse(${JSON.stringify('true')}) && document.querySelector('.settings-body .switch input')?.checked`);
-      await wait(300);
-      check('switching it on is saved', JSON.parse(fs.readFileSync(path.join(profile, 'settings.json'), 'utf8')).dshEnabled === true);
-      await click('.settings-nav button', 'General');
-      await wait(300);
-      check('Default session no longer offers the CLI', !(await js("[...document.querySelectorAll('.settings-body .segmented label')].some((l) => l.textContent === 'CLI')")));
+      check('Settings has no switch for it: it is chosen per chat', !(await js("Boolean(document.querySelector('.settings-body > .set-group .switch'))")));
       await click('.settings-head button', 'Done');
       await wait(500);
 
-      // No CLI anywhere
-      check('New session’s menu has no CLI', !(await contextItems('#sidebar button.new-session')).some((x) => /CLI/.test(x)));
-
-      // A new chat on it
+      // A new chat is Claude Code's; DeepSeek is chosen over its message box, which starts a chat on it instead.
       await js("document.querySelector('#sidebar button.new-session').click(); true");
       await until('a new chat', "Boolean(document.querySelector('.chat.empty .chat-composer'))");
       await wait(900);
+      check('a new chat starts on Claude Code', starts.length > 0 && !starts.at(-1).Session);
+      const engineMenu = ".intro-chips .menu-button[title=\"How the session is shown\"]";
+      await js(`document.querySelector(${JSON.stringify(engineMenu)}).click(); true`);
+      await wait(400);
+      const choices = JSON.parse(await js("JSON.stringify([...document.querySelectorAll('.intro-chips [role=option] .menu-label')].map((o) => o.textContent))"));
+      check('the chat menu over the message box offers DeepSeek', JSON.stringify(choices) === '["Chat","DeepSeek","CLI"]', JSON.stringify(choices));
+      await shot('2a-engine-menu');
+      await click('.intro-chips [role=option]', 'DeepSeek');
+      await until('the DeepSeek chat', "/DeepSeek/.test(document.querySelector('.intro-chips')?.textContent || '')", 8000);
+      await wait(900);
       const started = starts.at(-1);
-      check('a new chat starts on DeepSeek Harness, with its model', Boolean(started?.Session) && started.model === 'deepseek-flash', JSON.stringify({ model: started?.model, engine: started?.engine }));
-      check('it says so over the message box, with no CLI choice', await js("document.querySelector('.intro-chips')?.textContent.includes('DeepSeek') && !document.querySelector('.intro-chips .menu-button[title=\"How the session is shown\"]')"));
+      check('choosing it starts the chat on DeepSeek Harness, with its model', Boolean(started?.Session) && started.model === 'deepseek-flash', JSON.stringify({ model: started?.model, engine: started?.engine }));
+      check('in place of the empty Claude Code chat', (await js("document.querySelectorAll('#sidebar .session').length")) === 1);
+      await js(`document.querySelector(${JSON.stringify(engineMenu)}).click(); true`);
+      await wait(400);
+      const dshChoices = JSON.parse(await js("JSON.stringify([...document.querySelectorAll('.intro-chips [role=option] .menu-label')].map((o) => o.textContent))"));
+      await js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true");
+      await wait(300);
+      check('there it offers Chat back, and no CLI', JSON.stringify(dshChoices) === '["Chat","DeepSeek"]', JSON.stringify(dshChoices));
       check('the top bar has no CLI button', !(await js("[...document.querySelectorAll('.topbar-actions .text-btn')].some((b) => b.textContent.includes('CLI'))")));
       await shot('2-new-chat');
       await js("document.querySelector('.model-menu .menu-button').click(); true");
@@ -202,17 +209,8 @@ app.on('browser-window-created', (_e, win) => {
       const saved = JSON.parse(fs.readFileSync(path.join(profile, 'settings.json'), 'utf8'));
       check('the open session is remembered as a DeepSeek Harness chat', saved.lastSessions?.some((x) => x.engine === 'dsh' && /^dsh-/.test(x.sessionId || '')), JSON.stringify(saved.lastSessions));
 
-      // Off again: new chats are Claude Code's, and the CLI comes back; the DeepSeek chat stays on DeepSeek.
-      await click('.sidebar-bottom button', 'Settings');
-      await until('Settings', "Boolean(document.querySelector('.settings-nav'))");
-      await click('.settings-nav button', 'DeepSeek Harness');
-      await wait(300);
-      await js("document.querySelector('.settings-body .switch input')?.click(); true");
-      await wait(300);
-      await click('.settings-head button', 'Done');
-      await wait(400);
-      check('switched off, the CLI is offered again', (await contextItems('#sidebar button.new-session')).some((x) => /New CLI session/.test(x)));
-      check('but not for the DeepSeek chat', !(await contextItems('#sidebar .session')).some((x) => /CLI/.test(x)));
+      // The CLI stays on offer for Claude Code's sessions.
+      check('New session still offers the CLI', (await contextItems('#sidebar button.new-session')).some((x) => /New CLI session/.test(x)));
 
       // Removing the custom provider asks first, then takes its key too.
       await click('.sidebar-bottom button', 'Settings');

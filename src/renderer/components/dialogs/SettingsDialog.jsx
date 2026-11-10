@@ -341,12 +341,12 @@ function General() {
       </Group>
       <Group title={t('New sessions')}>
         <Row label={t('Default session')} note={t('What a project’s + opens')}>
-          <Segmented name="defaultKind" value={s.dshEnabled && s.defaultKind === 'terminal' ? 'chat' : s.defaultKind}
+          <Segmented name="defaultKind" value={s.defaultKind}
                      onChange={(v) => saveSettings({ defaultKind: v })} options={[
             { value: 'chat', label: t('Chat') },
-            !s.dshEnabled && { value: 'terminal', label: 'CLI' },
+            { value: 'terminal', label: 'CLI' },
             { value: 'shell', label: t('Shell') },
-          ].filter(Boolean)} />
+          ]} />
         </Row>
         <Row label={t('Model')}>
           <Dropdown label={t('Model')} value={s.defaultModel} onChange={(v) => saveSettings({ defaultModel: v })}
@@ -524,15 +524,7 @@ function DeepSeek({ focusKey }) {
   );
   return (
     <>
-      <Group>
-        <Row label={t('Use DeepSeek Harness')}
-             note={t('New chats run on DeepSeek Harness instead of Claude Code, and the CLI is not offered. Open chats keep their engine; conversations of either kind stay listed.')}>
-          <Switch label={t('Use DeepSeek Harness')} checked={Boolean(s.dshEnabled)} onChange={(on) => {
-            saveSettings({ dshEnabled: on, ...(on && s.defaultKind === 'terminal' ? { defaultKind: 'chat' } : {}) });
-            if (on && u.state === 'absent') api.dshInstall.run(); // now, rather than while the first chat waits for it
-          }} />
-        </Row>
-      </Group>
+      <p class="set-para">{t('A new chat runs on DeepSeek Harness when you choose DeepSeek over its message box, or in New session.')}</p>
       <ModelProviders startOpen={focusKey ? OFFICIAL : null} />
       <p class="set-para providers-key-note">{keyNote}</p>
       <Group title={t('New chats')}>
